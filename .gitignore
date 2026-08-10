@@ -1,0 +1,21 @@
+node_modules/
+dist/
+tmp/
+*.tsbuildinfo
+.env*
+!.env.example
+
+
+# Local source/reference material - not part of the deployable website
+*.pdf
+*.doc
+*.docx
+*.ai
+Logo and Theme/
+
+# Firebase/Vite/local development artifacts
+yt/
+firebase-debug.log
+*.log
+
+.firebase/
