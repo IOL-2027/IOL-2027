@@ -4,7 +4,7 @@ import { event, schedule, venues } from './siteData'
 
 const nav = [
   ['Home', '/'], ['About', '/about'], ['Thailand', '/thailand'], ['Programme', '/programme'],
-  ['Explore', '/explore'], ['People', '/people'], ['News', '/news'], ['Registration', '/registration'],
+  ['Explore', '/explore'], ['Sponsors', '/sponsors'], ['People', '/people'], ['News', '/news'], ['Registration', '/registration'], ['Contact', '/contact'],
 ]
 
 function LinkButton({ href, children, light = false }: { href: string; children: React.ReactNode; light?: boolean }) {
@@ -26,10 +26,10 @@ function SponsorCarousel() {
   const sponsor = sponsors[active]
   return <section className="sponsor-carousel wrap" aria-label="IOL 2027 sponsors">
     <div className="sponsor-heading"><p className="eyebrow">With support from</p><h2>Supporting the minds<br /><em>that solve tomorrow’s puzzles.</em></h2><p className="sponsor-counter">0{active + 1} / 0{sponsors.length}</p></div>
-    <button className={`sponsor-slide ${sponsor.className}`} onClick={() => setActive((active + 1) % sponsors.length)} aria-label={`View next sponsor. Current sponsor: ${sponsor.name}`}>
+    <div className={`sponsor-slide ${sponsor.className}`} onClick={() => setActive((active + 1) % sponsors.length)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setActive((active + 1) % sponsors.length) }} role="button" tabIndex={0} aria-label={`View next sponsor. Current sponsor: ${sponsor.name}`}>
       <div className="sponsor-copy"><span className="system-label">{sponsor.eyebrow}</span><h3>{sponsor.name}</h3><p>{sponsor.description}</p><span className="sponsor-next">Click to continue <ArrowRight size={16} /></span></div>
-      <div className="sponsor-logo"><img src={sponsor.image} alt={`${sponsor.name} logo`} /></div>
-    </button>
+      <div className="sponsor-logo"><img src={sponsor.image} alt={`${sponsor.name} logo`} /></div><a className="sponsor-profile-link" href="/sponsors" onClick={(event) => event.stopPropagation()}>View sponsor profile <ArrowRight size={15} /></a>
+    </div>
     <div className="sponsor-dots">{sponsors.map((item, index) => <button key={item.name} className={index === active ? 'active' : ''} onClick={() => setActive(index)} aria-label={`Show ${item.name}`} />)}</div>
   </section>
 }
@@ -56,7 +56,7 @@ function Footer() {
       <div className="footer-sponsor-logos"><div><img src="/assets/sponsor-posn-v2.png" alt="POSN" /><span>POSN</span></div><div><img src="/assets/sponsor-chula.png" alt="Chulalongkorn University" /><span>Chulalongkorn University</span></div><div><img src="/assets/sponsor-kasetsart.png" alt="Kasetsart University" /><span>Kasetsart University</span></div></div>
     </section>
     <div><img src="/assets/iol-mark.png" alt="IOL 2027 mark" /><p>{event.name}<br />{event.dates} · {event.city}</p></div>
-    <div className="footer-links"><a href="/about">About IOL</a><a href="/programme">Programme</a><a href="/registration">Registration</a><a href="/resources">Sources & notes</a></div>
+    <div className="footer-links"><a href="/about">About IOL</a><a href="/programme">Programme</a><a href="/sponsors">Sponsors</a><a href="/registration">Registration</a><a href="/contact">Contact</a><a href="/resources">Sources & notes</a></div><a className="footer-email" href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a>
     <p className="fineprint">Official preview · Content will continue to be confirmed by the Local Organising Committee.</p>
   </footer>
 }
@@ -135,6 +135,9 @@ function People() {
   return <><PageIntro eyebrow="People" title="Built by many kinds of minds." body="The Olympiad is made possible by a Local Organising Committee, the international IOL Board, the Problem Committee and Jury, team leaders, volunteers and partners." /><section className="role-list wrap">{['Local Organising Committee', 'Problem Committee & Jury', 'Team leaders', 'International & local volunteers'].map((x, i) => <article key={x}><span>0{i + 1}</span><h2>{x}</h2><p>{i === 0 ? 'Plans and delivers the host programme in Thailand.' : i === 1 ? 'Creates, translates, marks and stewards the competition.' : i === 2 ? 'Guide each national delegation and bridge communication throughout the week.' : 'Welcome delegations and keep every movement of the event connected.'}</p></article>)}</section><section className="pending"><p className="eyebrow">Roster update</p><h2>Named committee and jury profiles will be published after official confirmation.</h2></section></>
 }
 
+function Sponsors() {
+  return <><PageIntro eyebrow="Partners & sponsors" title="The people behind the possibility." body="IOL 2027 is made possible by organisations that invest in curiosity, education and the young people who will solve tomorrow’s puzzles." /><section className="sponsor-detail-list wrap">{sponsors.map((sponsor, index) => <article className={`sponsor-detail ${sponsor.className}`} key={sponsor.name}><div className="sponsor-detail-logo"><img src={sponsor.image} alt={`${sponsor.name} logo`} /></div><div><span className="system-label">{sponsor.eyebrow}</span><h2>{sponsor.name}</h2><p>{sponsor.description}</p><p className="sponsor-detail-note">{index === 0 ? 'POSN helps create pathways for talented students through academic Olympiads and science education across Thailand.' : index === 1 ? 'Chulalongkorn University contributes an exceptional academic setting in the heart of Bangkok and hosts key moments of the Olympiad programme.' : 'Kasetsart University brings a culture of discovery, research and education to the opening of IOL 2027 in Thailand.'}</p></div></article>)}</section><section className="sponsor-thanks"><p className="eyebrow">With gratitude</p><h2>Thank you for helping young minds look closer.</h2><a className="text-link" href="mailto:iol2027.th@gmail.com">Partner with the organising team <ArrowRight size={16} /></a></section></>
+}
 function News() {
   return <><PageIntro eyebrow="News & updates" title="The signal starts here." body="Major announcements will also be shared through official IOL communication channels. This page will remain the chronological public record." /><section className="news-list wrap"><article><time>JUL · 2026</time><div><span>WEBSITE</span><h2>First look: IOL 2027 Thailand</h2><p>The first information site and visual direction are now in preview. Dates, venue planning and programme structure are being prepared for public release.</p></div></article><article><time>NEXT</time><div><span>COMING UP</span><h2>Limited site release</h2><p>Confirmed organising information, important dates and registration guidance will be added in stages.</p></div></article></section></>
 }
@@ -147,12 +150,15 @@ function Resources() {
   return <><PageIntro eyebrow="Sources & editorial notes" title="What is confirmed—and what is still moving." body="This preview is based on the official project requirements, the IOL Host’s Handbook, the working venue proposal and the complete IOL 2027 identity package supplied to the web team." /><section className="source-list wrap"><article><span>EVENT FORMAT</span><h2>IOL Host’s Handbook, second edition</h2><p>Used for the competition format, team structure, eight-day pattern and public information requirements.</p></article><article><span>LOCAL PLAN</span><h2>IOL 2027 venue proposal</h2><p>Used for dates, accommodation, universities and the working daily programme.</p></article><article><span>WEB REQUIREMENTS</span><h2>IOL 2027 website specification</h2><p>Used for the information architecture, content phases, conventional navigation and registration placeholder.</p></article><article><span>VISUAL IDENTITY</span><h2>Official logo package</h2><p>All supplied PDF, Illustrator, colour, monochrome and raster logo files informed the palette, mark usage and visual language.</p></article></section></>
 }
 
+function Contact() {
+  return <><PageIntro eyebrow="Contact" title="Let’s keep the signal clear." body="For questions about IOL 2027, sponsorship, programme information or future announcements, contact the Local Organising Committee." /><section className="contact-panel wrap"><div><p className="eyebrow">Central contact</p><a className="contact-email" href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a></div><div className="prose"><p>We will continue to publish confirmed information here as planning progresses. Registration is not open yet; please use the central contact email for official enquiries in the meantime.</p><a className="pill" href="mailto:iol2027.th@gmail.com?subject=IOL%202027%20enquiry">Send an enquiry <span><ArrowRight size={16} /></span></a></div></section></>
+}
 function NotFound() { return <><PageIntro eyebrow="404" title="That signal was lost." body="The page may have moved, or it has not been published yet." /><div className="wrap"><LinkButton href="/">Return home</LinkButton></div></> }
 
 function App() {
   useEffect(() => { window.scrollTo(0, 0) }, [])
   const path = window.location.pathname.replace(/\/$/, '') || '/'
-  const pages: Record<string, React.ReactElement> = { '/': <Home />, '/about': <About />, '/thailand': <Thailand />, '/programme': <Programme />, '/explore': <Explore />, '/people': <People />, '/news': <News />, '/registration': <Registration />, '/resources': <Resources /> }
+  const pages: Record<string, React.ReactElement> = { '/': <Home />, '/about': <About />, '/thailand': <Thailand />, '/programme': <Programme />, '/explore': <Explore />, '/sponsors': <Sponsors />, '/people': <People />, '/news': <News />, '/registration': <Registration />, '/contact': <Contact />, '/resources': <Resources /> }
   const isRegistration = path === '/registration'
   return <div className="app"><Header /><main>{pages[path] || <NotFound />}</main>{!isRegistration && <Footer />}</div>
 }
