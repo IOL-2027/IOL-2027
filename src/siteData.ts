@@ -3,6 +3,7 @@ export const event = {
   shortName: 'IOL 2027',
   dates: '21–28 July 2027',
   city: 'Bangkok, Thailand',
+  openingDate: '2027-07-21T00:00:00+07:00',
 }
 
 export const schedule = [
