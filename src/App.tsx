@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, ChevronRight, ExternalLink, MapPin, Menu, Volume2, X } from 'lucide-react'
+import { ArrowRight, ChevronLeft, ChevronRight, ExternalLink, MapPin, Menu, Volume2, X } from 'lucide-react'
 import { event, schedule, venues } from './siteData'
 
 type NavItem = { label: string; href: string; external?: boolean; children?: { label: string; href: string }[] }
@@ -45,6 +45,20 @@ const newsItems = [
   { date: '12 MAR 2027', tag: 'REGISTRATION', title: 'Early bird registration closes', body: 'The early bird period ends. Regular registration runs from 13 March to 30 April 2027.', image: '/assets/iol-social.jpg' },
 ]
 
+const hotelImages = [
+  { src: '/assets/mandarin-hotel.jpg', alt: 'Mandarin Hotel Bangkok exterior and surroundings', caption: 'Mandarin Hotel Bangkok' },
+  { src: '/assets/hotel-gallery/01-lobby-atrium.jpg', alt: 'Mandarin Hotel Bangkok lobby atrium', caption: 'Lobby atrium' },
+  { src: '/assets/hotel-gallery/02-reception.jpg', alt: 'Mandarin Hotel Bangkok reception counter', caption: 'Reception' },
+  { src: '/assets/hotel-gallery/03-lobby-lounge.jpg', alt: 'Mandarin Hotel Bangkok lobby lounge', caption: 'Lobby lounge' },
+  { src: '/assets/hotel-gallery/04-pool-garden.jpg', alt: 'Mandarin Hotel Bangkok outdoor pool and garden', caption: 'Outdoor pool and garden' },
+  { src: '/assets/hotel-gallery/05-grand-ballroom.jpg', alt: 'Mandarin Hotel Bangkok grand ballroom arranged for a conference', caption: 'Grand ballroom' },
+  { src: '/assets/hotel-gallery/06-ballroom-stage.jpg', alt: 'Mandarin Hotel Bangkok ballroom and stage', caption: 'Ballroom and stage' },
+  { src: '/assets/hotel-gallery/07-ballroom-banquet.jpg', alt: 'Mandarin Hotel Bangkok ballroom event layout', caption: 'Ballroom event space' },
+  { src: '/assets/hotel-gallery/08-conference-hall.jpg', alt: 'Mandarin Hotel Bangkok conference hall', caption: 'Conference hall' },
+  { src: '/assets/hotel-gallery/09-meeting-room.jpg', alt: 'Mandarin Hotel Bangkok meeting room', caption: 'Meeting room' },
+  { src: '/assets/hotel-gallery/10-thai-artwork.jpg', alt: 'Thai-inspired artwork displayed inside Mandarin Hotel Bangkok', caption: 'Thai-inspired hotel artwork' },
+]
+
 const thaiPhrases = [
   { thai: 'สวัสดีครับ / สวัสดีค่ะ', reading: 'sawatdee khráp / sawatdee khâ', meaning: 'Hello' },
   { thai: 'ขอบคุณครับ / ขอบคุณค่ะ', reading: 'khop khun khráp / khop khun khâ', meaning: 'Thank you' },
@@ -61,7 +75,10 @@ const thaiPhrases = [
 ]
 
 function NavLink({ item, className }: { item: NavItem; className?: string }) {
-  return <a className={className} href={item.href} target={item.external ? '_blank' : undefined} rel={item.external ? 'noreferrer' : undefined}>{item.label}{item.external && <ExternalLink size={12} />}</a>
+  const path = window.location.pathname.replace(/\/$/, '') || '/'
+  const matches = (href: string) => href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`)
+  const active = !item.external && (matches(item.href) || Boolean(item.children?.some((child) => matches(child.href))))
+  return <a className={`${className || ''}${active ? ' active' : ''}`.trim()} href={item.href} aria-current={active ? 'page' : undefined} target={item.external ? '_blank' : undefined} rel={item.external ? 'noreferrer' : undefined}>{item.label}{item.external && <ExternalLink size={12} />}</a>
 }
 
 function LinkButton({ href, children, light = false }: { href: string; children: React.ReactNode; light?: boolean }) {
@@ -76,9 +93,9 @@ function Header() {
       <nav className="desktop-nav" aria-label="Main navigation">
         {navigation.map((item) => item.children ? <div className="nav-dropdown" key={item.href}><NavLink item={item} className="nav-parent" /><ChevronRight size={13} /><div className="nav-menu">{item.children.map((child) => <a key={child.href} href={child.href}>{child.label}</a>)}</div></div> : <NavLink key={item.href} item={item} />)}
       </nav>
-      <button className="menu-button" onClick={() => setOpen(!open)} aria-label="Toggle menu">{open ? <X /> : <Menu />}</button>
+      <button className="menu-button" onClick={() => setOpen(!open)} aria-label="Toggle menu" aria-expanded={open} aria-controls="mobile-navigation">{open ? <X /> : <Menu />}</button>
     </header>
-    <div className={`mobile-menu ${open ? 'open' : ''}`}>
+    <div id="mobile-navigation" className={`mobile-menu ${open ? 'open' : ''}`}>
       {navigation.map((item, index) => item.children ? <div className="mobile-nav-group" key={item.href} style={{ '--i': index } as React.CSSProperties}><NavLink item={item} className="mobile-parent" /><div>{item.children.map((child) => <a key={child.href} href={child.href}>{child.label}</a>)}</div></div> : <NavLink key={item.href} item={item} />)}
     </div>
   </>
@@ -97,7 +114,7 @@ function ContentCards({ cards }: { cards: { label: string; title: string; body: 
 }
 
 function SectionLinks({ links }: { links: { href: string; label: string; detail: string }[] }) {
-  return <section className="section-links wrap">{links.map((link, index) => <a key={link.href} href={link.href}><span>0{index + 1}</span><div><h2>{link.label}</h2><p>{link.detail}</p></div><ArrowRight size={21} /></a>)}</section>
+  return <section className="section-links wrap">{links.map((link) => <a key={link.href} href={link.href}><div><h2>{link.label}</h2><p>{link.detail}</p></div><ArrowRight size={21} /></a>)}</section>
 }
 
 function Countdown() {
@@ -116,20 +133,26 @@ function HeroHostedBy() {
 
 function NewsCarousel() {
   const [active, setActive] = useState(0)
-  useEffect(() => { const timer = window.setInterval(() => setActive((current) => (current + 1) % newsItems.length), 6000); return () => window.clearInterval(timer) }, [])
   const item = newsItems[active]
-  return <section className="news-carousel" aria-label="IOL 2027 news"><div className="news-progress" aria-hidden="true"><span key={active} /></div><div className="news-slide" key={item.title}><div className="news-image"><img src={item.image} alt="IOL 2027 news placeholder" /></div><div className="news-copy"><div><span>{item.tag}</span><time>{item.date}</time></div><h2>{item.title}</h2><p>{item.body}</p><div className="news-controls">{newsItems.map((news, index) => <button key={news.title} className={index === active ? 'active' : ''} onClick={() => setActive(index)} aria-label={`Show news item ${index + 1}`} />)}</div></div></div></section>
+  return <section className="news-carousel" aria-label="IOL 2027 news">
+    {active > 0 && <button className="carousel-arrow carousel-arrow-left" type="button" onClick={() => setActive(active - 1)} aria-label="Previous news"><ChevronLeft /></button>}
+    <div className="news-slide" key={item.title}><div className="news-image"><img src={item.image} alt="IOL 2027 news placeholder" /></div><div className="news-copy"><div><span>{item.tag}</span><time>{item.date}</time></div><h2>{item.title}</h2><p>{item.body}</p><div className="news-controls">{newsItems.map((news, index) => <button key={news.title} className={index === active ? 'active' : ''} onClick={() => setActive(index)} aria-label={`Show news item ${index + 1}`} />)}</div></div></div>
+    {active < newsItems.length - 1 && <button className="carousel-arrow carousel-arrow-right" type="button" onClick={() => setActive(active + 1)} aria-label="Next news"><ChevronRight /></button>}
+  </section>
 }
 
 function HostCarousel() {
   const [active, setActive] = useState(0)
-  useEffect(() => { const timer = window.setInterval(() => setActive((current) => (current + 1) % hosts.length), 5000); return () => window.clearInterval(timer) }, [])
   const host = hosts[active]
   return <section className="sponsor-carousel wrap" aria-label="IOL 2027 hosts">
     <div className="sponsor-heading"><p className="eyebrow">Hosted by</p><h2>Three institutions.<br /><em>One shared welcome.</em></h2><p className="sponsor-counter">0{active + 1} / 0{hosts.length}</p></div>
-    <div className={`sponsor-slide ${host.className}`} onClick={() => setActive((active + 1) % hosts.length)} onKeyDown={(key) => { if (key.key === 'Enter' || key.key === ' ') setActive((active + 1) % hosts.length) }} role="button" tabIndex={0} aria-label={`View next host. Current host: ${host.name}`}>
-      <div className="sponsor-copy"><h3>{host.name}</h3><p>{host.description}</p><span className="sponsor-chevron" aria-hidden="true"><ChevronRight size={25} /></span></div>
-      <div className="sponsor-logo"><img src={host.image} alt={`${host.name} logo`} /></div><a className="sponsor-profile-link" href="/hosts" onClick={(event) => event.stopPropagation()}>View all hosts <ArrowRight size={15} /></a>
+    <div className="sponsor-stage">
+      {active > 0 && <button className="carousel-arrow carousel-arrow-left" type="button" onClick={() => setActive(active - 1)} aria-label="Previous host"><ChevronLeft /></button>}
+      <div className={`sponsor-slide ${host.className}`} key={host.name}>
+        <div className="sponsor-copy"><h3>{host.name}</h3><p>{host.description}</p></div>
+        <div className="sponsor-logo"><img src={host.image} alt={`${host.name} logo`} /></div><a className="sponsor-profile-link" href="/hosts">View all hosts <ArrowRight size={15} /></a>
+      </div>
+      {active < hosts.length - 1 && <button className="carousel-arrow carousel-arrow-right" type="button" onClick={() => setActive(active + 1)} aria-label="Next host"><ChevronRight /></button>}
     </div>
     <div className="sponsor-dots">{hosts.map((item, index) => <button key={item.name} className={index === active ? 'active' : ''} onClick={() => setActive(index)} aria-label={`Show ${item.name}`} />)}</div>
   </section>
@@ -137,9 +160,9 @@ function HostCarousel() {
 
 function SponsorPreview({ full = false }: { full?: boolean }) {
   return <section className={`commercial-sponsors wrap ${full ? 'commercial-sponsors-full' : ''}`}>
-    <div className="commercial-heading"><p className="eyebrow">Sponsors</p><h2>Partnership visibility, shown by tier.</h2><p>These fictional companies and logos are layout examples only. They will be replaced by approved sponsor names, logos and benefits.</p></div>
-    <article className="sponsor-tier sponsor-tier-high"><div className="fictional-logo logo-company-a"><span>A</span><strong>COMPANY A</strong></div><div><span>HIGH-TIER SPONSOR / EXAMPLE</span><h3>Company A</h3><p>Primary sponsor placement with a large banner, prominent logo and space for an approved partnership statement.</p></div></article>
-    <div className="sponsor-tier-low-grid"><article className="sponsor-tier sponsor-tier-low"><div className="fictional-logo logo-company-b"><span>B</span><strong>COMPANY B</strong></div><div><span>LOW-TIER / EXAMPLE</span><h3>Company B</h3></div></article><article className="sponsor-tier sponsor-tier-low"><div className="fictional-logo logo-company-c"><span>C</span><strong>COMPANY C</strong></div><div><span>LOW-TIER / EXAMPLE</span><h3>Company C</h3></div></article></div>
+    <div className="commercial-heading"><p className="eyebrow">Sponsors</p><h2>Partners who help make IOL 2027 possible.</h2><p>Our sponsors support the people, spaces and services that bring delegations together in Bangkok. Confirmed partners will be recognised here according to their level of support and contribution to the Olympiad.</p></div>
+    <article className="sponsor-tier sponsor-tier-high"><div className="fictional-logo logo-company-a"><span>A</span><strong>COMPANY A</strong></div><div><span>LEAD SPONSOR</span><h3>Company A</h3><p>Lead sponsors help IOL 2027 welcome international delegations and deliver the programme, venues and participant services that make the Olympiad possible.</p></div></article>
+    <div className="sponsor-tier-low-grid"><article className="sponsor-tier sponsor-tier-low"><div className="fictional-logo logo-company-b"><span>B</span><strong>COMPANY B</strong></div><div><span>SUPPORTING SPONSOR</span><h3>Company B</h3></div></article><article className="sponsor-tier sponsor-tier-low"><div className="fictional-logo logo-company-c"><span>C</span><strong>COMPANY C</strong></div><div><span>SUPPORTING SPONSOR</span><h3>Company C</h3></div></article></div>
     {!full && <LinkButton href="/sponsors">View sponsor opportunities</LinkButton>}
   </section>
 }
@@ -161,9 +184,9 @@ function Home() {
     <section className="statement"><h2>A world championship<br />for <em>thinking in languages.</em></h2><div className="statement-grid"><div className="statement-mark"><img src="/assets/iol-wordmark-transparent.png" alt="International Linguistics Olympiad logo" /></div><div className="statement-copy"><p>The International Linguistics Olympiad brings high-school students together to solve complex puzzles drawn from languages around the world using reasoning, intuition and curiosity rather than prior linguistic knowledge.</p><LinkButton href="/about">Discover the Olympiad</LinkButton></div></div></section>
     <HostCarousel />
     <section className="feature-grid wrap">
-      <article className="feature-card saffron"><span>01 / INDIVIDUAL</span><h3>Five problems.<br />Six hours.</h3><p>Contestants work independently through an exacting set of linguistic puzzles.</p></article>
-      <article className="feature-card plum"><span>02 / TEAM</span><h3>Four minds.<br />One problem.</h3><p>Teams combine perspectives to solve one large-scale challenge together.</p></article>
-      <article className="feature-card jade"><span>03 / BEYOND</span><h3>One shared<br />language: curiosity.</h3><p>Excursions, culture and friendships turn a competition into a global community.</p></article>
+      <article className="feature-card saffron"><span>INDIVIDUAL CONTEST</span><h3>Five problems.<br />Six hours.</h3><p>Contestants work independently through an exacting set of linguistic puzzles.</p></article>
+      <article className="feature-card plum"><span>TEAM CONTEST</span><h3>Four minds.<br />One problem.</h3><p>Teams combine perspectives to solve one large-scale challenge together.</p></article>
+      <article className="feature-card jade"><span>HOST PROGRAMME</span><h3>One shared<br />language: curiosity.</h3><p>Excursions, culture and friendships turn a competition into a global community.</p></article>
     </section>
     <section className="venues-preview wrap"><div className="section-heading"><p className="eyebrow">Across Bangkok</p><h2>Three places.<br />One Olympiad.</h2><LinkButton href="/programme">See venues</LinkButton></div><div className="venue-stack">{venues.map((venue) => <article key={venue.index}><span>{venue.index}</span><div><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small></div></article>)}</div></section>
     <SponsorPreview />
@@ -176,7 +199,7 @@ function About() {
 
 function Thailand() {
   const words = ['สวัสดี', '你好', 'HELLO', 'HALLO', 'こんにちは', 'नमस्ते', 'مرحبا', 'BONJOUR', 'HOLA', 'CIAO', '안녕하세요', 'ΓΕΙΑ ΣΟΥ']
-  return <><PageIntro eyebrow="Host: Thailand" title="The journey begins in Bangkok." body="In 2027, the IOL comes to Thailand, a meeting point of scripts, sounds, histories, neighbourhoods and new ways of seeing." /><section className="word-cloud wrap" aria-label="Greetings in many languages">{words.map((word, index) => <span key={word} className={`word-cloud-${(index % 6) + 1}`}>{word}</span>)}</section><section className="three-notes wrap"><article><span>01</span><h3>Read the city</h3><p>Bangkok links the home base, university campuses, contest rooms, ceremonies and the city programme.</p></article><article><span>02</span><h3>Meet the host culture</h3><p>Excursions, food, cultural programming and everyday encounters give delegations a way to experience Thailand together.</p></article><article><span>03</span><h3>Notice the forms</h3><p>Thai language and script offer a living system whose patterns reward close attention.</p></article></section><section className="experience-grid wrap"><article className="exp-one"><span>DAY 04 / EXCURSION</span><h2>Move beyond the contest room.</h2><p>A shared day to encounter Thailand through place, culture and conversation. The final route will be confirmed by the organising team.</p></article><article className="exp-two"><span>DAY 05 / CITY PROGRAMME</span><h2>Read Bangkok.</h2><p>Campus, neighbourhood, food, river and street life become part of the week-long setting.</p></article><article className="exp-three"><span>DAY 07 / CULTURAL NIGHT</span><h2>Celebrate the community.</h2><p>After solutions, awards and closing, delegations gather for the host culture and friendships that outlast the score.</p></article></section></>
+  return <><PageIntro eyebrow="Host: Thailand" title="The journey begins in Bangkok." body="In 2027, the IOL comes to Thailand, a meeting point of scripts, sounds, histories, neighbourhoods and new ways of seeing." /><section className="word-cloud wrap" aria-label="Greetings in many languages">{words.map((word, index) => <span key={word} className={`word-cloud-${(index % 6) + 1}`}>{word}</span>)}</section><section className="three-notes wrap"><article><h3>Read the city</h3><p>Bangkok links the home base, university campuses, contest rooms, ceremonies and the city programme.</p></article><article><h3>Meet the host culture</h3><p>Excursions, food, cultural programming and everyday encounters give delegations a way to experience Thailand together.</p></article><article><h3>Notice the forms</h3><p>Thai language and script offer a living system whose patterns reward close attention.</p></article></section><section className="experience-grid wrap"><article className="exp-one"><span>DAY 04 / EXCURSION</span><h2>Move beyond the contest room.</h2><p>A shared day to encounter Thailand through place, culture and conversation. The final route will be confirmed by the organising team.</p></article><article className="exp-two"><span>DAY 05 / CITY PROGRAMME</span><h2>Read Bangkok.</h2><p>Campus, neighbourhood, food, river and street life become part of the week-long setting.</p></article><article className="exp-three"><span>DAY 07 / CULTURAL NIGHT</span><h2>Celebrate the community.</h2><p>After solutions, awards and closing, delegations gather for the host culture and friendships that outlast the score.</p></article></section></>
 }
 
 function speakThai(text: string) {
@@ -190,11 +213,11 @@ function speakThai(text: string) {
 
 function ThaiLanguage() {
   const letters = [{ t: 'ก', r: 'ko kai', m: 'chicken' }, { t: 'ข', r: 'kho khai', m: 'egg' }, { t: 'ค', r: 'kho khwai', m: 'buffalo' }, { t: 'ง', r: 'ngo ngu', m: 'snake' }, { t: 'จ', r: 'cho chan', m: 'plate' }, { t: 'ช', r: 'cho chang', m: 'elephant' }]
-  return <><PageIntro eyebrow="Thai language & script" title="A practical pocket phrasebook." body="Listen to useful Thai words and phrases before you arrive, then keep this page close while travelling around Bangkok." /><section className="thai-intro wrap"><div><p className="eyebrow">A quick note</p><h2>Speak gently. Listen closely.</h2></div><div className="prose"><p>Thai is a tonal language. The browser pronunciation button uses the speech voice available on your device, so pronunciation quality may vary. The English readings below are practical approximations.</p><p>Men commonly end polite sentences with <strong>ครับ (khráp)</strong>; women commonly use <strong>ค่ะ (khâ)</strong>.</p></div></section><section className="phrase-grid wrap">{thaiPhrases.map((phrase, index) => <article key={phrase.thai}><span>0{index + 1}</span><h2 lang="th">{phrase.thai}</h2><p className="phrase-reading">{phrase.reading}</p><p>{phrase.meaning}</p><button type="button" onClick={() => speakThai(phrase.thai)} aria-label={`Play Thai pronunciation for ${phrase.meaning}`}><Volume2 size={18} /> Listen</button></article>)}</section><section className="thai-alphabet wrap"><div><p className="eyebrow">Thai script at a glance</p><h2>Letters carry sound, class and character.</h2></div><div className="alphabet-grid">{letters.map((letter) => <article key={letter.t}><strong lang="th">{letter.t}</strong><span>{letter.r}</span><small>{letter.m}</small><button onClick={() => speakThai(letter.t)} aria-label={`Play ${letter.t}`}><Volume2 size={16} /></button></article>)}</div></section></>
+  return <><PageIntro eyebrow="Thai language & script" title="A practical pocket phrasebook." body="Listen to useful Thai words and phrases before you arrive, then keep this page close while travelling around Bangkok." /><section className="thai-intro wrap"><div><p className="eyebrow">A quick note</p><h2>Speak gently. Listen closely.</h2></div><div className="prose"><p>Thai is a tonal language. The browser pronunciation button uses the speech voice available on your device, so pronunciation quality may vary. The English readings below are practical approximations.</p><p>Men commonly end polite sentences with <strong>ครับ (khráp)</strong>; women commonly use <strong>ค่ะ (khâ)</strong>.</p></div></section><section className="phrase-grid wrap">{thaiPhrases.map((phrase) => <article key={phrase.thai}><h2 lang="th">{phrase.thai}</h2><p className="phrase-reading">{phrase.reading}</p><p>{phrase.meaning}</p><button type="button" onClick={() => speakThai(phrase.thai)} aria-label={`Play Thai pronunciation for ${phrase.meaning}`}><Volume2 size={18} /> Listen</button></article>)}</section><section className="thai-alphabet wrap"><div><p className="eyebrow">Thai script at a glance</p><h2>Letters carry sound, class and character.</h2></div><div className="alphabet-grid">{letters.map((letter) => <article key={letter.t}><strong lang="th">{letter.t}</strong><span>{letter.r}</span><small>{letter.m}</small><button onClick={() => speakThai(letter.t)} aria-label={`Play ${letter.t}`}><Volume2 size={16} /></button></article>)}</div></section></>
 }
 
 function Programme() {
-  return <><PageIntro eyebrow="Schedule & venues" title="Eight days in Bangkok." body="The tentative programme runs from 21 to 28 July 2027 across Mandarin Hotel, Kasetsart University, Chulalongkorn University and other programme locations." /><figure className="schedule-artifact wrap"><img src="/assets/iol-2027-schedule.png" alt="Tentative hourly schedule for IOL 2027 from 21 to 28 July" /><figcaption><div><span>TENTATIVE SCHEDULE</span><p>Times and activities may change as the organising team confirms operations.</p></div><a className="pill" href="/downloads/IOL-2027-Schedule.html" target="_blank" rel="noreferrer">Open full schedule <span><ExternalLink size={15} /></span></a></figcaption></figure><section className="timeline wrap">{schedule.map((item, index) => <article key={item.date}><div><span>{item.day}</span><strong>{item.date}</strong></div><h2>{item.title}</h2><p>{item.detail}</p><span className="timeline-no">0{index + 1}</span></article>)}</section><section className="venue-section"><div className="wrap"><p className="eyebrow">Venue plan</p><h2>Bangkok, connected.</h2><div className="venue-cards">{venues.map((venue) => <article key={venue.index}><span>{venue.index}</span><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small></article>)}</div></div></section></>
+  return <><PageIntro eyebrow="Schedule & venues" title="Eight days in Bangkok." body="The tentative programme runs from 21 to 28 July 2027 across Mandarin Hotel, Kasetsart University, Chulalongkorn University and other programme locations." /><figure className="schedule-artifact wrap"><img src="/assets/iol-2027-schedule.png" alt="Tentative hourly schedule for IOL 2027 from 21 to 28 July" /><figcaption><div><span>TENTATIVE SCHEDULE</span><p>Times and activities may change as the organising team confirms operations.</p></div><a className="pill" href="/downloads/IOL-2027-Schedule.html" target="_blank" rel="noreferrer">Open full schedule <span><ExternalLink size={15} /></span></a></figcaption></figure><section className="timeline wrap">{schedule.map((item) => <article key={item.date}><div><span>{item.day}</span><strong>{item.date}</strong></div><h2>{item.title}</h2><p>{item.detail}</p></article>)}</section><section className="venue-section"><div className="wrap"><p className="eyebrow">Venue plan</p><h2>Bangkok, connected.</h2><div className="venue-cards">{venues.map((venue) => <article key={venue.index}><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small></article>)}</div></div></section></>
 }
 
 function Hosts() {
@@ -227,11 +250,13 @@ function EventGuide() {
 }
 
 function Accommodation() {
-  return <><PageIntro eyebrow="Event guide / Accommodation" title="Our home base in Bangkok." body="Mandarin Hotel Bangkok, managed by Centre Point, is the home base for IOL 2027 delegations, jury, volunteers and staff." /><section className="hotel-feature wrap"><figure><img src="/assets/mandarin-hotel.jpg" alt="Mandarin Hotel Bangkok" /><figcaption>Image: Mandarin Hotel Bangkok official website</figcaption></figure><div><p className="eyebrow">Mandarin Hotel Bangkok</p><h2>662 Rama IV Road, Bang Rak, Bangkok 10500</h2><p>Located near MRT Sam Yan and within easy reach of Chulalongkorn University and central Bangkok.</p><div className="hotel-actions"><a className="pill" href="https://www.mandarin-bkk.com/" target="_blank" rel="noreferrer">Hotel website <span><ExternalLink size={16} /></span></a><a className="text-link" href="https://www.google.com/maps/search/?api=1&query=Mandarin+Hotel+Bangkok+662+Rama+IV+Road" target="_blank" rel="noreferrer"><MapPin size={16} /> Open in Google Maps</a></div></div></section><section className="hotel-map wrap"><iframe title="Mandarin Hotel Bangkok location" src="https://www.google.com/maps?q=Mandarin+Hotel+Bangkok+662+Rama+IV+Road&output=embed" loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" /></section></>
+  const [active, setActive] = useState(0)
+  const image = hotelImages[active]
+  return <><PageIntro eyebrow="Event guide / Accommodation" title="Our home base in Bangkok." body="Mandarin Hotel Bangkok, managed by Centre Point, is the home base for IOL 2027 delegations, jury, volunteers and staff." /><section className="hotel-feature wrap"><figure className="hotel-gallery"><div className="hotel-gallery-frame">{active > 0 && <button className="carousel-arrow carousel-arrow-left" type="button" onClick={() => setActive(active - 1)} aria-label="Previous hotel image"><ChevronLeft /></button>}<img key={image.src} src={image.src} alt={image.alt} />{active < hotelImages.length - 1 && <button className="carousel-arrow carousel-arrow-right" type="button" onClick={() => setActive(active + 1)} aria-label="Next hotel image"><ChevronRight /></button>}</div><figcaption><span>{image.caption} · Official Mandarin Hotel Bangkok image</span><span>{active + 1} / {hotelImages.length}</span></figcaption></figure><div><p className="eyebrow">Mandarin Hotel Bangkok</p><h2>662 Rama IV Road, Bang Rak, Bangkok 10500</h2><p>Located near MRT Sam Yan and within easy reach of Chulalongkorn University and central Bangkok.</p><div className="hotel-actions"><a className="pill" href="https://www.mandarin-bkk.com/" target="_blank" rel="noreferrer">Hotel website <span><ExternalLink size={16} /></span></a><a className="text-link" href="https://www.google.com/maps/search/?api=1&query=Mandarin+Hotel+Bangkok+662+Rama+IV+Road" target="_blank" rel="noreferrer"><MapPin size={16} /> Open in Google Maps</a></div></div></section><section className="hotel-map wrap"><iframe title="Mandarin Hotel Bangkok location" src="https://www.google.com/maps?q=Mandarin+Hotel+Bangkok+662+Rama+IV+Road&output=embed" loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" /></section></>
 }
 
 function Transportation() {
-  return <><PageIntro eyebrow="Event guide / Transportation" title="Arrive, move and depart with us." body="Official airport pick-up and drop-off services will be provided at Suvarnabhumi Airport (BKK) and Don Mueang International Airport (DMK) during the designated arrival and departure periods." /><ContentCards cards={[{ label: 'ARRIVAL & DEPARTURE', title: 'Share your flight details.', body: 'Participants will be asked to submit their flight details through the registration system so the organising team can coordinate transportation.' }, { label: 'LOCAL MOVEMENT', title: 'Transfers are provided.', body: 'Transfers between the home base, contest campuses, ceremonies and city programme venues will be provided and coordinated by the organising team.' }]} /></>
+  return <><PageIntro eyebrow="Event guide / Transportation" title="Arrive, move and depart with us." body="Official airport pick-up and drop-off services will be provided at Suvarnabhumi Airport (BKK) and Don Mueang International Airport (DMK) during the designated arrival and departure periods." /><ContentCards cards={[{ label: 'ARRIVAL & DEPARTURE', title: 'Share your flight details.', body: 'Participants will be asked to submit their flight details through the registration system so the organising team can coordinate transportation.' }, { label: 'LOCAL MOVEMENT', title: 'Transfers are provided.', body: 'Transfers between the home base, contest campuses, ceremonies and city programme venues will be provided and coordinated by the organising team.' }]} /><section className="pickup-plan wrap"><div><p className="eyebrow">Airport pick-up service</p><h2>The service timetable will appear here.</h2><p>Pick-up windows, airport meeting points, contact instructions and coach departure times will be published after the transport plan is confirmed.</p></div><div className="pickup-table-wrap"><table className="pickup-table"><caption>Future airport pick-up schedule</caption><thead><tr><th>Airport</th><th>Service period</th><th>Operating hours</th><th>Meeting point</th></tr></thead><tbody><tr><td>BKK / DMK</td><td colSpan={3}>Schedule to be confirmed</td></tr></tbody></table></div></section></>
 }
 
 function ImportantDates() {
@@ -241,7 +266,7 @@ function ImportantDates() {
     { label: 'REGULAR', date: '13 MAR-30 APR', detail: 'Regular registration period.' },
     { label: 'IOL 2027', date: '21-28 JULY', detail: 'The 24th International Linguistics Olympiad in Bangkok.' },
   ]
-  return <><PageIntro eyebrow="About / Important dates" title="Keep the key moments in view." body="Registration dates come from the IOL 2027 fees and important dates notice. Additional deadlines will be added after they are approved." /><section className="date-list wrap">{dates.map((item, index) => <article key={item.label}><span>0{index + 1}</span><div><p>{item.label}</p><h2>{item.date}</h2><small>{item.detail}</small></div></article>)}</section></>
+  return <><PageIntro eyebrow="About / Important dates" title="Keep the key moments in view." body="Registration dates come from the IOL 2027 fees and important dates notice. Additional deadlines will be added after they are approved." /><section className="date-list wrap">{dates.map((item) => <article key={item.label}><div><p>{item.label}</p><h2>{item.date}</h2><small>{item.detail}</small></div></article>)}</section></>
 }
 
 function Guidebook() {
@@ -249,7 +274,7 @@ function Guidebook() {
 }
 
 function Gallery() {
-  return <><PageIntro eyebrow="Gallery" title="The week in pictures." body="The gallery will become a living record of the contest, host programme and people who make IOL feel like a community." /><section className="gallery-grid wrap">{['Opening', 'Contest rooms', 'Bangkok', 'Cultural night', 'Awards', 'Friends'].map((label, index) => <article key={label} className={`gallery-tile gallery-${index + 1}`}><span>0{index + 1}</span><h2>{label}</h2><small>Event photographs will be added after the July 2027 programme.</small></article>)}</section></>
+  return <><PageIntro eyebrow="Gallery" title="The week in pictures." body="The gallery will become a living record of the contest, host programme and people who make IOL feel like a community." /><section className="gallery-grid wrap">{['Opening', 'Contest rooms', 'Bangkok', 'Cultural night', 'Awards', 'Friends'].map((label, index) => <article key={label} className={`gallery-tile gallery-${index + 1}`}><h2>{label}</h2><small>Event photographs will be added after the July 2027 programme.</small></article>)}</section></>
 }
 
 function People() {
