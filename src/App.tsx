@@ -118,7 +118,7 @@ function NewsCarousel() {
   const [active, setActive] = useState(0)
   useEffect(() => { const timer = window.setInterval(() => setActive((current) => (current + 1) % newsItems.length), 6000); return () => window.clearInterval(timer) }, [])
   const item = newsItems[active]
-  return <section className="news-carousel" aria-label="IOL 2027 news"><div className="news-image"><img src={item.image} alt="IOL 2027 news placeholder" /></div><div className="news-copy"><div><span>{item.tag}</span><time>{item.date}</time></div><h2>{item.title}</h2><p>{item.body}</p><div className="news-controls">{newsItems.map((news, index) => <button key={news.title} className={index === active ? 'active' : ''} onClick={() => setActive(index)} aria-label={`Show news item ${index + 1}`} />)}</div></div></section>
+  return <section className="news-carousel" aria-label="IOL 2027 news"><div className="news-progress" aria-hidden="true"><span key={active} /></div><div className="news-slide" key={item.title}><div className="news-image"><img src={item.image} alt="IOL 2027 news placeholder" /></div><div className="news-copy"><div><span>{item.tag}</span><time>{item.date}</time></div><h2>{item.title}</h2><p>{item.body}</p><div className="news-controls">{newsItems.map((news, index) => <button key={news.title} className={index === active ? 'active' : ''} onClick={() => setActive(index)} aria-label={`Show news item ${index + 1}`} />)}</div></div></div></section>
 }
 
 function HostCarousel() {
@@ -128,7 +128,7 @@ function HostCarousel() {
   return <section className="sponsor-carousel wrap" aria-label="IOL 2027 hosts">
     <div className="sponsor-heading"><p className="eyebrow">Hosted by</p><h2>Three institutions.<br /><em>One shared welcome.</em></h2><p className="sponsor-counter">0{active + 1} / 0{hosts.length}</p></div>
     <div className={`sponsor-slide ${host.className}`} onClick={() => setActive((active + 1) % hosts.length)} onKeyDown={(key) => { if (key.key === 'Enter' || key.key === ' ') setActive((active + 1) % hosts.length) }} role="button" tabIndex={0} aria-label={`View next host. Current host: ${host.name}`}>
-      <div className="sponsor-copy"><span className="system-label">{host.eyebrow}</span><h3>{host.name}</h3><p>{host.description}</p><span className="sponsor-next">Next host <ArrowRight size={16} /></span></div>
+      <div className="sponsor-copy"><h3>{host.name}</h3><p>{host.description}</p><span className="sponsor-chevron" aria-hidden="true"><ChevronRight size={25} /></span></div>
       <div className="sponsor-logo"><img src={host.image} alt={`${host.name} logo`} /></div><a className="sponsor-profile-link" href="/hosts" onClick={(event) => event.stopPropagation()}>View all hosts <ArrowRight size={15} /></a>
     </div>
     <div className="sponsor-dots">{hosts.map((item, index) => <button key={item.name} className={index === active ? 'active' : ''} onClick={() => setActive(index)} aria-label={`Show ${item.name}`} />)}</div>
@@ -150,7 +150,7 @@ function Home() {
       <div className="orbit orbit-one" /><div className="orbit orbit-two" />
       <div className="hero-copy">
         <div className="hero-kicker"><p className="system-label">[ BANGKOK · THAILAND · 2027 ]</p><HeroHostedBy /></div>
-        <h1>THE 24TH<br />INTERNATIONAL<br />LINGUISTICS OLYMPIAD</h1>
+        <h1><span className="hero-title-small">THE 24TH</span><span className="hero-title-serif">INTERNATIONAL</span><span className="hero-title-main">LINGUISTICS OLYMPIAD</span></h1>
         <p className="hero-deck">Eight days. Two contests. Dozens of languages and hundreds of ways to see the world differently.</p>
         <div className="hero-actions"><LinkButton href="/programme" light>View the programme</LinkButton><a href="/registration" className="text-link">Registration preview <ChevronRight size={16} /></a></div>
         <div className="hero-event-row"><Countdown /><div className="hero-event-place"><strong>21-28 JULY 2027</strong><span>BANGKOK, THAILAND</span></div></div>
@@ -158,7 +158,7 @@ function Home() {
       <div className="hero-mark"><img src="/assets/iol-mark.png" alt="Official IOL 2027 Thailand mark" /></div>
     </section>
     <NewsCarousel />
-    <section className="statement"><p className="eyebrow">Meet IOL 2027</p><h2>A world championship<br />for <em>thinking in languages.</em></h2><div className="statement-grid"><p>The International Linguistics Olympiad brings high-school students together to solve complex puzzles drawn from languages around the world using reasoning, intuition and curiosity rather than prior linguistic knowledge.</p><LinkButton href="/about">Discover the Olympiad</LinkButton></div></section>
+    <section className="statement"><h2>A world championship<br />for <em>thinking in languages.</em></h2><div className="statement-grid"><div className="statement-mark"><img src="/assets/iol-wordmark-transparent.png" alt="International Linguistics Olympiad logo" /></div><div className="statement-copy"><p>The International Linguistics Olympiad brings high-school students together to solve complex puzzles drawn from languages around the world using reasoning, intuition and curiosity rather than prior linguistic knowledge.</p><LinkButton href="/about">Discover the Olympiad</LinkButton></div></div></section>
     <HostCarousel />
     <section className="feature-grid wrap">
       <article className="feature-card saffron"><span>01 / INDIVIDUAL</span><h3>Five problems.<br />Six hours.</h3><p>Contestants work independently through an exacting set of linguistic puzzles.</p></article>
@@ -198,7 +198,7 @@ function Programme() {
 }
 
 function Hosts() {
-  return <><PageIntro eyebrow="Hosts" title="A shared welcome from Thailand." body="IOL 2027 is hosted by organisations that bring together academic Olympiad experience, education, research and Bangkok's university community." /><section className="sponsor-detail-list wrap">{hosts.map((host, index) => <article className={`sponsor-detail ${host.className}`} key={host.name}><div className="sponsor-detail-logo"><img src={host.image} alt={`${host.name} logo`} /></div><div><span className="system-label">{host.eyebrow}</span><h2>{host.name}</h2><p>{host.description}</p><p className="sponsor-detail-note">{index === 0 ? 'POSN supports Thailand academic Olympiads and the development of young talent.' : index === 1 ? 'Chulalongkorn University hosts the contests, solution presentations, closing ceremony and cultural night.' : 'Kasetsart University welcomes delegations for the opening ceremony.'}</p></div></article>)}</section></>
+  return <><PageIntro eyebrow="Hosts" title="A shared welcome from Thailand." body="IOL 2027 is hosted by organisations that bring together academic Olympiad experience, education, research and Bangkok's university community." /><section className="sponsor-detail-list wrap">{hosts.map((host, index) => <article className={`sponsor-detail ${host.className}`} key={host.name}><div className="sponsor-detail-logo"><img src={host.image} alt={`${host.name} logo`} /></div><div><h2>{host.name}</h2><p>{host.description}</p><p className="sponsor-detail-note">{index === 0 ? 'POSN supports Thailand academic Olympiads and the development of young talent.' : index === 1 ? 'Chulalongkorn University hosts the contests, solution presentations, closing ceremony and cultural night.' : 'Kasetsart University welcomes delegations for the opening ceremony.'}</p></div></article>)}</section></>
 }
 
 function Sponsors() {
