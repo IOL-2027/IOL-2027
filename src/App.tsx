@@ -164,6 +164,12 @@ function SponsorPreview({ full = false }: { full?: boolean }) {
     { letter: 'B', name: 'Company B', logoClass: 'logo-company-b' },
     { letter: 'C', name: 'Company C', logoClass: 'logo-company-c' },
   ]
+  const supportingSponsors = [
+    { letter: 'A', name: 'Supporting Company A', logoClass: 'logo-company-a' },
+    { letter: 'B', name: 'Supporting Company B', logoClass: 'logo-company-b' },
+    { letter: 'C', name: 'Supporting Company C', logoClass: 'logo-company-c' },
+    { letter: 'D', name: 'Supporting Company D', logoClass: 'logo-company-d' },
+  ]
   return <section className={`commercial-sponsors wrap ${full ? 'commercial-sponsors-full' : 'commercial-sponsors-home'}`}>
     <div className="sponsor-tier-heading"><p className="eyebrow">Lead sponsors</p><h2>Principal partners of IOL 2027.</h2><p>Lead sponsors provide major support for the programme, venues and participant experience. Every confirmed partner at this level receives the same prominent placement.</p></div>
     <div className="lead-sponsor-list">{leadSponsors.map((sponsor) => <article className="lead-sponsor-card" key={sponsor.name}>
@@ -171,8 +177,12 @@ function SponsorPreview({ full = false }: { full?: boolean }) {
       <div className="lead-sponsor-content"><span>LEAD SPONSOR</span><h3>{sponsor.name}</h3><p>{sponsor.name} helps IOL 2027 welcome international delegations and deliver the spaces, services and shared experiences that make the Olympiad possible.</p></div>
       <dl className="sponsor-placement-specs"><div><dt>Logo display area</dt><dd>320 × 180 px</dd></div><div><dt>Feature banner</dt><dd>1600 × 500 px</dd></div><div><dt>Description</dt><dd>Up to 80 words</dd></div></dl>
     </article>)}</div>
-    {full && <><div className="supporting-sponsor-heading"><p className="eyebrow">Supporting sponsors</p><h2>Additional partners, recognised together.</h2></div>
-    <div className="sponsor-tier-low-grid"><article className="sponsor-tier sponsor-tier-low"><div className="fictional-logo logo-company-d"><span>D</span><strong>COMPANY D</strong></div><div><span>SUPPORTING SPONSOR</span><h3>Company D</h3></div></article><article className="sponsor-tier sponsor-tier-low"><div className="fictional-logo logo-company-e"><span>E</span><strong>COMPANY E</strong></div><div><span>SUPPORTING SPONSOR</span><h3>Company E</h3></div></article></div></>}
+    <div className="supporting-sponsor-heading"><p className="eyebrow">Supporting sponsors</p><h2>Additional partners, recognised together.</h2><p>Supporting sponsors strengthen the services and activities that help delegations enjoy a welcoming, well-organised Olympiad week.</p></div>
+    <div className="supporting-sponsor-grid">{supportingSponsors.map((sponsor) => <article className="supporting-sponsor-card" key={sponsor.name}>
+      <div className={`fictional-logo ${sponsor.logoClass}`}><span>{sponsor.letter}</span><strong>{sponsor.name.toUpperCase()}</strong></div>
+      <div className="supporting-sponsor-content"><span>SUPPORTING SPONSOR</span><h3>{sponsor.name}</h3><p>{sponsor.name} supports the participant services and shared programme that bring the IOL community together in Bangkok.</p></div>
+      <dl className="sponsor-placement-specs supporting-placement-specs"><div><dt>Logo display area</dt><dd>220 × 120 px</dd></div><div><dt>Feature banner</dt><dd>1200 × 300 px</dd></div><div><dt>Description</dt><dd>Up to 40 words</dd></div></dl>
+    </article>)}</div>
     {!full && <LinkButton href="/sponsors">View sponsor opportunities</LinkButton>}
   </section>
 }
