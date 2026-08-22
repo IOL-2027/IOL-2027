@@ -8,7 +8,7 @@ const navigation: NavItem[] = [
   { label: 'Home', href: '/' },
   { label: 'About', href: '/about', children: [
     { label: 'Host: Thailand', href: '/about/thailand' },
-    { label: 'Thai language', href: '/about/thai-language' },
+    { label: 'Useful Thai', href: '/about/thai-language' },
     { label: 'Important dates', href: '/about/important-dates' },
   ] },
   { label: 'Hosts', href: '/hosts' },
@@ -105,8 +105,8 @@ function Footer() {
   return <footer className="site-footer"><a className="footer-identity" href="/"><img src="/assets/iol-mark.png" alt="IOL 2027 mark" /><span><strong>IOL 2027</strong>{event.dates}<br />{event.city}</span></a><nav className="footer-links" aria-label="Footer navigation">{navigation.map((item) => <NavLink key={item.href} item={item} />)}</nav></footer>
 }
 
-function PageIntro({ eyebrow, title, body }: { eyebrow: string; title: string; body: string }) {
-  return <section className="page-intro grain"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p className="lede">{body}</p></section>
+function PageIntro({ eyebrow, title, body }: { eyebrow?: string; title: string; body: string }) {
+  return <section className="page-intro grain">{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h1>{title}</h1><p className="lede">{body}</p></section>
 }
 
 function ContentCards({ cards }: { cards: { label: string; title: string; body: string }[] }) {
@@ -159,10 +159,20 @@ function HostCarousel() {
 }
 
 function SponsorPreview({ full = false }: { full?: boolean }) {
-  return <section className={`commercial-sponsors wrap ${full ? 'commercial-sponsors-full' : ''}`}>
-    <div className="commercial-heading"><p className="eyebrow">Sponsors</p><h2>Partners who help make IOL 2027 possible.</h2><p>Our sponsors support the people, spaces and services that bring delegations together in Bangkok. Confirmed partners will be recognised here according to their level of support and contribution to the Olympiad.</p></div>
-    <article className="sponsor-tier sponsor-tier-high"><div className="fictional-logo logo-company-a"><span>A</span><strong>COMPANY A</strong></div><div><span>LEAD SPONSOR</span><h3>Company A</h3><p>Lead sponsors help IOL 2027 welcome international delegations and deliver the programme, venues and participant services that make the Olympiad possible.</p></div></article>
-    <div className="sponsor-tier-low-grid"><article className="sponsor-tier sponsor-tier-low"><div className="fictional-logo logo-company-b"><span>B</span><strong>COMPANY B</strong></div><div><span>SUPPORTING SPONSOR</span><h3>Company B</h3></div></article><article className="sponsor-tier sponsor-tier-low"><div className="fictional-logo logo-company-c"><span>C</span><strong>COMPANY C</strong></div><div><span>SUPPORTING SPONSOR</span><h3>Company C</h3></div></article></div>
+  const leadSponsors = [
+    { letter: 'A', name: 'Company A', logoClass: 'logo-company-a' },
+    { letter: 'B', name: 'Company B', logoClass: 'logo-company-b' },
+    { letter: 'C', name: 'Company C', logoClass: 'logo-company-c' },
+  ]
+  return <section className={`commercial-sponsors wrap ${full ? 'commercial-sponsors-full' : 'commercial-sponsors-home'}`}>
+    <div className="sponsor-tier-heading"><p className="eyebrow">Lead sponsors</p><h2>Principal partners of IOL 2027.</h2><p>Lead sponsors provide major support for the programme, venues and participant experience. Every confirmed partner at this level receives the same prominent placement.</p></div>
+    <div className="lead-sponsor-list">{leadSponsors.map((sponsor) => <article className="lead-sponsor-card" key={sponsor.name}>
+      <div className={`fictional-logo ${sponsor.logoClass}`}><span>{sponsor.letter}</span><strong>{sponsor.name.toUpperCase()}</strong></div>
+      <div className="lead-sponsor-content"><span>LEAD SPONSOR</span><h3>{sponsor.name}</h3><p>{sponsor.name} helps IOL 2027 welcome international delegations and deliver the spaces, services and shared experiences that make the Olympiad possible.</p></div>
+      <dl className="sponsor-placement-specs"><div><dt>Logo display area</dt><dd>320 × 180 px</dd></div><div><dt>Feature banner</dt><dd>1600 × 500 px</dd></div><div><dt>Description</dt><dd>Up to 80 words</dd></div></dl>
+    </article>)}</div>
+    {full && <><div className="supporting-sponsor-heading"><p className="eyebrow">Supporting sponsors</p><h2>Additional partners, recognised together.</h2></div>
+    <div className="sponsor-tier-low-grid"><article className="sponsor-tier sponsor-tier-low"><div className="fictional-logo logo-company-d"><span>D</span><strong>COMPANY D</strong></div><div><span>SUPPORTING SPONSOR</span><h3>Company D</h3></div></article><article className="sponsor-tier sponsor-tier-low"><div className="fictional-logo logo-company-e"><span>E</span><strong>COMPANY E</strong></div><div><span>SUPPORTING SPONSOR</span><h3>Company E</h3></div></article></div></>}
     {!full && <LinkButton href="/sponsors">View sponsor opportunities</LinkButton>}
   </section>
 }
@@ -194,7 +204,7 @@ function Home() {
 }
 
 function About() {
-  return <><PageIntro eyebrow="About the Olympiad" title="Data holds the pattern, deduction holds the key." body="IOL is one of the International Science Olympiads: a yearly meeting of young problem-solvers who decode the structures hidden inside human language." /><section className="two-col wrap"><div><p className="eyebrow">What happens</p><h2>Reasoning through pattern, verified by rigor.</h2></div><div className="prose"><p>Problems may draw on any language in the world. Contestants discover patterns, test hypotheses and explain systems they have never seen before. No specialist language and linguistic theory is assumed.</p><p>Each accredited country or territory may send up to two teams. A contest team has no more than four contestants and one team leader. Contestants take part in both an individual round and a collaborative team round.</p><p>Careful observation, hypothesis testing and a clear explanation matter more than memorised vocabulary.</p></div></section><section className="number-grid wrap"><article><strong>5</strong><span>individual problems</span></article><article><strong>6h</strong><span>individual contest</span></article><article><strong>4</strong><span>students per team</span></article><article><strong>8</strong><span>days together</span></article></section><SectionLinks links={[{ href: '/about/thailand', label: 'Host: Thailand', detail: 'Meet Bangkok and the host programme.' }, { href: '/about/thai-language', label: 'Thai language', detail: 'Useful phrases for travelling in Thailand.' }, { href: '/about/important-dates', label: 'Important dates', detail: 'Registration periods and the event week.' }]} /></>
+  return <><PageIntro eyebrow="About the Olympiad" title="Data holds the pattern, deduction holds the key." body="IOL is one of the International Science Olympiads: a yearly meeting of young problem-solvers who decode the structures hidden inside human language." /><section className="two-col wrap"><div><p className="eyebrow">What happens</p><h2>Reasoning through pattern, verified by rigor.</h2></div><div className="prose"><p>Problems may draw on any language in the world. Contestants discover patterns, test hypotheses and explain systems they have never seen before. No specialist language and linguistic theory is assumed.</p><p>Each accredited country or territory may send up to two teams. A contest team has no more than four contestants and one team leader. Contestants take part in both an individual round and a collaborative team round.</p><p>Careful observation, hypothesis testing and a clear explanation matter more than memorised vocabulary.</p></div></section><section className="number-grid wrap"><article><strong>5</strong><span>individual problems</span></article><article><strong>6h</strong><span>individual contest</span></article><article><strong>4</strong><span>students per team</span></article><article><strong>8</strong><span>days together</span></article></section><SectionLinks links={[{ href: '/about/thailand', label: 'Host: Thailand', detail: 'Meet Bangkok and the host programme.' }, { href: '/about/thai-language', label: 'Useful Thai', detail: 'Useful phrases for travelling in Thailand.' }, { href: '/about/important-dates', label: 'Important dates', detail: 'Registration periods and the event week.' }]} /></>
 }
 
 function Thailand() {
@@ -242,7 +252,7 @@ function ThaiLanguage() {
     utterance.pitch = 1
     window.speechSynthesis.speak(utterance)
   }
-  return <><PageIntro eyebrow="Thai language" title="A practical pocket phrasebook." body="Listen to useful Thai words and phrases before you arrive, then keep this page close while travelling around Bangkok." /><section className="thai-intro wrap"><div><p className="eyebrow">A quick note</p><h2 className="mixed-heading">Speak gently. <em>Listen closely.</em></h2></div><div className="prose"><p>Thai is a tonal language, so accurate pronunciation depends on a genuine Thai speech voice. The listen buttons are enabled only when your device provides one, preventing the browser from reading Thai with an unsuitable voice.</p><p>Men commonly end polite sentences with <strong>ครับ (khráp)</strong>; women commonly use <strong>ค่ะ (khâ)</strong>. Where both forms are shown, you can listen to each one separately.</p><p id="thai-voice-status" className={`voice-status ${thaiVoice ? 'voice-ready' : 'voice-unavailable'}`}>{thaiVoice ? `Thai voice ready: ${thaiVoice.name}` : voiceChecked ? 'No Thai speech voice is installed on this device. The reading guide remains available; native-speaker recordings are the recommended final production solution.' : 'Checking for a Thai speech voice...'}</p></div></section><section className="phrase-grid wrap">{thaiPhrases.map((phrase) => <article key={phrase.thai}><h2 lang="th">{phrase.thai}</h2><p className="phrase-reading">{phrase.reading}</p><p>{phrase.meaning}</p><div className="phrase-audio">{phrase.speech.map((spoken, index) => <button type="button" key={spoken} disabled={!thaiVoice} onClick={() => speakThai(spoken)} aria-describedby="thai-voice-status" aria-label={`Play Thai pronunciation for ${spoken}`}><Volume2 size={18} />{phrase.speech.length > 1 ? index === 0 ? 'ครับ form' : 'ค่ะ form' : 'Listen'}</button>)}</div></article>)}</section></>
+  return <><PageIntro title="Useful Thai for your stay" body="A few words and phrases to help you get around, order food, say hello, and enjoy your time in Thailand." /><section className="thai-intro wrap"><div><p className="eyebrow">A quick note</p><h2 className="mixed-heading">Speak gently. <em>Listen closely.</em></h2></div><div className="prose"><p>Thai is a tonal language, so accurate pronunciation depends on a genuine Thai speech voice. The listen buttons are enabled only when your device provides one, preventing the browser from reading Thai with an unsuitable voice.</p><p>Men commonly end polite sentences with <strong>ครับ (khráp)</strong>; women commonly use <strong>ค่ะ (khâ)</strong>. Where both forms are shown, you can listen to each one separately.</p><p id="thai-voice-status" className={`voice-status ${thaiVoice ? 'voice-ready' : 'voice-unavailable'}`}>{thaiVoice ? `Thai voice ready: ${thaiVoice.name}` : voiceChecked ? 'No Thai speech voice is installed on this device. The reading guide remains available; native-speaker recordings are the recommended final production solution.' : 'Checking for a Thai speech voice...'}</p></div></section><section className="phrase-grid wrap">{thaiPhrases.map((phrase) => <article key={phrase.thai}><h2 lang="th">{phrase.thai}</h2><p className="phrase-reading">{phrase.reading}</p><p>{phrase.meaning}</p><div className="phrase-audio">{phrase.speech.map((spoken, index) => <button type="button" key={spoken} disabled={!thaiVoice} onClick={() => speakThai(spoken)} aria-describedby="thai-voice-status" aria-label={`Play Thai pronunciation for ${spoken}`}><Volume2 size={18} />{phrase.speech.length > 1 ? index === 0 ? 'ครับ form' : 'ค่ะ form' : 'Listen'}</button>)}</div></article>)}</section></>
 }
 
 function Programme() {
