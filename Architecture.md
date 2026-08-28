@@ -75,7 +75,7 @@ The current public pages are a content-ready static preview. They do not yet imp
 +---------------------------------------------------------------+
 ```
 
-The diagram shows logical boundaries, not a final vendor commitment. The shared registration system remains the default source for delegation records. If an operational service is built locally, its interface must support export, backup, and handover without tying the event's core data to one vendor.
+The diagram shows logical boundaries, not a final vendor commitment. The shared registration system remains the default source for team and participant records. If an operational service is built locally, its interface must support export, backup, and handover without tying the event's core data to one vendor.
 
 ## 4. Public frontend architecture
 
@@ -104,7 +104,7 @@ The static preview uses TypeScript constants. Before the limited/full site becom
 
 ### Recommended baseline: shared IOL regsy
 
-The requirements analysis recommends the shared IOL registration system used by Bulgaria, Brazil, and Romania. It is familiar to delegations and centrally maintained. Thailand should negotiate the known pain points before launch:
+The requirements analysis recommends the shared IOL registration system used by Bulgaria, Brazil, and Romania. It is familiar to team leaders and centrally maintained. Thailand should negotiate the known pain points before launch:
 
 - Faster approval turnaround during peak windows.
 - Clean labels without internal numeric IDs.
@@ -119,7 +119,7 @@ The public site should link to the approved system rather than duplicate its acc
 
 ```text
 Central email -> invite code -> team leader account
-       -> country/delegation -> teams -> transport -> people
+       -> country -> teams -> transport -> people
        -> configured fee -> wire transfer -> proof upload
        -> manual Finance reconciliation -> approval/rejection
        -> e-receipt + QR badge data + invitation letter
@@ -130,7 +130,7 @@ Central email -> invite code -> team leader account
 Use explicit service interfaces for:
 
 - Identity and roles.
-- Country/delegation and team records.
+- Country and team records.
 - Participant and logistics records.
 - Payment intents, proofs, decisions, and audit events.
 - Document generation and email delivery.
@@ -145,9 +145,9 @@ Do not let the static website become the only copy of operational data.
 
 `users`, `roles`, `country_invites`, `email_verifications`, `password_resets`, `sessions`, `admin_2fa`.
 
-### Delegation and people
+### Teams and people
 
-`countries`, `delegations`, `teams`, `participants`, `observers`, `team_leaders`, `transport_records`, `accommodation_assignments`, `dietary_needs`, `medical_accessibility`, `guardian_consents`, `emergency_contacts`, `tshirt_sizes`.
+`countries`, `teams`, `participants`, `observers`, `team_leaders`, `transport_records`, `accommodation_assignments`, `dietary_needs`, `medical_accessibility`, `guardian_consents`, `emergency_contacts`, `tshirt_sizes`.
 
 ### Payment
 
@@ -166,8 +166,8 @@ Every record containing personal data needs an owner, access policy, retention r
 ## 7. Roles and authorization
 
 - **Public:** published records only.
-- **Team Leader:** only the leader's country/delegation records and generated documents.
-- **Registration Admin:** delegation and participant workflow; no unrestricted financial or medical data by default.
+- **Team Leader:** only the leader's country, team, participant, and generated-document records.
+- **Registration Admin:** team and participant workflow; no unrestricted financial or medical data by default.
 - **Finance Admin:** fee configuration, payment proof, reconciliation, receipt state, and finance exports.
 - **Check-in Staff:** QR/name/passport lookup and check-in; minimize sensitive fields.
 - **Welfare/Medical Staff:** only dietary, medical/accessibility, guardian, and emergency fields needed for duty.
