@@ -24,6 +24,7 @@ npm run preview
 - `/programme` — working schedule and venues
 - `/explore` — cultural programme
 - `/people` — organising roles
+- `/people/committee` — official Thai committee and subcommittee roster
 - `/news` — chronological announcements
 - `/registration` — coming soon
 - `/resources` — source and editorial notes

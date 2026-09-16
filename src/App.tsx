@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, ChevronLeft, ChevronRight, ExternalLink, MapPin, Menu, Volume2, X } from 'lucide-react'
 import { event, schedule, venues } from './siteData'
+import { committeeHeading, committees, royalPatron } from './committeeData'
 
 type NavItem = { label: string; href: string; external?: boolean; children?: { label: string; href: string }[] }
 
@@ -325,14 +326,48 @@ function Gallery() {
 }
 
 function People() {
-  return <><PageIntro eyebrow="People" title="Built by many kinds of minds." body="Committee, jury and volunteer information will be added when the approved names and roles are provided." /><SectionLinks links={[{ href: '/people/committee', label: 'Committee', detail: 'Local organising and operational teams.' }, { href: '/people/jury', label: 'Jury & Problem Committee', detail: 'Judges, problem writers, translators and markers.' }, { href: '/people/volunteers', label: 'Volunteers', detail: 'The people who welcome and guide every team.' }]} /></>
+  return <><PageIntro eyebrow="People" title="Built by many kinds of minds." body="Committee, jury and volunteer information will be added when the approved names and roles are provided." /><SectionLinks links={[{ href: '/people/committee', label: 'Committee', detail: 'The full Thai-language roster of the organising committees and subcommittees.' }, { href: '/people/jury', label: 'Jury & Problem Committee', detail: 'Judges, problem writers, translators and markers.' }, { href: '/people/volunteers', label: 'Volunteers', detail: 'The people who welcome and guide every team.' }]} /></>
+}
+
+function CommitteeRoster() {
+  const [active, setActive] = useState(0)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const committee = committees[active]
+  useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }) }, [active])
+  const total = committee.groups.reduce((sum, group) => sum + group.members.length, 0)
+  return <section className="committee-roster wrap">
+    <div className="committee-intro">
+      <div><p className="eyebrow">Official roster</p><h2 className="thai">{committeeHeading.titleTh}</h2></div>
+      <p className="thai committee-subtitle">{committeeHeading.subtitleTh}</p>
+    </div>
+    <article className="committee-patron"><span>{royalPatron.role}</span><strong className="thai">{royalPatron.name}</strong></article>
+    <div className="committee-panel">
+      <nav className="committee-tabs" aria-label="Committees and subcommittees">
+        {committees.map((item, index) => <button key={item.number} type="button" className={index === active ? 'active' : undefined} aria-current={index === active ? 'true' : undefined} onClick={() => setActive(index)}>
+          <span>{item.number.padStart(2, '0')}</span>
+          <em className="thai">{item.nameTh}</em>
+          <small>{item.nameEn}</small>
+        </button>)}
+      </nav>
+      <div className="committee-box">
+        <header><div><p className="eyebrow">{committee.nameEn}</p><h3 className="thai">{committee.nameTh}</h3></div><span>{total} รายชื่อ</span></header>
+        <div className="committee-scroll" ref={scrollRef} tabIndex={0} role="group" aria-label={committee.nameTh}>
+          {committee.groups.map((group) => <div className="committee-group" key={group.heading}>
+            <h4 className="thai">{group.heading}</h4>
+            <ul>{group.members.map((member, index) => <li key={`${member.name}-${index}`}><span className="thai">{member.name}</span><small className="thai">{member.role}</small></li>)}</ul>
+          </div>)}
+        </div>
+      </div>
+    </div>
+    <p className="committee-note">Names and roles are published in Thai as approved in the official appointment document. English committee labels are provided for navigation only.</p>
+  </section>
 }
 
 function PeopleSubpage({ kind }: { kind: 'committee' | 'jury' | 'volunteers' }) {
   const jury = kind === 'jury'
   const title = kind === 'committee' ? 'Committee' : jury ? 'Jury & Problem Committee' : 'Volunteers'
-  const body = kind === 'committee' ? 'The approved committee roster and role descriptions will be published here.' : jury ? 'The main judges, problem writers, translators and markers will be introduced with photographs and approved biographies.' : 'The approved volunteer information and responsibilities will be published here.'
-  return <><PageIntro eyebrow={`People / ${title}`} title={title} body={body} />{jury ? <section className="portrait-grid wrap">{Array.from({ length: 6 }, (_, index) => <article key={index}><div className="portrait-placeholder"><span>PHOTO</span></div><h2>Name to be confirmed</h2><p>Role and biography will be added after approval.</p></article>)}</section> : <section className="two-col wrap"><div><p className="eyebrow">Roster pending</p><h2>Information will be added when the organising team confirms it.</h2></div><div className="prose"><p>This page intentionally does not show photo placeholders. Names, responsibilities and public contact details will be published only after approval.</p></div></section>}</>
+  const body = kind === 'committee' ? 'The approved committees and subcommittees appointed for IOL 2027, published in Thai exactly as they appear in the official appointment document.' : jury ? 'The main judges, problem writers, translators and markers will be introduced with photographs and approved biographies.' : 'The approved volunteer information and responsibilities will be published here.'
+  return <><PageIntro eyebrow={`People / ${title}`} title={title} body={body} />{kind === 'committee' ? <CommitteeRoster /> : jury ? <section className="portrait-grid wrap">{Array.from({ length: 6 }, (_, index) => <article key={index}><div className="portrait-placeholder"><span>PHOTO</span></div><h2>Name to be confirmed</h2><p>Role and biography will be added after approval.</p></article>)}</section> : <section className="two-col wrap"><div><p className="eyebrow">Roster pending</p><h2>Information will be added when the organising team confirms it.</h2></div><div className="prose"><p>This page intentionally does not show photo placeholders. Names, responsibilities and public contact details will be published only after approval.</p></div></section>}</>
 }
 
 function Contact() {

@@ -23,6 +23,7 @@
 - Vite + React + TypeScript single-page application.
 - Main route and page composition: `src/App.tsx`.
 - Event facts and working schedule/venues: `src/siteData.ts`.
+- Official Thai committee roster: `src/committeeData.ts`, transcribed from the approved appointment document and rendered by the committee page.
 - Visual system and responsive styles: `src/index.css`.
 - Local web fonts: `public/fonts/`.
 - Public assets: `public/assets/`.

@@ -49,6 +49,7 @@ Roles: public; Team Leader; Registration Admin; Finance Admin; Check-in Staff; W
 - Vite + React + TypeScript SPA.
 - `src/App.tsx`: pages and pathname routing.
 - `src/siteData.ts`: event facts, schedule, working venues.
+- `src/committeeData.ts`: the official Thai committee and subcommittee roster published on `/people/committee`.
 - `src/index.css`: visual system and responsive layout.
 - `public/assets/`: logo and sponsor assets.
 - `public/fonts/`: local Manrope, IBM Plex Mono, Noto Sans Thai files.
