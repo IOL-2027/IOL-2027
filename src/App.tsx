@@ -9,6 +9,9 @@ type RegistrationField = { label: string; value: string; help: string; kind?: Re
 type RegistrationRecord = { label: string; meta: string; status: string; fields: RegistrationField[]; notes?: RegistrationField[] }
 type RegistrationArea = { title: string; status: string; body: string; fields: RegistrationField[]; notes?: RegistrationField[]; records?: RegistrationRecord[]; required?: boolean }
 
+const badgeScannerMode = import.meta.env.VITE_BADGE_SCANNER_MODE === 'live' ? 'live' : 'demo'
+const demoBadgeCode = 'IOL2027-POC-DEMO'
+
 const registrationSelectOptions: Record<string, string[]> = {
   'Number of teams': ['1', '2'],
   Role: ['Contestant', 'Team Leader', 'Deputy', 'Observer'],
@@ -342,7 +345,7 @@ function RegistrationHow() {
     { title: 'Return later with travel details.', detail: 'Arrival and departure remain open after initial registration because itineraries can change.' },
     { title: 'Use individual QR badges during the event.', detail: 'Every person brings their badge for scanning at arrival and approved checkpoints.' },
   ]
-  return <><PageIntro eyebrow="Registration / How to register" title="Know what is needed, and when." body="One Team Leader reserves places first, completes personal information later, then coordinates invoices, payment proof, travel and event badges." /><section className="steps wrap">{steps.map((step, index) => <article key={step.title}><span>{String(index + 1).padStart(2, '0')}</span><div><h2>{step.title}</h2><p>{step.detail}</p></div></article>)}</section><section className="notice-panel wrap"><p className="eyebrow">Team Leader entry</p><h2>Start with the invitation code. You only need headcounts and room preference for the initial setup.</h2><a className="text-link" href="/registration/team-leader">Create Team Leader Account <ArrowRight size={16} /></a></section></>
+  return <><PageIntro eyebrow="Registration / How to register" title="One clear path for every team." body="One team leader coordinates the entire process, from registration and payment confirmation to travel information and document delivery." /><section className="steps wrap">{steps.map((step, index) => <article key={step.title}><span>{String(index + 1).padStart(2, '0')}</span><div><h2>{step.title}</h2><p>{step.detail}</p></div></article>)}</section><section className="notice-panel wrap"><p className="eyebrow">Team Leader entry</p><h2>Start with the invitation code. You only need headcounts and room preference for the initial setup.</h2><a className="text-link" href="/registration/team-leader">Create Team Leader Account <ArrowRight size={16} /></a></section></>
 }
 
 function TeamLeaderAccount() {
@@ -498,7 +501,7 @@ function TeamLeaderAccount() {
         { label: 'Contestants assigned', value: 'Narin, Mali, Kiet, Arun', help: 'Selected from saved member records.' },
       ] },
       { label: 'Thailand B', meta: '4 contestants', status: 'Needs language', fields: [
-        { label: 'Team name', value: 'Thailand B', help: 'Second team record for the delegation.' },
+        { label: 'Team name', value: 'Thailand B', help: 'Second team record for the country.' },
         { label: 'Team code', value: 'THA-B', help: 'Short code for staff exports, badges and score systems.' },
         { label: 'Team contest language', value: '', help: 'Required before final submission.' },
         { label: 'Team status', value: 'Missing working language', help: 'Dashboard should surface the next missing action.' },
@@ -510,7 +513,7 @@ function TeamLeaderAccount() {
     { title: 'People', status: 'In progress', body: 'Add contestants and observers here when their information is ready. The Team Leader is already created from the account and is not entered again.', fields: [], records: memberRecordsData },
     { title: 'Travel', status: 'Fill later', body: 'Travel is not required for the first registration submission. The Team Leader returns here after flights are booked, then updates arrival and departure details as they change.', fields: [], required: false, notes: [
       { label: 'When to complete', value: 'After flights are booked', help: 'Keep this section open later because arrival and departure details change often.' },
-      { label: 'Registration requirement', value: 'Not required now', help: 'Delegation, member, team, welfare and payment proof can be submitted first.' },
+      { label: 'Registration requirement', value: 'Not required now', help: 'Team, participant, welfare and payment proof can be submitted first.' },
     ], records: [
       { label: 'Arrival details', meta: 'Fill after booking', status: 'Later', fields: [
         { label: 'Direction', value: 'Arrival', help: 'Arrival or departure trip.' },
@@ -518,7 +521,7 @@ function TeamLeaderAccount() {
         { label: 'Flight / service number', value: '', help: 'Used by the transport team after travel is known.' },
         { label: 'Local date', value: '', help: 'Bangkok local date.' },
         { label: 'Local time', value: '', help: 'Bangkok local time.' },
-        { label: 'People on this trip', value: '', help: 'Assign members from the delegation list when travel is confirmed.' },
+        { label: 'People on this trip', value: '', help: 'Assign participants from the team list when travel is confirmed.' },
         { label: 'Airport terminal', value: '', help: 'Optional field for transport staff.' },
         { label: 'Meeting point note', value: 'Assigned after travel submission', help: 'Filled by LOC when pickup details are issued.' },
         { label: 'Volunteer contact', value: 'To be assigned', help: 'Shown to the Team Leader during arrival week.' },
@@ -531,7 +534,7 @@ function TeamLeaderAccount() {
         { label: 'Flight / service number', value: '', help: 'Used for departure bus planning after travel is known.' },
         { label: 'Local date', value: '', help: 'Bangkok local date.' },
         { label: 'Local time', value: '', help: 'Bangkok local time.' },
-        { label: 'People on this trip', value: '', help: 'Assign members from the delegation list when travel is confirmed.' },
+        { label: 'People on this trip', value: '', help: 'Assign participants from the team list when travel is confirmed.' },
         { label: 'Hotel pickup time', value: 'Assigned after travel submission', help: 'Filled by LOC after departure planning.' },
         { label: 'Bus or van group', value: 'To be assigned', help: 'Used by departure-day staff.' },
         { label: 'Boarding check', value: 'Not checked in', help: 'Used by arrival-week operations.' },
@@ -540,7 +543,7 @@ function TeamLeaderAccount() {
     ] },
     { title: 'Rooms and welfare', status: 'Sensitive', body: 'Summarise rooming, food, medical, accessibility and guardian-consent needs without making the leader retype details already stored on each member.', fields: [
       { label: 'Rooming summary', value: welfare.roomingSummary, help: 'Generated from member gender and room preference fields.' },
-      { label: 'Room-sharing notes', value: 'Same delegation preferred', help: 'Handled by the accommodation team.' },
+      { label: 'Room-sharing notes', value: 'Same team preferred', help: 'Handled by the accommodation team.' },
       { label: 'Single-room requests', value: welfare.singleRoomReqs, help: 'May require supplement or approval.' },
       { label: 'Dietary summary', value: welfare.dietarySummary, help: 'Generated from member food and allergy notes.' },
       { label: 'Medical or accessibility summary', value: welfare.medSummary, help: 'Restricted data for welfare and emergency planning.' },
@@ -636,6 +639,7 @@ function TeamLeaderAccount() {
   }
   return <>
     <PageIntro eyebrow="Registration / Team Leader" title="Set up your team." body="Verify the official invitation, create the Team Leader account, and reserve places before completing personal details later." />
+    <section className="poc-notice wrap" role="note"><strong>Interactive prototype</strong><p>This preview demonstrates the planned registration journey. Information entered here is not submitted, emailed, uploaded or saved.</p></section>
     <section className="reg-portal wrap">
       <div className="reg-stepbar">
         {steps.map(([title, detail], index) => <button type="button" key={title} className={`reg-step${index === accountStep ? ' active' : ''}${index < accountStep ? ' done' : ''}`} onClick={() => setAccountStep(index)}><div className="reg-step-num">{index < accountStep ? <CheckCircle size={18} /> : index + 1}</div><div className="reg-step-text"><strong>{title}</strong><small>{detail}</small></div></button>)}
@@ -683,7 +687,7 @@ function TeamLeaderAccount() {
 
 function BadgeCheckIn() {
   const [checkpoint, setCheckpoint] = useState('Arrival desk')
-  const [manualCode, setManualCode] = useState('')
+  const [manualCode, setManualCode] = useState(badgeScannerMode === 'demo' ? demoBadgeCode : '')
   const [cameraState, setCameraState] = useState<'starting' | 'ready' | 'unavailable'>('starting')
   const [scanState, setScanState] = useState<{ tone: 'idle' | 'working' | 'accepted' | 'rejected'; title: string; detail: string }>({ tone: 'idle', title: 'Ready to scan', detail: 'Hold one badge inside the camera frame.' })
   const scanLock = useRef(false)
@@ -691,17 +695,24 @@ function BadgeCheckIn() {
   const submitScan = async (payload: string) => {
     if (!payload.trim() || scanLock.current) return
     scanLock.current = true
-    setScanState({ tone: 'working', title: 'Checking badge', detail: checkpoint })
+    setScanState({ tone: 'working', title: badgeScannerMode === 'demo' ? 'Running simulation' : 'Checking badge', detail: checkpoint })
     try {
-      const response = await fetch('/api/registration/check-in/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payload: payload.trim(), checkpoint }),
-      })
-      const result = await response.json()
-      if (!response.ok || !result.accepted) throw new Error(result.error || 'Badge is not active.')
-      setScanState({ tone: 'accepted', title: result.member.badgeName || result.member.displayName, detail: `${result.member.role.replaceAll('_', ' ')} · ${checkpoint} recorded` })
-      setManualCode('')
+      if (badgeScannerMode === 'demo') {
+        await new Promise((resolve) => window.setTimeout(resolve, 450))
+        if (payload.trim() !== demoBadgeCode) throw new Error(`For this prototype, use the sample badge code ${demoBadgeCode}.`)
+        setScanState({ tone: 'accepted', title: 'Narin Chaiwat', detail: `Contestant · ${checkpoint} simulated · Nothing was saved` })
+        setManualCode(demoBadgeCode)
+      } else {
+        const response = await fetch('/api/registration/check-in/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payload: payload.trim(), checkpoint }),
+        })
+        const result = await response.json()
+        if (!response.ok || !result.accepted) throw new Error(result.error || 'Badge is not active.')
+        setScanState({ tone: 'accepted', title: result.member.badgeName || result.member.displayName, detail: `${result.member.role.replaceAll('_', ' ')} · ${checkpoint} recorded` })
+        setManualCode('')
+      }
     } catch (error) {
       setScanState({ tone: 'rejected', title: 'Badge not accepted', detail: error instanceof Error ? error.message : 'Please ask registration staff for help.' })
     } finally {
@@ -730,7 +741,8 @@ function BadgeCheckIn() {
   }, [checkpoint])
 
   return <>
-    <PageIntro eyebrow="Event operations / Check-in" title="Scan every badge." body="Use the participant's QR badge at arrival and approved event checkpoints. The QR contains only a secure random reference." />
+    <PageIntro eyebrow="Event operations / Check-in" title="Scan every badge." body={badgeScannerMode === 'demo' ? 'Preview the planned staff check-in journey with a simulated badge. No check-in or participant information is submitted or saved.' : "Use the participant's QR badge at arrival and approved event checkpoints. The QR contains only a secure random reference."} />
+    {badgeScannerMode === 'demo' && <section className="poc-notice wrap" role="note"><strong>Scanner simulation</strong><p>This is a static PoC. Use <code>{demoBadgeCode}</code> to demonstrate an accepted badge. Camera scans and manual entries are evaluated locally and never sent to the registration API.</p></section>}
     <section className="checkin-shell wrap">
       <div className="checkin-controls">
         <div><p className="eyebrow">Current checkpoint</p><h2>Where are you scanning?</h2></div>
@@ -738,16 +750,16 @@ function BadgeCheckIn() {
         <div className={`checkin-result checkin-result-${scanState.tone}`}><span>{scanState.tone === 'accepted' ? <CheckCircle /> : scanState.tone === 'rejected' ? <X /> : <ShieldCheck />}</span><div><strong>{scanState.title}</strong><p>{scanState.detail}</p></div></div>
       </div>
       <div className="checkin-camera">
-        <div className="checkin-camera-head"><Camera size={18} /><strong>Badge camera</strong><span>{cameraState === 'ready' ? 'Live' : cameraState === 'starting' ? 'Starting' : 'Camera unavailable'}</span></div>
+        <div className="checkin-camera-head"><Camera size={18} /><strong>Badge camera</strong><span>{badgeScannerMode === 'demo' ? cameraState === 'unavailable' ? 'Demo · camera unavailable' : 'Demo mode' : cameraState === 'ready' ? 'Live' : cameraState === 'starting' ? 'Starting' : 'Camera unavailable'}</span></div>
         <div id="iol-badge-reader" className="checkin-reader" />
-        <div className="checkin-manual"><span>Camera cannot read it?</span><div><input className="reg-input" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Enter badge code" /><button type="button" className="reg-btn-save" onClick={() => void submitScan(manualCode)}>Check badge</button></div></div>
+        <div className="checkin-manual"><span>{badgeScannerMode === 'demo' ? `Sample badge: ${demoBadgeCode}` : 'Camera cannot read it?'}</span><div><input className="reg-input" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Enter badge code" /><button type="button" className="reg-btn-save" onClick={() => void submitScan(manualCode)}>{badgeScannerMode === 'demo' ? 'Simulate check-in' : 'Check badge'}</button></div></div>
       </div>
     </section>
   </>
 }
 
 function RegistrationFees() {
-  return <><PageIntro eyebrow="Registration / Fees & deadlines" title="Transfer instructions, not online checkout." body="The confirmed registration windows come from the IOL 2027 fees and important dates notice. Final amounts and bank-account instructions will be published after Finance approval." /><section className="fee-grid wrap"><article><span>FEE RELEASE</span><strong>18 JAN 2027</strong><p>Fee information and approved transfer instructions are released.</p></article><article><span>EARLY BIRD</span><strong>18 JAN-12 MAR</strong><p>Early bird registration period.</p></article><article><span>REGULAR</span><strong>13 MAR-30 APR</strong><p>Regular registration period.</p></article></section><section className="two-col wrap"><div><p className="eyebrow">Payment process</p><h2>Transfer outside the website, then upload proof.</h2></div><div className="prose"><p>Delegations will use the bank-transfer instructions shown in the registration system. The website does not collect payment or card details.</p><p>After transfer, the Team Leader uploads proof of payment. Finance verifies the proof manually before registration is confirmed.</p></div></section></>
+  return <><PageIntro eyebrow="Registration / Fees & deadlines" title="Transfer instructions, not online checkout." body="The confirmed registration windows come from the IOL 2027 fees and important dates notice. Final amounts and bank-account instructions will be published after Finance approval." /><section className="fee-grid wrap"><article><span>FEE RELEASE</span><strong>18 JAN 2027</strong><p>Fee information and approved transfer instructions are released.</p></article><article><span>EARLY BIRD</span><strong>18 JAN-12 MAR</strong><p>Early bird registration period.</p></article><article><span>REGULAR</span><strong>13 MAR-30 APR</strong><p>Regular registration period.</p></article></section><section className="two-col wrap"><div><p className="eyebrow">Payment process</p><h2>Transfer outside the website, then upload proof.</h2></div><div className="prose"><p>Teams will use the bank-transfer instructions shown in the registration system. The website does not collect payment or card details.</p><p>After transfer, the team leader uploads proof of payment. Finance verifies the proof manually before registration is confirmed.</p></div></section></>
 }
 
 function Visas() {

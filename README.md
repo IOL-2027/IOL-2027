@@ -1,6 +1,6 @@
 # IOL 2027 Thailand — information site
 
-First public-facing draft for the 24th International Linguistics Olympiad in Thailand. Registration is intentionally represented by a coming-soon page; no participant data or registration workflow is implemented.
+Public information site and interactive registration proof of concept for the 24th International Linguistics Olympiad in Thailand. The registration portal demonstrates the planned user journey with fictional data; it does not submit or save registration information.
 
 ## Local development
 
@@ -26,7 +26,9 @@ npm run preview
 - `/people` — organising roles
 - `/people/committee` — official Thai committee and subcommittee roster
 - `/news` — chronological announcements
-- `/registration` — coming soon
+- `/registration` — registration timeline and PoC entry
+- `/registration/team-leader` — static Team Leader journey prototype
+- `/registration/check-in` — badge scanner simulation
 - `/resources` — source and editorial notes
 
 ## Content sources
@@ -36,3 +38,7 @@ The copy and structure are based only on the project files supplied in this repo
 ## Deployment direction
 
 The included multi-stage `Dockerfile` serves the Vite build through Nginx on port 8080 and includes the SPA fallback required for direct route access. This is compatible with a future Google Cloud Run deployment without committing the project to a registration backend.
+
+## Registration PoC mode
+
+The badge scanner defaults to a fully static simulation. It accepts the sample code `IOL2027-POC-DEMO` and does not call the API or save a check-in. The existing live API integration remains in place for future development. Set `VITE_BADGE_SCANNER_MODE=live` only after the registration API, database, authentication and staff authorization are ready in the target environment.
