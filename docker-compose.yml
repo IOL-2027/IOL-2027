@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: iol2027-postgres
+    environment:
+      POSTGRES_USER: iol2027
+      POSTGRES_PASSWORD: iol2027
+      POSTGRES_DB: iol2027
+    ports:
+      - "5432:5432"
+    volumes:
+      - iol2027-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iol2027 -d iol2027"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  iol2027-postgres-data:
