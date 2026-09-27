@@ -17,8 +17,33 @@ export const schedule = [
   { date: '28 JUL', day: 'Day 08', title: 'Departures', detail: 'Farewells and official transfers on the departure day.' },
 ]
 
-export const venues = [
-  { index: '01', name: 'Mandarin Hotel Bangkok', role: 'Home base', detail: 'The official home base for teams, jury, volunteers and staff.' },
-  { index: '02', name: 'Kasetsart University', role: 'Opening stage', detail: 'The opening ceremony welcomes teams to Thailand on 22 July.' },
-  { index: '03', name: 'Chulalongkorn University', role: 'Contest campus', detail: 'Individual and team contests, solution presentations, closing ceremony and cultural night.' },
+export type Venue = {
+  index: string; name: string; role: string; detail: string
+  building: string; address: string; mapQuery: string; transit: string
+  image?: string; imageAlt?: string
+}
+
+export const venues: Venue[] = [
+  {
+    index: '01', name: 'Mandarin Hotel Bangkok', role: 'Home base',
+    detail: 'The official home base for teams, jury, volunteers and staff.',
+    building: 'Managed by Centre Point', address: '662 Rama IV Road, Bang Rak, Bangkok 10500',
+    image: '/assets/mandarin-hotel.jpg', imageAlt: 'Mandarin Hotel Bangkok exterior',
+    mapQuery: 'Mandarin+Hotel+Bangkok+662+Rama+IV+Road',
+    transit: 'Near MRT Sam Yan',
+  },
+  {
+    index: '02', name: 'Kasetsart University', role: 'Opening stage',
+    detail: 'The opening ceremony welcomes teams to Thailand on 22 July.',
+    building: 'Faculty of Humanities, Bangkhen campus', address: '50 Ngamwongwan Road, Lat Yao, Chatuchak, Bangkok 10900',
+    mapQuery: 'Faculty+of+Humanities+Kasetsart+University+Bangkhen',
+    transit: 'Near BTS Kasetsart University',
+  },
+  {
+    index: '03', name: 'Chulalongkorn University', role: 'Contest campus',
+    detail: 'Individual and team contests, solution presentations, closing ceremony and cultural night.',
+    building: 'Faculty of Arts', address: 'Phayathai Road, Pathum Wan, Bangkok 10330',
+    mapQuery: 'Faculty+of+Arts+Chulalongkorn+University',
+    transit: 'Near MRT Sam Yan and BTS Siam',
+  },
 ]

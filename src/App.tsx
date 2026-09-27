@@ -83,7 +83,8 @@ const navigation: NavItem[] = [
   { label: 'Gallery', href: '/gallery' },
   { label: 'People', href: '/people', children: [
     { label: 'Committee', href: '/people/committee' },
-    { label: 'Jury & Problem Committee', href: '/people/jury' },
+    { label: 'Jury', href: '/people/jury' },
+    { label: 'Problem Committee', href: '/people/problem-committee' },
     { label: 'Volunteers', href: '/people/volunteers' },
   ] },
   { label: 'Contact', href: '/contact' },
@@ -115,18 +116,18 @@ const hotelImages = [
 ]
 
 const thaiPhrases = [
-  { thai: 'สวัสดีครับ / สวัสดีค่ะ', reading: 'sawatdee khráp / sawatdee khâ', meaning: 'Hello', speech: ['สวัสดีครับ', 'สวัสดีค่ะ'] },
-  { thai: 'ขอบคุณครับ / ขอบคุณค่ะ', reading: 'khop khun khráp / khop khun khâ', meaning: 'Thank you', speech: ['ขอบคุณครับ', 'ขอบคุณค่ะ'] },
-  { thai: 'ขอโทษครับ / ขอโทษค่ะ', reading: 'kho thot khráp / kho thot khâ', meaning: 'Sorry / Excuse me', speech: ['ขอโทษครับ', 'ขอโทษค่ะ'] },
-  { thai: 'ไม่เป็นไร', reading: 'mai pen rai', meaning: "It is okay / You're welcome", speech: ['ไม่เป็นไร'] },
-  { thai: 'ใช่', reading: 'chai', meaning: 'Yes', speech: ['ใช่'] },
-  { thai: 'ไม่ใช่', reading: 'mai chai', meaning: 'No / Not correct', speech: ['ไม่ใช่'] },
-  { thai: 'อร่อย', reading: 'aroi', meaning: 'Delicious', speech: ['อร่อย'] },
-  { thai: 'ชอบ', reading: 'chop', meaning: 'I like it', speech: ['ชอบ'] },
-  { thai: 'ห้องน้ำอยู่ที่ไหน', reading: 'hong nam yu thi nai', meaning: 'Where is the restroom?', speech: ['ห้องน้ำอยู่ที่ไหน'] },
-  { thai: 'เท่าไหร่', reading: 'thao rai', meaning: 'How much?', speech: ['เท่าไหร่'] },
-  { thai: 'ช่วยด้วย', reading: 'chuai duai', meaning: 'Please help', speech: ['ช่วยด้วย'] },
-  { thai: 'พูดภาษาอังกฤษได้ไหม', reading: 'phut phasa angkrit dai mai', meaning: 'Can you speak English?', speech: ['พูดภาษาอังกฤษได้ไหม'] },
+  { thai: 'สวัสดีครับ / สวัสดีค่ะ', reading: 'sawatdee khráp / sawatdee khâ', meaning: 'Hello', speech: ['สวัสดีครับ', 'สวัสดีค่ะ'], ipa: ['sà.wàt.diː.kʰráp', 'sà.wàt.diː.kʰâ'] },
+  { thai: 'ขอบคุณครับ / ขอบคุณค่ะ', reading: 'khop khun khráp / khop khun khâ', meaning: 'Thank you', speech: ['ขอบคุณครับ', 'ขอบคุณค่ะ'], ipa: ['kʰɔ̀ːp.kʰun.kʰráp', 'kʰɔ̀ːp.kʰun.kʰâ'] },
+  { thai: 'ขอโทษครับ / ขอโทษค่ะ', reading: 'kho thot khráp / kho thot khâ', meaning: 'Sorry / Excuse me', speech: ['ขอโทษครับ', 'ขอโทษค่ะ'], ipa: ['kʰɔ̌ː.tʰôːt.kʰráp', 'kʰɔ̌ː.tʰôːt.kʰâ'] },
+  { thai: 'ไม่เป็นไร', reading: 'mai pen rai', meaning: "It is okay / You're welcome", speech: ['ไม่เป็นไร'], ipa: ['mâj.pen.raj'] },
+  { thai: 'ใช่', reading: 'chai', meaning: 'Yes', speech: ['ใช่'], ipa: ['cʰâj'] },
+  { thai: 'ไม่ใช่', reading: 'mai chai', meaning: 'No / Not correct', speech: ['ไม่ใช่'], ipa: ['mâj.cʰâj'] },
+  { thai: 'อร่อย', reading: 'aroi', meaning: 'Delicious', speech: ['อร่อย'], ipa: ['ʔà.rɔ̀ːj'] },
+  { thai: 'ชอบ', reading: 'chop', meaning: 'I like it', speech: ['ชอบ'], ipa: ['cʰɔ̂ːp'] },
+  { thai: 'ห้องน้ำอยู่ที่ไหน', reading: 'hong nam yu thi nai', meaning: 'Where is the restroom?', speech: ['ห้องน้ำอยู่ที่ไหน'], ipa: ['hɔ̂ːŋ.náːm.jùː.tʰîː.nǎj'] },
+  { thai: 'เท่าไหร่', reading: 'thao rai', meaning: 'How much?', speech: ['เท่าไหร่'], ipa: ['tʰâw.ràj'] },
+  { thai: 'ช่วยด้วย', reading: 'chuai duai', meaning: 'Please help', speech: ['ช่วยด้วย'], ipa: ['cʰûːaj.dûːaj'] },
+  { thai: 'พูดภาษาอังกฤษได้ไหม', reading: 'phut phasa angkrit dai mai', meaning: 'Can you speak English?', speech: ['พูดภาษาอังกฤษได้ไหม'], ipa: ['pʰûːt.pʰaː.sǎː.ʔaŋ.krìt.dâːj.mǎj'] },
 ]
 
 function NavLink({ item, className }: { item: NavItem; className?: string }) {
@@ -225,17 +226,16 @@ function SponsorPreview({ full = false }: { full?: boolean }) {
     { letter: 'C', name: 'Supporting Company C', logoClass: 'logo-company-c' },
     { letter: 'D', name: 'Supporting Company D', logoClass: 'logo-company-d' },
   ]
+  const placementSpec = 'Every confirmed sponsor is presented in the same display area: a 320 x 180 px logo area, a 1600 x 500 px feature banner and a description of up to 60 words.'
+  const card = (sponsor: { letter: string; name: string; logoClass: string }, tier: string) => <article className="sponsor-equal-card" key={sponsor.name}>
+    <div className={`fictional-logo ${sponsor.logoClass}`}><span>{sponsor.letter}</span><strong>{sponsor.name.toUpperCase()}</strong></div>
+    <div className="sponsor-equal-content"><span>{tier}</span><h3>{sponsor.name}</h3><p>{sponsor.name} supports IOL 2027 and receives the same placement area as every other confirmed partner.</p></div>
+  </article>
   return <section className={`commercial-sponsors wrap ${full ? 'commercial-sponsors-full' : 'commercial-sponsors-home'}`}>
-    <div className="sponsor-tier-heading"><p className="eyebrow">Lead sponsors</p><h2>Principal partners of IOL 2027.</h2><p>Lead sponsors provide major support for the programme, venues and participant experience. Every confirmed partner at this level receives the same prominent placement.</p></div>
-    <div className="lead-sponsor-list">{leadSponsors.map((sponsor) => <article className="lead-sponsor-card" key={sponsor.name}>
-      <div className={`fictional-logo ${sponsor.logoClass}`}><span>{sponsor.letter}</span><strong>{sponsor.name.toUpperCase()}</strong></div>
-      <div className="lead-sponsor-content"><span>LEAD SPONSOR</span><h3>{sponsor.name}</h3><p>{sponsor.name} helps IOL 2027 welcome international teams and deliver the spaces, services and shared experiences that make the Olympiad possible. Each lead sponsor receives a logo display area of 320 × 180 px, a 1600 × 500 px feature banner, and space for a description of up to 80 words.</p></div>
-    </article>)}</div>
-    <div className="supporting-sponsor-heading"><p className="eyebrow">Supporting sponsors</p><h2>Additional partners, recognised together.</h2><p>Supporting sponsors strengthen the services and activities that help teams enjoy a welcoming, well-organised Olympiad week.</p></div>
-    <div className="supporting-sponsor-grid">{supportingSponsors.map((sponsor) => <article className="supporting-sponsor-card" key={sponsor.name}>
-      <div className={`fictional-logo ${sponsor.logoClass}`}><span>{sponsor.letter}</span><strong>{sponsor.name.toUpperCase()}</strong></div>
-      <div className="supporting-sponsor-content"><span>SUPPORTING SPONSOR</span><h3>{sponsor.name}</h3><p>{sponsor.name} supports the participant services and shared programme that bring the IOL community together in Bangkok. Each supporting sponsor receives a logo display area of 220 × 120 px, a 1200 × 300 px feature banner, and space for a description of up to 40 words.</p></div>
-    </article>)}</div>
+    <div className="sponsor-tier-heading"><p className="eyebrow">Lead sponsors</p><h2>Principal partners of IOL 2027.</h2><p>Lead sponsors provide major support for the programme, venues and participant experience. {placementSpec}</p></div>
+    <div className="sponsor-equal-grid">{leadSponsors.map((sponsor) => card(sponsor, 'LEAD SPONSOR'))}</div>
+    <div className="supporting-sponsor-heading"><p className="eyebrow">Supporting sponsors</p><h2>Additional partners, recognised together.</h2><p>Supporting sponsors strengthen the services and activities that help teams enjoy a welcoming, well-organised Olympiad week. They receive exactly the same display area as lead sponsors: the tiers differ in the level of support, not in the size of the placement.</p></div>
+    <div className="sponsor-equal-grid">{supportingSponsors.map((sponsor) => card(sponsor, 'SUPPORTING SPONSOR'))}</div>
     {!full && <LinkButton href="/sponsors">View sponsor opportunities</LinkButton>}
   </section>
 }
@@ -261,7 +261,7 @@ function Home() {
       <article className="feature-card plum"><span>TEAM CONTEST</span><h3>Four minds.<br />One problem.</h3><p>Teams combine perspectives to solve one large-scale challenge together.</p></article>
       <article className="feature-card jade"><span>HOST PROGRAMME</span><h3>One shared<br />language: curiosity.</h3><p>Excursions, culture and friendships turn a competition into a global community.</p></article>
     </section>
-    <section className="venues-preview wrap"><div className="section-heading"><p className="eyebrow">Across Bangkok</p><h2>Three places.<br />One Olympiad.</h2><LinkButton href="/programme">See venues</LinkButton></div><div className="venue-stack">{venues.map((venue) => <article key={venue.index}><span>{venue.index}</span><div><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small></div></article>)}</div></section>
+    <section className="venues-preview wrap"><div className="section-heading"><p className="eyebrow">Across Bangkok</p><h2>Three places.<br />One Olympiad.</h2><LinkButton href="/programme">See venues</LinkButton></div><div className="venue-stack">{venues.map((venue) => <article key={venue.index}><div className="venue-thumb">{venue.image ? <img src={venue.image} alt={venue.imageAlt} loading="lazy" /> : <span>Photo to be added</span>}</div><div><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small></div></article>)}</div></section>
     <SponsorPreview />
   </>
 }
@@ -294,6 +294,7 @@ function Thailand() {
 function ThaiLanguage() {
   const [thaiVoice, setThaiVoice] = useState<SpeechSynthesisVoice | null>(null)
   const [voiceChecked, setVoiceChecked] = useState(false)
+  const [slow, setSlow] = useState(false)
   useEffect(() => {
     if (!('speechSynthesis' in window)) { setVoiceChecked(true); return }
     const loadVoice = () => {
@@ -311,15 +312,37 @@ function ThaiLanguage() {
     const utterance = new SpeechSynthesisUtterance(text)
     utterance.voice = thaiVoice
     utterance.lang = thaiVoice.lang || 'th-TH'
-    utterance.rate = 0.76
+    utterance.rate = slow ? 0.55 : 0.9
     utterance.pitch = 1
+    utterance.volume = 1
     window.speechSynthesis.speak(utterance)
   }
-  return <><PageIntro title="Useful Thai for your stay" body="A few words and phrases to help you get around, order food, say hello, and enjoy your time in Thailand." /><section className="thai-intro wrap"><div><p className="eyebrow">A quick note</p><h2 className="mixed-heading">Speak gently. <em>Listen closely.</em></h2></div><div className="prose"><p>Thai is a tonal language, so accurate pronunciation depends on a genuine Thai speech voice. The listen buttons are enabled only when your device or browser provides one. If no suitable Thai voice is available, the listen button will be disabled.</p><p>Men commonly end polite sentences with <strong>ครับ (khráp)</strong>; women commonly use <strong>ค่ะ (khâ)</strong>. Where both forms are shown, you can listen to each one separately.</p><p id="thai-voice-status" className={`voice-status ${thaiVoice ? 'voice-ready' : 'voice-unavailable'}`}>{thaiVoice ? `Thai voice ready: ${thaiVoice.name}` : voiceChecked ? 'No Thai speech voice is installed on this device. The reading guide remains available; native-speaker recordings are the recommended final production solution.' : 'Checking for a Thai speech voice...'}</p></div></section><section className="phrase-grid wrap">{thaiPhrases.map((phrase) => <article key={phrase.thai}><h2 lang="th">{phrase.thai}</h2><p className="phrase-reading">{phrase.reading}</p><p>{phrase.meaning}</p><div className="phrase-audio">{phrase.speech.map((spoken, index) => <button type="button" key={spoken} disabled={!thaiVoice} onClick={() => speakThai(spoken)} aria-describedby="thai-voice-status" aria-label={`Play Thai pronunciation for ${spoken}`}><Volume2 size={18} />{phrase.speech.length > 1 ? index === 0 ? 'ครับ form' : 'ค่ะ form' : 'Listen'}</button>)}</div></article>)}</section></>
+  return <><PageIntro title="Useful Thai for your stay" body="A few words and phrases to help you get around, order food, say hello, and enjoy your time in Thailand." /><section className="thai-intro wrap"><div><p className="eyebrow">A quick note</p><h2 className="mixed-heading">Speak gently. <em>Listen closely.</em></h2></div><div className="prose"><p>Thai is a tonal language, so accurate pronunciation depends on a genuine Thai speech voice. The listen buttons are enabled only when your device or browser provides one. If no suitable Thai voice is available, the listen button will be disabled.</p><p>Each phrase shows a broad IPA transcription with tone marks, followed by a plain reading for everyday use. The transcriptions were generated with a Thai grapheme-to-phoneme tool and reviewed by hand.</p><p>Men commonly end polite sentences with <strong>ครับ (khráp)</strong>; women commonly use <strong>ค่ะ (khâ)</strong>. Where both forms are shown, you can listen to each one separately.</p><div className="phrase-speed"><span>Playback speed</span><div role="group" aria-label="Playback speed"><button type="button" className={slow ? undefined : 'active'} aria-pressed={!slow} onClick={() => setSlow(false)}>Normal</button><button type="button" className={slow ? 'active' : undefined} aria-pressed={slow} onClick={() => setSlow(true)}>Slow</button></div></div><p id="thai-voice-status" className={`voice-status ${thaiVoice ? 'voice-ready' : 'voice-unavailable'}`}>{thaiVoice ? `Thai voice ready: ${thaiVoice.name}` : voiceChecked ? 'No Thai speech voice is installed on this device. The reading guide remains available; native-speaker recordings are the recommended final production solution.' : 'Checking for a Thai speech voice...'}</p></div></section><section className="phrase-grid wrap">{thaiPhrases.map((phrase) => <article key={phrase.thai}><h2 lang="th">{phrase.thai}</h2><p className="phrase-ipa">{phrase.ipa.map((value) => `/${value}/`).join('  ·  ')}</p><p className="phrase-reading">{phrase.reading}</p><p>{phrase.meaning}</p><div className="phrase-audio">{phrase.speech.map((spoken, index) => <button type="button" key={spoken} disabled={!thaiVoice} onClick={() => speakThai(spoken)} aria-describedby="thai-voice-status" aria-label={`Play Thai pronunciation for ${spoken}`}><Volume2 size={18} />{phrase.speech.length > 1 ? index === 0 ? 'ครับ form' : 'ค่ะ form' : 'Listen'}</button>)}</div></article>)}</section></>
+}
+
+function VenueMaps() {
+  return <section className="venue-maps wrap">
+    <div className="venue-maps-heading">
+      <p className="eyebrow">Getting there</p>
+      <h2>Find each venue.</h2>
+      <p>Maps point to the host faculty and the hotel. Final building and room allocation is confirmed by the organising team closer to the event.</p>
+    </div>
+    <div className="venue-maps-grid">{venues.map((venue) => <article key={venue.index}>
+      <div className="venue-map-frame"><iframe title={`Map of ${venue.name}`} src={`https://www.google.com/maps?q=${venue.mapQuery}&output=embed`} loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" /></div>
+      <div className="venue-map-copy">
+        <p className="eyebrow">{venue.role}</p>
+        <h3>{venue.name}</h3>
+        <p className="venue-map-building">{venue.building}</p>
+        <small>{venue.address}</small>
+        <small className="venue-map-transit"><MapPin size={14} /> {venue.transit}</small>
+        <a className="text-link" href={`https://www.google.com/maps/search/?api=1&query=${venue.mapQuery}`} target="_blank" rel="noreferrer">Open in Google Maps <ExternalLink size={14} /></a>
+      </div>
+    </article>)}</div>
+  </section>
 }
 
 function Programme() {
-  return <><PageIntro eyebrow="Schedule & venues" title="Eight days in Bangkok." body="The tentative programme runs from 21 to 28 July 2027 across Mandarin Hotel, Kasetsart University, Chulalongkorn University and other programme locations." /><figure className="schedule-artifact wrap"><img src="/assets/iol-2027-schedule.png" alt="Tentative hourly schedule for IOL 2027 from 21 to 28 July" /><figcaption><div><span>TENTATIVE SCHEDULE</span><p>Times and activities may change as the organising team confirms operations.</p></div><a className="pill" href="/downloads/IOL-2027-Schedule.html" target="_blank" rel="noreferrer">Open full schedule <span><ExternalLink size={15} /></span></a></figcaption></figure><section className="timeline wrap">{schedule.map((item) => <article key={item.date}><div><span>{item.day}</span><strong>{item.date}</strong></div><h2>{item.title}</h2><p>{item.detail}</p></article>)}</section><section className="venue-section"><div className="wrap"><p className="eyebrow">Venue plan</p><h2>Bangkok, connected.</h2><div className="venue-cards">{venues.map((venue) => <article key={venue.index}><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small></article>)}</div></div></section></>
+  return <><PageIntro eyebrow="Schedule & venues" title="Eight days in Bangkok." body="The tentative programme runs from 21 to 28 July 2027 across Mandarin Hotel, Kasetsart University, Chulalongkorn University and other programme locations." /><figure className="schedule-artifact wrap"><img src="/assets/iol-2027-schedule.png" alt="Tentative hourly schedule for IOL 2027 from 21 to 28 July" /><figcaption><div><span>TENTATIVE SCHEDULE</span><p>Times and activities may change as the organising team confirms operations.</p></div><a className="pill" href="/downloads/IOL-2027-Schedule.html" target="_blank" rel="noreferrer">Open full schedule <span><ExternalLink size={15} /></span></a></figcaption></figure><section className="timeline wrap">{schedule.map((item) => <article key={item.date}><div><span>{item.day}</span><strong>{item.date}</strong></div><h2>{item.title}</h2><p>{item.detail}</p></article>)}</section><section className="venue-section"><div className="wrap"><p className="eyebrow">Venue plan</p><h2>Bangkok, connected.</h2><div className="venue-cards">{venues.map((venue) => <article key={venue.index}><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small></article>)}</div></div></section><VenueMaps /></>
 }
 
 function Hosts() {
@@ -511,9 +534,14 @@ function TeamLeaderAccount() {
       ] },
     ] },
     { title: 'People', status: 'In progress', body: 'Add contestants and observers here when their information is ready. The Team Leader is already created from the account and is not entered again.', fields: [], records: memberRecordsData },
-    { title: 'Travel', status: 'Fill later', body: 'Travel is not required for the first registration submission. The Team Leader returns here after flights are booked, then updates arrival and departure details as they change.', fields: [], required: false, notes: [
-      { label: 'When to complete', value: 'After flights are booked', help: 'Keep this section open later because arrival and departure details change often.' },
-      { label: 'Registration requirement', value: 'Not required now', help: 'Team, participant, welfare and payment proof can be submitted first.' },
+    { title: 'Travel', status: 'Dates now, flights later', body: 'The Team Leader declares the arrival and departure dates of the delegation at first registration, because those dates set the hotel nights the organising team reserves. Flight numbers and times are added later, after booking, and stay open for changes.', fields: [
+      { label: 'Declared arrival date', value: '', help: 'First night at the official hotel. The programme runs from 21 to 28 July 2027.', kind: 'date' },
+      { label: 'Declared departure date', value: '', help: 'Day the delegation leaves the official hotel. It cannot be earlier than the arrival date.', kind: 'date' },
+      { label: 'Nights at the official hotel', value: '', help: 'Calculated from the declared dates and used for room planning.', kind: 'readonly' },
+      { label: 'Nights outside the programme window', value: '', help: 'State any early arrival or late departure so the organising team can check hotel availability and cost.', kind: 'textarea' },
+    ], required: true, notes: [
+      { label: 'When to complete', value: 'Dates now, flights after booking', help: 'The declared dates are needed early. Flight details can be filled in later and changed as often as needed.' },
+      { label: 'Registration requirement', value: 'Dates required', help: 'Arrival and departure dates are required at first submission because the hotel booking depends on them. Flight details are not.' },
     ], records: [
       { label: 'Arrival details', meta: 'Fill after booking', status: 'Later', fields: [
         { label: 'Direction', value: 'Arrival', help: 'Arrival or departure trip.' },
@@ -799,7 +827,7 @@ function Gallery() {
 }
 
 function People() {
-  return <><PageIntro eyebrow="People" title="Built by many kinds of minds." body="Committee, jury and volunteer information will be added when the approved names and roles are provided." /><SectionLinks links={[{ href: '/people/committee', label: 'Committee', detail: 'The full Thai-language roster of the organising committees and subcommittees.' }, { href: '/people/jury', label: 'Jury & Problem Committee', detail: 'Judges, problem writers, translators and markers.' }, { href: '/people/volunteers', label: 'Volunteers', detail: 'The people who welcome and guide every team.' }]} /></>
+  return <><PageIntro eyebrow="People" title="Built by many kinds of minds." body="Committee, jury and volunteer information will be added when the approved names and roles are provided." /><SectionLinks links={[{ href: '/people/committee', label: 'Committee', detail: 'The full Thai-language roster of the organising committees and subcommittees.' }, { href: '/people/jury', label: 'Jury', detail: 'The international jury for the individual and team contests.' }, { href: '/people/problem-committee', label: 'Problem Committee', detail: 'The authors, translators and markers of the contest problems.' }, { href: '/people/volunteers', label: 'Volunteers', detail: 'The people who welcome and guide every team.' }]} /></>
 }
 
 function CommitteeRoster() {
@@ -836,11 +864,11 @@ function CommitteeRoster() {
   </section>
 }
 
-function PeopleSubpage({ kind }: { kind: 'committee' | 'jury' | 'volunteers' }) {
-  const jury = kind === 'jury'
-  const title = kind === 'committee' ? 'Committee' : jury ? 'Jury & Problem Committee' : 'Volunteers'
-  const body = kind === 'committee' ? 'The approved committees and subcommittees appointed for IOL 2027, published in Thai exactly as they appear in the official appointment document.' : jury ? 'The main judges, problem writers, translators and markers will be introduced with photographs and approved biographies.' : 'The approved volunteer information and responsibilities will be published here.'
-  return <><PageIntro eyebrow={`People / ${title}`} title={title} body={body} />{kind === 'committee' ? <CommitteeRoster /> : jury ? <section className="portrait-grid wrap">{Array.from({ length: 6 }, (_, index) => <article key={index}><div className="portrait-placeholder"><span>PHOTO</span></div><h2>Name to be confirmed</h2><p>Role and biography will be added after approval.</p></article>)}</section> : <section className="two-col wrap"><div><p className="eyebrow">Roster pending</p><h2>Information will be added when the organising team confirms it.</h2></div><div className="prose"><p>This page intentionally does not show photo placeholders. Names, responsibilities and public contact details will be published only after approval.</p></div></section>}</>
+function PeopleSubpage({ kind }: { kind: 'committee' | 'jury' | 'problem-committee' | 'volunteers' }) {
+  const portraits = kind === 'jury' || kind === 'problem-committee'
+  const title = kind === 'committee' ? 'Committee' : kind === 'jury' ? 'Jury' : kind === 'problem-committee' ? 'Problem Committee' : 'Volunteers'
+  const body = kind === 'committee' ? 'The approved committee roster and role descriptions for IOL 2027.' : kind === 'jury' ? 'The jury responsible for moderation, marking standards and the final contest decisions will be introduced with photographs and approved biographies.' : kind === 'problem-committee' ? 'The problem authors, translators and markers who prepare the individual and team contest problems will be introduced with photographs and approved biographies.' : 'The approved volunteer information and responsibilities will be published here.'
+  return <><PageIntro eyebrow={`People / ${title}`} title={title} body={body} />{kind === 'committee' ? <CommitteeRoster /> : portraits ? <section className="portrait-grid wrap">{Array.from({ length: 6 }, (_, index) => <article key={index}><div className="portrait-placeholder"><span>PHOTO</span></div><h2>Name to be confirmed</h2><p>Role and biography will be added after approval.</p></article>)}</section> : <section className="two-col wrap"><div><p className="eyebrow">Roster pending</p><h2>Information will be added when the organising team confirms it.</h2></div><div className="prose"><p>This page intentionally does not show photo placeholders. Names, responsibilities and public contact details will be published only after approval.</p></div></section>}</>
 }
 
 function Contact() {
@@ -872,7 +900,7 @@ function App() {
     '/logistics': <EventGuide />, '/logistics/accommodation': <Accommodation />, '/logistics/transportation': <Transportation />, '/logistics/important-dates': <ImportantDates />, '/logistics/guidebook': <Guidebook />,
     '/explore': <Thailand />, '/explore/excursions': <Thailand />, '/explore/culture': <Thailand />, '/explore/city-guide': <Thailand />,
     '/gallery': <Gallery />, '/media': <Gallery />, '/media/gallery': <Gallery />, '/media/press': <Contact />, '/news': <Home />,
-    '/people': <People />, '/people/committee': <PeopleSubpage kind="committee" />, '/people/jury': <PeopleSubpage kind="jury" />, '/people/volunteers': <PeopleSubpage kind="volunteers" />,
+    '/people': <People />, '/people/committee': <PeopleSubpage kind="committee" />, '/people/jury': <PeopleSubpage kind="jury" />, '/people/problem-committee': <PeopleSubpage kind="problem-committee" />, '/people/volunteers': <PeopleSubpage kind="volunteers" />,
     '/results': <ExternalResultsRedirect />, '/results/individual': <ExternalResultsRedirect />, '/results/team': <ExternalResultsRedirect />,
     '/contact': <Contact />, '/privacy': <Privacy />,
   }

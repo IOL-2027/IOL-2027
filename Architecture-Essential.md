@@ -50,6 +50,7 @@ Roles: public; Team Leader; Registration Admin; Finance Admin; Check-in Staff; W
 - `src/App.tsx`: pages and pathname routing.
 - `src/siteData.ts`: event facts, schedule, working venues.
 - `src/committeeData.ts`: the official Thai committee and subcommittee roster published on `/people/committee`.
+- `src/siteData.ts` also carries each venue's address, map query and optional photo, used by the home page venue strip and the programme-page venue maps.
 - `src/index.css`: visual system and responsive layout.
 - `public/assets/`: logo and sponsor assets.
 - `public/fonts/`: local Manrope, IBM Plex Mono, Noto Sans Thai files.

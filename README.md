@@ -25,6 +25,8 @@ npm run preview
 - `/explore` — cultural programme
 - `/people` — organising roles
 - `/people/committee` — official Thai committee and subcommittee roster
+- `/people/jury` — jury (placeholder)
+- `/people/problem-committee` — problem committee (placeholder)
 - `/news` — chronological announcements
 - `/registration` — registration timeline and PoC entry
 - `/registration/team-leader` — static Team Leader journey prototype
