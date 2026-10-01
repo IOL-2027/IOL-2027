@@ -55,6 +55,7 @@ CREATE INDEX IF NOT EXISTS email_verification_tokens_account_idx ON email_verifi
 CREATE TABLE IF NOT EXISTS email_deliveries (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id uuid REFERENCES accounts(id) ON DELETE SET NULL,
+  delegation_id uuid,
   recipient_email text NOT NULL,
   purpose text NOT NULL,
   provider text NOT NULL DEFAULT 'resend',
@@ -65,7 +66,10 @@ CREATE TABLE IF NOT EXISTS email_deliveries (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+ALTER TABLE email_deliveries ADD COLUMN IF NOT EXISTS delegation_id uuid;
+
 CREATE INDEX IF NOT EXISTS email_deliveries_account_idx ON email_deliveries (account_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS email_deliveries_delegation_idx ON email_deliveries (delegation_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS delegations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

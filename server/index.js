@@ -8,6 +8,14 @@ import express from 'express'
 import multer from 'multer'
 import pg from 'pg'
 import QRCode from 'qrcode'
+import {
+  buildVerificationEmail,
+  buildProofReceivedEmail,
+  buildFinanceAlertEmail,
+  buildPaymentConfirmedEmail,
+  buildRegistrationSubmittedEmail,
+  sendEmail,
+} from './email.js'
 
 const { Pool } = pg
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -123,47 +131,12 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex')
 }
 
-async function sendVerificationEmail({ accountId, email, code }) {
-  const deliveryResult = await query(
-    `INSERT INTO email_deliveries (account_id, recipient_email, purpose, status)
-     VALUES ($1, $2, 'account_verification', 'queued')
-     RETURNING *`,
-    [accountId, email],
-  )
-  const delivery = deliveryResult.rows[0]
-  if (!process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) {
-    return { delivery: camelizeRow(delivery), configured: false }
-  }
-
+async function sendVerificationEmail({ accountId, email, code, countryTerritory, fullName }) {
+  const { subject, html } = buildVerificationEmail({ countryTerritory: countryTerritory || 'your delegation', fullName: fullName || email, code })
   try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: process.env.EMAIL_FROM,
-        to: [email],
-        subject: 'Your IOL 2027 verification code',
-        html: `<p>Your IOL 2027 verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">${code}</p><p>This code expires in 30 minutes.</p>`,
-      }),
-    })
-    const payload = await response.json()
-    if (!response.ok) throw new Error(payload.message || 'Email provider rejected the message.')
-    const sent = await query(
-      `UPDATE email_deliveries
-       SET status = 'sent', provider_message_id = $1, sent_at = now()
-       WHERE id = $2
-       RETURNING *`,
-      [payload.id, delivery.id],
-    )
-    return { delivery: camelizeRow(sent.rows[0]), configured: true }
-  } catch (error) {
-    await query(
-      `UPDATE email_deliveries SET status = 'failed', error_message = $1 WHERE id = $2`,
-      [error.message, delivery.id],
-    )
+    const result = await sendEmail({ pool: requireDb(), to: email, subject, html, purpose: 'account_verification', accountId })
+    return { delivery: camelizeRow(result.delivery), configured: result.configured }
+  } catch {
     throw new ApiError(502, 'The verification email could not be sent. Please try again.')
   }
 }
@@ -367,8 +340,17 @@ app.post('/api/registration/team-leader-account', asyncHandler(async (req, res) 
 }))
 
 app.post('/api/registration/accounts/:accountId/request-email-verification', asyncHandler(async (req, res) => {
-  const accountResult = await query('SELECT id, email FROM accounts WHERE id = $1', [req.params.accountId])
+  const accountResult = await query(
+    `SELECT a.id, a.email, a.full_name, d.country_territory
+     FROM accounts a
+     LEFT JOIN delegations d ON d.account_id = a.id
+     WHERE a.id = $1
+     ORDER BY d.created_at DESC
+     LIMIT 1`,
+    [req.params.accountId],
+  )
   if (!accountResult.rowCount) throw new ApiError(404, 'Account not found.')
+  const account = accountResult.rows[0]
   const code = String(crypto.randomInt(100000, 999999))
   const tokenHash = hashToken(code)
   await query(
@@ -376,7 +358,13 @@ app.post('/api/registration/accounts/:accountId/request-email-verification', asy
      VALUES ($1, $2, now() + interval '30 minutes')`,
     [req.params.accountId, tokenHash],
   )
-  const emailResult = await sendVerificationEmail({ accountId: req.params.accountId, email: accountResult.rows[0].email, code })
+  const emailResult = await sendVerificationEmail({
+    accountId: req.params.accountId,
+    email: account.email,
+    code,
+    countryTerritory: account.country_territory,
+    fullName: account.full_name,
+  })
   res.status(201).json({
     ok: true,
     delivery: emailResult.delivery,
@@ -833,6 +821,36 @@ app.post('/api/registration/delegations/:delegationId/payment-proof', upload.sin
     return { payment: updatedPaymentResult.rows[0], attachment }
   })
 
+  // emails: confirm to TL + alert to Finance — fire-and-forget, never block the response
+  const delegationFull = await query(
+    `SELECT d.country_territory, d.team_leader_email, d.primary_team_leader_name,
+            p.payment_reference, p.amount_due, p.currency, p.invoice_count, a.original_filename
+     FROM delegations d
+     JOIN payments p ON p.delegation_id = d.id AND p.id = $1
+     LEFT JOIN attachments a ON a.id = p.proof_attachment_id
+     WHERE d.id = $2`,
+    [response.payment.id, req.params.delegationId],
+  )
+  if (delegationFull.rowCount) {
+    const row = delegationFull.rows[0]
+    const emailCtx = {
+      countryTerritory: row.country_territory,
+      fullName: row.primary_team_leader_name,
+      paymentReference: row.payment_reference,
+      amountDue: row.amount_due,
+      currency: row.currency || 'USD',
+      invoiceCount: row.invoice_count,
+      proofFilename: row.original_filename,
+      delegationId: req.params.delegationId,
+    }
+    const tlEmail = buildProofReceivedEmail(emailCtx)
+    sendEmail({ pool: requireDb(), to: row.team_leader_email, ...tlEmail, purpose: 'payment_proof_received', delegationId: req.params.delegationId }).catch(console.error)
+    if (process.env.FINANCE_EMAIL) {
+      const finEmail = buildFinanceAlertEmail(emailCtx)
+      sendEmail({ pool: requireDb(), to: process.env.FINANCE_EMAIL, ...finEmail, purpose: 'finance_proof_alert', delegationId: req.params.delegationId }).catch(console.error)
+    }
+  }
+
   res.status(201).json({
     payment: camelizeRow(response.payment),
     attachment: camelizeRow(response.attachment),
@@ -933,6 +951,132 @@ app.get('/api/registration/admin/dashboard', asyncHandler(async (_req, res) => {
     payments: camelizeRows(paymentCounts.rows),
     travel: camelizeRows(travelCounts.rows),
   })
+}))
+
+// ── Finance admin endpoints ───────────────────────────────────────────────────
+
+app.post('/api/admin/payments/:paymentId/confirm', asyncHandler(async (req, res) => {
+  const confirmed = await withTransaction(async (client) => {
+    const paymentResult = await client.query(
+      `UPDATE payments
+       SET status = 'confirmed', reviewed_at = now(), reviewed_by_account_id = $2, updated_at = now()
+       WHERE id = $1 AND status = 'awaiting_review'
+       RETURNING *`,
+      [req.params.paymentId, optionalString(req.body.reviewedByAccountId)],
+    )
+    if (!paymentResult.rowCount) throw new ApiError(404, 'Payment not found or not in awaiting_review state.')
+    const payment = paymentResult.rows[0]
+
+    await client.query(
+      `UPDATE delegations
+       SET payment_status = 'confirmed', updated_at = now()
+       WHERE id = $1`,
+      [payment.delegation_id],
+    )
+    await insertAudit(client, {
+      actorAccountId: optionalString(req.body.reviewedByAccountId),
+      delegationId: payment.delegation_id,
+      eventType: 'payment_confirmed',
+      entityType: 'payment',
+      entityId: payment.id,
+      details: {},
+    })
+    return payment
+  })
+
+  // send confirmation email to TL
+  const delegationResult = await query(
+    `SELECT d.country_territory, d.team_leader_email, d.primary_team_leader_name
+     FROM delegations d WHERE d.id = $1`,
+    [confirmed.delegation_id],
+  )
+  if (delegationResult.rowCount) {
+    const d = delegationResult.rows[0]
+    const { subject, html } = buildPaymentConfirmedEmail({
+      countryTerritory: d.country_territory,
+      fullName: d.primary_team_leader_name,
+      paymentReference: confirmed.payment_reference,
+      amountPaid: confirmed.amount_due,
+      currency: confirmed.currency || 'USD',
+      receiptUrl: null,
+    })
+    sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_confirmed', delegationId: confirmed.delegation_id }).catch(console.error)
+  }
+
+  res.json({ payment: camelizeRow(confirmed) })
+}))
+
+app.post('/api/admin/payments/:paymentId/reject', asyncHandler(async (req, res) => {
+  const rejected = await withTransaction(async (client) => {
+    const paymentResult = await client.query(
+      `UPDATE payments
+       SET status = 'rejected', reviewed_at = now(), reviewed_by_account_id = $2,
+           review_note = $3, updated_at = now()
+       WHERE id = $1
+       RETURNING *`,
+      [req.params.paymentId, optionalString(req.body.reviewedByAccountId), optionalString(req.body.note)],
+    )
+    if (!paymentResult.rowCount) throw new ApiError(404, 'Payment not found.')
+    const payment = paymentResult.rows[0]
+    await client.query(
+      `UPDATE delegations SET payment_status = 'rejected', updated_at = now() WHERE id = $1`,
+      [payment.delegation_id],
+    )
+    await insertAudit(client, {
+      actorAccountId: optionalString(req.body.reviewedByAccountId),
+      delegationId: payment.delegation_id,
+      eventType: 'payment_rejected',
+      entityType: 'payment',
+      entityId: payment.id,
+      details: { note: req.body.note },
+    })
+    return payment
+  })
+  res.json({ payment: camelizeRow(rejected) })
+}))
+
+app.post('/api/registration/delegations/:delegationId/submit', asyncHandler(async (req, res) => {
+  const submitted = await withTransaction(async (client) => {
+    const delegationResult = await client.query(
+      `UPDATE delegations
+       SET registration_status = 'submitted', submitted_at = now(), updated_at = now()
+       WHERE id = $1 AND registration_status IN ('draft', 'in_progress')
+       RETURNING *`,
+      [req.params.delegationId],
+    )
+    if (!delegationResult.rowCount) throw new ApiError(404, 'Delegation not found or already submitted.')
+    const delegation = delegationResult.rows[0]
+    await insertAudit(client, {
+      actorAccountId: optionalString(req.body.accountId),
+      delegationId: delegation.id,
+      eventType: 'registration_submitted',
+      entityType: 'delegation',
+      entityId: delegation.id,
+      details: {},
+    })
+    return delegation
+  })
+
+  // send submission confirmation email
+  const { subject, html } = buildRegistrationSubmittedEmail({
+    countryTerritory: submitted.country_territory,
+    fullName: submitted.primary_team_leader_name,
+    numberOfTeams: submitted.number_of_teams,
+    numberOfObservers: submitted.number_of_observers,
+    missingItems: Array.isArray(req.body.missingItems) ? req.body.missingItems : [],
+  })
+  sendEmail({ pool: requireDb(), to: submitted.team_leader_email, subject, html, purpose: 'registration_submitted', delegationId: submitted.id }).catch(console.error)
+
+  res.json({ delegation: camelizeRow(submitted) })
+}))
+
+// ── email delivery log ────────────────────────────────────────────────────────
+
+app.get('/api/admin/email-deliveries', asyncHandler(async (_req, res) => {
+  const result = await query(
+    `SELECT * FROM email_deliveries ORDER BY created_at DESC LIMIT 200`,
+  )
+  res.json({ deliveries: camelizeRows(result.rows) })
 }))
 
 app.use((error, _req, res, _next) => {
