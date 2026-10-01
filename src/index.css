@@ -260,6 +260,8 @@ select.reg-input{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://w
 .reg-btn-save:hover{background:var(--plum);transform:translateY(-1px)}
 .reg-btn-next{border:none;border-radius:99px;background:var(--orange);color:var(--ink);padding:12px 22px;font:700 13.5px 'Manrope','Noto Sans Thai',sans-serif;cursor:pointer;transition:transform .15s,box-shadow .15s;display:inline-flex;align-items:center;gap:8px;letter-spacing:-.01em}
 .reg-btn-next:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(237,163,99,.33)}
+.reg-btn-invoice{border:1.5px solid var(--orange);border-radius:99px;background:transparent;color:var(--ink);padding:11px 20px;font:700 13.5px 'Manrope','Noto Sans Thai',sans-serif;cursor:pointer;transition:background .15s,transform .15s;display:inline-flex;align-items:center;gap:7px;letter-spacing:-.01em}
+.reg-btn-invoice:hover{background:rgba(237,163,99,.12);transform:translateY(-1px)}
 .reg-btn-reset{border:none;background:none;color:#c0b8c4;padding:12px 14px;font:500 13px 'Manrope','Noto Sans Thai',sans-serif;cursor:pointer;transition:color .15s;margin-left:auto}
 .reg-btn-reset:hover{color:var(--red)}
 

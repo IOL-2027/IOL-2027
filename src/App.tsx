@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, Camera, CheckCircle, ChevronLeft, ChevronRight, ClipboardCheck, ExternalLink, Lock, MailCheck, MapPin, Menu, QrCode, ShieldCheck, Upload, Users, Volume2, X } from 'lucide-react'
+import { ArrowRight, Camera, CheckCircle, ChevronLeft, ChevronRight, ClipboardCheck, ExternalLink, FileText, Lock, MailCheck, MapPin, Menu, QrCode, ShieldCheck, Upload, Users, Volume2, X } from 'lucide-react'
 import { event, schedule, venues } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
 
@@ -354,6 +354,59 @@ function TeamLeaderAccount() {
   const [savedAreas, setSavedAreas] = useState<string[]>([])
   const [proofUploaded, setProofUploaded] = useState(true)
   const [activeRecordByArea, setActiveRecordByArea] = useState<Record<string, number>>({ Teams: 0, People: 0, Travel: 0 })
+
+  const downloadInvoice = () => {
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>IOL 2027 Invoice — Thailand</title><style>
+      body{margin:0;padding:40px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#160c1b;background:#fff;-webkit-print-color-adjust:exact}
+      .header{background:#160c1b;color:#f3eed4;padding:28px 36px;border-radius:12px;margin-bottom:32px}
+      .header p{margin:0;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#eda363;font-weight:700}
+      .header h1{margin:8px 0 0;font-size:28px;font-weight:800;letter-spacing:-.03em}
+      .meta{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px}
+      .meta-block small{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#857888;margin-bottom:4px}
+      .meta-block strong{font-size:14px}
+      table{width:100%;border-collapse:collapse;margin-bottom:24px}
+      th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:#857888;padding:8px 12px;border-bottom:2px solid #e0d9cc}
+      td{padding:12px;border-bottom:1px solid #e0d9cc;font-size:14px}
+      .total-row td{font-weight:700;font-size:16px;border-bottom:none;padding-top:16px}
+      .bank{background:#f8f5f0;border-radius:8px;padding:20px 24px;margin-bottom:24px}
+      .bank h3{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:#857888}
+      .bank p{margin:4px 0;font-size:14px}
+      .notice{border-left:3px solid #eda363;padding:12px 16px;background:rgba(237,163,99,.08);border-radius:0 6px 6px 0;font-size:13px;line-height:1.6;margin-bottom:24px}
+      .footer{margin-top:40px;font-size:11px;color:#b0a8b4;line-height:1.7}
+      @media print{body{padding:24px}}
+    </style></head><body>
+      <div class="header"><p>IOL 2027 · Bangkok, Thailand</p><h1>Registration Invoice</h1></div>
+      <div class="meta">
+        <div class="meta-block"><small>Bill to</small><strong>National Linguistics Olympiad Thailand</strong></div>
+        <div class="meta-block"><small>Payment reference</small><strong>THA-IOL2027-001</strong></div>
+        <div class="meta-block"><small>Invoice date</small><strong>${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</strong></div>
+        <div class="meta-block"><small>Due</small><strong>On transfer — before member details unlock</strong></div>
+      </div>
+      <table>
+        <thead><tr><th>Description</th><th>Unit</th><th style="text-align:right">Amount (USD)</th></tr></thead>
+        <tbody>
+          <tr><td>IOL 2027 Registration — Early bird</td><td>2 teams × USD 1,000</td><td style="text-align:right">2,000.00</td></tr>
+          <tr><td>Room accommodation (2 rooms per team)</td><td>2 teams × 2 rooms × USD 220</td><td style="text-align:right">880.00</td></tr>
+          <tr><td>Observer registration fee</td><td>TBD</td><td style="text-align:right">—</td></tr>
+        </tbody>
+        <tfoot><tr class="total-row"><td colspan="2">Total amount due</td><td style="text-align:right">USD 2,880.00 (+ observer fees TBD)</td></tr></tfoot>
+      </table>
+      <div class="bank">
+        <h3>Bank transfer details</h3>
+        <p><strong>Beneficiary:</strong> มูลนิธิส่งเสริมโอลิมปิกวิชาการและพัฒนามาตรฐานวิทยาศาสตร์ศึกษา ในพระอุปถัมภ์สมเด็จพระเจ้าพี่นางเธอ เจ้าฟ้ากัลยาณิวัฒนา กรมหลวงนราธิวาสราชนครินทร์ (สอวน.)</p>
+        <p><strong>Bank:</strong> ธนาคารไทยพาณิชย์ (SCB) — account details supplied by Finance after approval</p>
+        <p><strong>Reference:</strong> THA-IOL2027-001 (include in transfer description)</p>
+      </div>
+      <div class="notice"><strong>Important:</strong> Transfer the full amount shown above to สอวน (POSN). Select <strong>OUR</strong> when initiating the wire so all intermediary bank charges are borne by the sender — the LOC must receive the full declared amount. Currency conversion costs are the sender's responsibility.</div>
+      <div class="footer">
+        IOL 2027 Organising Committee · Bangkok, Thailand<br>
+        iol2027.th@gmail.com · This invoice is generated from the registration system and is not a tax receipt. An official e-receipt will be issued after Finance confirms the transfer.
+      </div>
+    <script>window.onload=()=>{window.print()}<\/script></body></html>`)
+    win.document.close()
+  }
   const steps = [
     ['Invite code', 'IOL2027-THA-7F3K'],
     ['Account details', 'leader@national-olympiad.org'],
@@ -376,6 +429,7 @@ function TeamLeaderAccount() {
       { label: 'Gender for room allocation', value: 'Male', help: 'Used only for rooming and safeguarding arrangements.' },
       { label: 'Exam language', value: 'English', help: 'Language this contestant will use for the individual examination.' },
       { label: 'T-shirt size', value: 'M', help: tshirtHelp },
+      { label: 'Polo shirt size', value: 'M', help: tshirtHelp },
       { label: 'Food and allergy notes', value: 'No shellfish', help: 'Restricted data shared only with food operations.' },
       { label: 'Medical or accessibility notes', value: 'No special requirements', help: 'Restricted data for welfare and emergency planning.' },
       { label: 'Emergency contact', value: 'Somchai Chaiwat, +66 82 111 2233', help: 'Sensitive contact used only for safety purposes.' },
@@ -393,6 +447,7 @@ function TeamLeaderAccount() {
       { label: 'Gender for room allocation', value: 'Female', help: 'Used only for rooming and safeguarding arrangements.' },
       { label: 'Exam language', value: 'English', help: 'Language this contestant will use for the individual examination.' },
       { label: 'T-shirt size', value: 'S', help: tshirtHelp },
+      { label: 'Polo shirt size', value: 'S', help: tshirtHelp },
       { label: 'Food and allergy notes', value: 'Vegetarian', help: 'Restricted data shared only with food operations.' },
       { label: 'Medical or accessibility notes', value: 'No special requirements', help: 'Restricted data for welfare and emergency planning.' },
       { label: 'Emergency contact', value: 'Nok Phan, +66 82 222 3344', help: 'Sensitive contact used only for safety purposes.' },
@@ -410,6 +465,7 @@ function TeamLeaderAccount() {
       { label: 'Gender for room allocation', value: 'Male', help: 'Used only for rooming and safeguarding arrangements.' },
       { label: 'Exam language', value: 'English', help: 'Language this contestant will use for the individual examination.' },
       { label: 'T-shirt size', value: 'M', help: tshirtHelp },
+      { label: 'Polo shirt size', value: 'M', help: tshirtHelp },
       { label: 'Food and allergy notes', value: 'No pork', help: 'Restricted data shared only with food operations.' },
       { label: 'Medical or accessibility notes', value: 'Carries inhaler', help: 'Restricted data for welfare and emergency planning.' },
       { label: 'Emergency contact', value: 'Arun Rattanakul, +66 82 333 4455', help: 'Sensitive contact used only for safety purposes.' },
@@ -427,6 +483,7 @@ function TeamLeaderAccount() {
       { label: 'Gender for room allocation', value: 'Male', help: 'Used only for rooming and safeguarding arrangements.' },
       { label: 'Exam language', value: 'English', help: 'Language this contestant will use for the individual examination.' },
       { label: 'T-shirt size', value: 'L', help: tshirtHelp },
+      { label: 'Polo shirt size', value: 'L', help: tshirtHelp },
       { label: 'Food and allergy notes', value: 'No restrictions', help: 'Restricted data shared only with food operations.' },
       { label: 'Medical or accessibility notes', value: 'No special requirements', help: 'Restricted data for welfare and emergency planning.' },
       { label: 'Emergency contact', value: 'Malee Songsiri, +66 82 444 5566', help: 'Sensitive contact used only for safety purposes.' },
@@ -444,6 +501,7 @@ function TeamLeaderAccount() {
       { label: 'Gender for room allocation', value: 'Male', help: 'Used only for rooming arrangements.' },
       { label: 'Room type preference', value: 'Single if available', help: 'May require supplement or approval.' },
       { label: 'T-shirt size', value: 'L', help: tshirtHelp },
+      { label: 'Polo shirt size', value: 'L', help: tshirtHelp },
       { label: 'Food and allergy notes', value: 'No pork', help: 'Restricted data shared only with food operations.' },
       { label: 'Medical or accessibility notes', value: 'No special requirements', help: 'Restricted data for welfare and emergency planning.' },
       { label: 'Emergency contact', value: 'Maneerat K., +66 81 888 7766', help: 'Sensitive contact used only for safety purposes.' },
@@ -553,17 +611,18 @@ function TeamLeaderAccount() {
     ] },
     { title: 'Payment & invoice', status: 'Awaiting proof', body: 'Review the calculated fees, fill in invoice details before transferring, then upload the transfer proof. Member details are locked until proof is submitted.', notes: [
       { label: 'Payment method', value: 'Bank transfer only — outside this website', help: 'No card or online payment gateway. Transfer to the approved account, then upload proof here.' },
-      { label: 'How to pay', value: 'Transfer to the approved POSN/SCB account', help: 'Bank account name, number and SWIFT are supplied by Finance when approved.' },
-      { label: 'Transfer fees', value: 'Choose OUR — sender pays all fees', help: 'Select OUR when initiating the transfer so the LOC receives the full amount. The LOC is not responsible for fees deducted by intermediary banks.' },
+      { label: 'How to pay', value: 'Bank transfer to สอวน (POSN) — full amount required', help: 'Transfer the total declared amount in full to สอวน (POSN) via SCB. The LOC must receive the full invoice amount — partial payments are not accepted.' },
+      { label: 'Transfer fees', value: 'Choose OUR — sender pays all bank charges', help: 'Select OUR when initiating the wire so all intermediary bank charges are borne by the sender. The LOC is not responsible for fees deducted by intermediary banks.' },
       { label: 'Currency conversion', value: 'Sender\'s responsibility', help: 'All currency conversion costs and exchange-rate differences are the sender\'s responsibility. The LOC does not cover foreign-exchange losses.' },
       { label: 'Invoice deadline', value: 'Declare split details before transferring', help: 'Invoices cannot be split after payment is received. State the number and amounts here first.' },
     ], fields: [
       { label: 'Fee tier', value: 'Early bird', help: 'Calculated from the submission date.' },
       { label: 'Currency', value: 'USD', help: 'Registration fees are charged in USD.' },
       { label: 'Teams registered', value: '2', help: 'From Team Leader setup. Each team: up to 4 contestants + 1 shared Team Leader.' },
-      { label: 'Calculated team fees', value: '2 × 1,000 USD = 2,000 USD', help: 'Per team fee × number of teams.' },
+      { label: 'Calculated team fees', value: '2 teams × USD 1,000 = USD 2,000', help: 'Per team registration fee × number of teams.' },
+      { label: 'Room accommodation', value: '2 teams × 2 rooms × USD 220 = USD 880', help: 'Each team is allocated 2 rooms (1 single for Team Leader + 1 shared for contestants). Room allocation is pre-assigned — no preference required.' },
       { label: 'Observer fees', value: 'TBD — awaiting organiser rate', help: 'Observer fees are approved separately and will be added when confirmed.' },
-      { label: 'Total amount due', value: '2,000 USD (+ observer fees TBD)', help: 'Transfer this amount using the payment reference below.' },
+      { label: 'Total amount due', value: 'USD 2,880 (+ observer fees TBD)', help: 'Transfer this full amount to สอวน (POSN). Do not deduct any bank charges — select OUR.' },
       { label: 'Payment reference', value: 'THA-IOL2027-001', help: 'Include this reference in the bank transfer description.' },
       { label: 'Bank account status', value: 'SCB POSN account — details pending Finance approval', help: 'Account name, number and SWIFT will be shown here once approved by Finance.' },
       { label: 'Number of invoices requested', value: '1', help: 'How many invoices do you need? Declare split details before transferring.' },
@@ -696,6 +755,7 @@ function TeamLeaderAccount() {
               <div className="reg-fields" key={`${area.title}-${activeRecord}`}>{visibleFields.map((field) => renderRegistrationField(field))}</div>
               <div className="reg-actions">
                 <button type="button" className="reg-btn-save" onClick={saveArea}>Save section</button>
+                {area.title === 'Payment & invoice' && <button type="button" className="reg-btn-invoice" onClick={downloadInvoice}><FileText size={14} /> Download invoice</button>}
                 <button type="button" className="reg-btn-next" onClick={nextArea}>{nextButtonLabel} <ArrowRight size={14} /></button>
                 <button type="button" className="reg-btn-reset" onClick={() => { setAccountStep(0); setActiveArea(0); setSavedAreas([]); setProofUploaded(false); setActiveRecordByArea({ Teams: 0, People: 0, Travel: 0 }) }}>Start over</button>
               </div>
