@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Camera, CheckCircle, ChevronLeft, ChevronRight, ClipboardCheck, ExternalLink, Lock, MailCheck, MapPin, Menu, QrCode, ShieldCheck, Upload, Users, Volume2, X } from 'lucide-react'
-import { event, schedule, venues } from './siteData'
+import { event, homeBaseRoute, schedule, venues } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
 
 type NavItem = { label: string; href: string; external?: boolean; children?: { label: string; href: string }[] }
@@ -102,7 +102,7 @@ const newsItems = [
 ]
 
 const hotelImages = [
-  { src: '/assets/mandarin-hotel.jpg', alt: 'Mandarin Hotel Bangkok exterior and surroundings', caption: 'Mandarin Hotel Bangkok' },
+  { src: '/assets/mandarin-hotel.jpg', alt: 'Lobby atrium of Mandarin Hotel Bangkok with crystal chandeliers', caption: 'Mandarin Hotel Bangkok' },
   { src: '/assets/hotel-gallery/01-lobby-atrium.jpg', alt: 'Mandarin Hotel Bangkok lobby atrium', caption: 'Lobby atrium' },
   { src: '/assets/hotel-gallery/02-reception.jpg', alt: 'Mandarin Hotel Bangkok reception counter', caption: 'Reception' },
   { src: '/assets/hotel-gallery/03-lobby-lounge.jpg', alt: 'Mandarin Hotel Bangkok lobby lounge', caption: 'Lobby lounge' },
@@ -215,27 +215,14 @@ function HostCarousel() {
 }
 
 function SponsorPreview({ full = false }: { full?: boolean }) {
-  const leadSponsors = [
-    { letter: 'A', name: 'Company A', logoClass: 'logo-company-a' },
-    { letter: 'B', name: 'Company B', logoClass: 'logo-company-b' },
-    { letter: 'C', name: 'Company C', logoClass: 'logo-company-c' },
-  ]
-  const supportingSponsors = [
-    { letter: 'A', name: 'Supporting Company A', logoClass: 'logo-company-a' },
-    { letter: 'B', name: 'Supporting Company B', logoClass: 'logo-company-b' },
-    { letter: 'C', name: 'Supporting Company C', logoClass: 'logo-company-c' },
-    { letter: 'D', name: 'Supporting Company D', logoClass: 'logo-company-d' },
-  ]
-  const placementSpec = 'Every confirmed sponsor is presented in the same display area: a 320 x 180 px logo area, a 1600 x 500 px feature banner and a description of up to 60 words.'
-  const card = (sponsor: { letter: string; name: string; logoClass: string }, tier: string) => <article className="sponsor-equal-card" key={sponsor.name}>
-    <div className={`fictional-logo ${sponsor.logoClass}`}><span>{sponsor.letter}</span><strong>{sponsor.name.toUpperCase()}</strong></div>
-    <div className="sponsor-equal-content"><span>{tier}</span><h3>{sponsor.name}</h3><p>{sponsor.name} supports IOL 2027 and receives the same placement area as every other confirmed partner.</p></div>
-  </article>
+  const logoClasses = ['logo-company-a', 'logo-company-b', 'logo-company-c', 'logo-company-d', 'logo-company-e']
+  const sponsors = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((letter, index) => ({ letter, name: `Company ${letter}`, logoClass: logoClasses[index % logoClasses.length] }))
   return <section className={`commercial-sponsors wrap ${full ? 'commercial-sponsors-full' : 'commercial-sponsors-home'}`}>
-    <div className="sponsor-tier-heading"><p className="eyebrow">Lead sponsors</p><h2>Principal partners of IOL 2027.</h2><p>Lead sponsors provide major support for the programme, venues and participant experience. {placementSpec}</p></div>
-    <div className="sponsor-equal-grid">{leadSponsors.map((sponsor) => card(sponsor, 'LEAD SPONSOR'))}</div>
-    <div className="supporting-sponsor-heading"><p className="eyebrow">Supporting sponsors</p><h2>Additional partners, recognised together.</h2><p>Supporting sponsors strengthen the services and activities that help teams enjoy a welcoming, well-organised Olympiad week. They receive exactly the same display area as lead sponsors: the tiers differ in the level of support, not in the size of the placement.</p></div>
-    <div className="sponsor-equal-grid">{supportingSponsors.map((sponsor) => card(sponsor, 'SUPPORTING SPONSOR'))}</div>
+    <div className="sponsor-tier-heading"><p className="eyebrow">Sponsors</p><h2>Partners of IOL 2027.</h2><p>Sponsors support the programme, venues and participant experience. Every confirmed sponsor is presented in the same display area: a 320 x 180 px logo area, a 1600 x 500 px feature banner and a description of up to 60 words.</p></div>
+    <div className="sponsor-equal-grid">{sponsors.map((sponsor) => <article className="sponsor-equal-card" key={sponsor.name}>
+      <div className={`fictional-logo ${sponsor.logoClass}`}><span>{sponsor.letter}</span><strong>{sponsor.name.toUpperCase()}</strong></div>
+      <div className="sponsor-equal-content"><h3>{sponsor.name}</h3><p>{sponsor.name} supports IOL 2027 and receives the same placement area as every other confirmed partner.</p></div>
+    </article>)}</div>
     {!full && <LinkButton href="/sponsors">View sponsor opportunities</LinkButton>}
   </section>
 }
@@ -261,7 +248,7 @@ function Home() {
       <article className="feature-card plum"><span>TEAM CONTEST</span><h3>Four minds.<br />One problem.</h3><p>Teams combine perspectives to solve one large-scale challenge together.</p></article>
       <article className="feature-card jade"><span>HOST PROGRAMME</span><h3>One shared<br />language: curiosity.</h3><p>Excursions, culture and friendships turn a competition into a global community.</p></article>
     </section>
-    <section className="venues-preview wrap"><div className="section-heading"><p className="eyebrow">Across Bangkok</p><h2>Three places.<br />One Olympiad.</h2><LinkButton href="/programme">See venues</LinkButton></div><div className="venue-stack">{venues.map((venue) => <article key={venue.index}><div className="venue-thumb">{venue.image ? <img src={venue.image} alt={venue.imageAlt} loading="lazy" /> : <span>Photo to be added</span>}</div><div><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small></div></article>)}</div></section>
+    <section className="venues-preview wrap"><div className="section-heading"><p className="eyebrow">Across Bangkok</p><h2>Three places.<br />One Olympiad.</h2><LinkButton href="/programme">See venues</LinkButton></div><div className="venue-photo-stack">{venues.map((venue) => <article key={venue.index}><img src={venue.image} alt={venue.imageAlt} loading="lazy" style={{ objectPosition: venue.imagePosition }} /><div className="venue-photo-copy"><p>{venue.index} · {venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small></div><a className="venue-photo-credit" href={venue.imageCreditUrl} target="_blank" rel="noreferrer">{venue.imageCredit}</a></article>)}</div></section>
     <SponsorPreview />
   </>
 }
@@ -321,12 +308,22 @@ function ThaiLanguage() {
 }
 
 function VenueMaps() {
-  return <section className="venue-maps wrap">
+  return <section className="venue-maps wrap" id="getting-there">
     <div className="venue-maps-heading">
       <p className="eyebrow">Getting there</p>
       <h2>Find each venue.</h2>
       <p>Maps point to the host faculty and the hotel. Final building and room allocation is confirmed by the organising team closer to the event.</p>
     </div>
+    <article className="route-card">
+      <div className="route-map"><iframe title={`Walking route from ${homeBaseRoute.from} to ${homeBaseRoute.to}`} src={homeBaseRoute.embed} loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" /></div>
+      <div className="route-copy">
+        <p className="eyebrow">Home base to contest campus</p>
+        <h3>From the hotel to the Faculty of Arts.</h3>
+        <ol className="route-stops"><li><span>From</span>{homeBaseRoute.from}</li><li><span>To</span>{homeBaseRoute.to}</li></ol>
+        <p>Official transfers are provided on contest days. This route is for finding your own way around the area.</p>
+        <div className="route-actions"><a className="pill" href={homeBaseRoute.walking} target="_blank" rel="noreferrer">Open walking route <span><ExternalLink size={16} /></span></a><a className="text-link" href={homeBaseRoute.driving} target="_blank" rel="noreferrer">Driving route <ExternalLink size={14} /></a></div>
+      </div>
+    </article>
     <div className="venue-maps-grid">{venues.map((venue) => <article key={venue.index}>
       <div className="venue-map-frame"><iframe title={`Map of ${venue.name}`} src={`https://www.google.com/maps?q=${venue.mapQuery}&output=embed`} loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" /></div>
       <div className="venue-map-copy">
@@ -350,7 +347,7 @@ function Hosts() {
 }
 
 function Sponsors() {
-  return <><PageIntro eyebrow="Sponsors" title="A clear place for every level of support." body="This page demonstrates how approved sponsors can be presented without confusing them with the official hosts." /><SponsorPreview full /><section className="sponsor-thanks"><p className="eyebrow">Sponsor IOL 2027</p><h2>Help young minds look closer.</h2><a className="text-link" href="mailto:iol2027.th@gmail.com?subject=IOL%202027%20sponsorship">Contact the organising team <ArrowRight size={16} /></a></section></>
+  return <><PageIntro eyebrow="Sponsors" title="A clear place for every sponsor." body="This page demonstrates how approved sponsors can be presented without confusing them with the official hosts." /><SponsorPreview full /><section className="sponsor-thanks"><p className="eyebrow">Sponsor IOL 2027</p><h2>Help young minds look closer.</h2><a className="text-link" href="mailto:iol2027.th@gmail.com?subject=IOL%202027%20sponsorship">Contact the organising team <ArrowRight size={16} /></a></section></>
 }
 
 function Registration() {
@@ -805,7 +802,7 @@ function Accommodation() {
 }
 
 function Transportation() {
-  return <><PageIntro eyebrow="Event guide / Transportation" title="Arrive, move and depart with us." body="Official airport pick-up and drop-off services will be provided at Suvarnabhumi Airport (BKK) and Don Mueang International Airport (DMK) during the designated arrival and departure periods." /><ContentCards cards={[{ label: 'ARRIVAL & DEPARTURE', title: 'Share your flight details.', body: 'Participants will be asked to submit their flight details through the registration system so the organising team can coordinate transportation.' }, { label: 'LOCAL MOVEMENT', title: 'Transfers are provided.', body: 'Transfers between the home base, contest campuses, ceremonies and city programme venues will be provided and coordinated by the organising team.' }]} /><section className="pickup-plan wrap"><div><p className="eyebrow">Airport pick-up service</p><h2>The service timetable will appear here.</h2><p>Pick-up windows, airport meeting points, contact instructions and coach departure times will be published after the transport plan is confirmed.</p></div><div className="pickup-table-wrap"><table className="pickup-table"><caption>Future airport pick-up schedule</caption><thead><tr><th>Airport</th><th>Service period</th><th>Operating hours</th><th>Meeting point</th></tr></thead><tbody><tr><td>BKK / DMK</td><td colSpan={3}>Schedule to be confirmed</td></tr></tbody></table></div></section></>
+  return <><PageIntro eyebrow="Event guide / Transportation" title="Arrive, move and depart with us." body="Official airport pick-up and drop-off services will be provided at Suvarnabhumi Airport (BKK) and Don Mueang International Airport (DMK) during the designated arrival and departure periods." /><ContentCards cards={[{ label: 'ARRIVAL & DEPARTURE', title: 'Share your flight details.', body: 'Participants will be asked to submit their flight details through the registration system so the organising team can coordinate transportation.' }, { label: 'LOCAL MOVEMENT', title: 'Transfers are provided.', body: 'Transfers between the home base, contest campuses, ceremonies and city programme venues will be provided and coordinated by the organising team.' }]} /><section className="route-link wrap"><a className="text-link" href="/programme#getting-there"><MapPin size={16} /> Walking route from the hotel to the Faculty of Arts, and maps of every venue <ArrowRight size={16} /></a></section><section className="pickup-plan wrap"><div><p className="eyebrow">Airport pick-up service</p><h2>The service timetable will appear here.</h2><p>Pick-up windows, airport meeting points, contact instructions and coach departure times will be published after the transport plan is confirmed.</p></div><div className="pickup-table-wrap"><table className="pickup-table"><caption>Future airport pick-up schedule</caption><thead><tr><th>Airport</th><th>Service period</th><th>Operating hours</th><th>Meeting point</th></tr></thead><tbody><tr><td>BKK / DMK</td><td colSpan={3}>Schedule to be confirmed</td></tr></tbody></table></div></section></>
 }
 
 function ImportantDates() {
