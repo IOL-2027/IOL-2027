@@ -208,6 +208,59 @@ def generate(args, key):
           f'{len(flagged)} clip(s) to listen to: {", ".join(flagged)}')
 
 
+def split_on_pauses(wav, count):
+    """Cut one recording into `count` clips at its `count - 1` longest silences."""
+    whole = ROOT / 'tmp' / '_batch.wav'
+    whole.parent.mkdir(parents=True, exist_ok=True)
+    whole.write_bytes(wav)
+    log = subprocess.run(['ffmpeg', '-i', str(whole), '-af', 'silencedetect=noise=-40dB:d=0.25', '-f', 'null', '-'],
+                         capture_output=True, text=True).stderr
+    starts = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', log)]
+    ends = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', log)]
+    gaps = [(end - start, (start + end) / 2) for start, end in zip(starts, ends) if start > 0.15]
+    if len(gaps) < count - 1:
+        return None
+    cuts = sorted(middle for _, middle in sorted(gaps, reverse=True)[:count - 1])
+    bounds = [0.0] + cuts + [None]
+    pieces = []
+    for start, end in zip(bounds, bounds[1:]):
+        command = ['ffmpeg', '-loglevel', 'error', '-i', str(whole), '-ss', str(start)]
+        command += (['-to', str(end)] if end else []) + ['-f', 'wav', 'pipe:1']
+        pieces.append(subprocess.run(command, capture_output=True, check=True).stdout)
+    whole.unlink()
+    return pieces
+
+
+def generate_batch(args, key):
+    """One recording per voice and speed, so every clip of a voice shares one consistent delivery."""
+    phrases = json.loads(PHRASES.read_text(encoding='utf-8'))
+    voices = {'male': args.male, 'female': args.female}
+    report = {}
+    for gender, voice in voices.items():
+        forms = [form for phrase in phrases for form in phrase['forms'] if form['voice'] == gender]
+        for speed in ('normal', 'slow'):
+            text = ' <long pause> '.join(form['speech'] for form in forms)
+            for attempt in range(1, 6):
+                pieces = split_on_pauses(synthesise(text, voice, STYLES[speed], key), len(forms))
+                results = [check(form['speech'], wav, key) for form, wav in zip(forms, pieces)] if pieces else []
+                if results and all(result['match'] for result in results):
+                    break
+                print(f'  {voice} {speed}: take {attempt} did not split or match cleanly, retrying')
+            else:
+                sys.exit(f'Could not get a clean {speed} recording from {voice}; nothing was overwritten for it.')
+            for form, wav, result in zip(forms, pieces, results):
+                name = form['audio'] + ('-slow' if speed == 'slow' else '')
+                destination = OUT_DIR / f'{name}.mp3'
+                to_mp3(wav, destination)
+                report[name] = {'text': form['speech'], 'voice': voice, 'speed': speed,
+                                'seconds': round(clip_seconds(destination), 2), **result}
+                print(f'  ok     {name:24} {report[name]["seconds"]:>5}s  {voice:10} heard: {result["heard"]}')
+            time.sleep(args.pause)
+    REPORT.parent.mkdir(parents=True, exist_ok=True)
+    REPORT.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+    print(f'\nAll {len(report)} clips regenerated from one recording per voice and speed. Report: {REPORT.relative_to(ROOT)}')
+
+
 def audition(args, key):
     AUDITION_DIR.mkdir(parents=True, exist_ok=True)
     rows = []
@@ -244,12 +297,19 @@ def main():
     parser.add_argument('--female', default=DEFAULT_VOICES['female'], help='voice for ค่ะ forms and neutral phrases')
     parser.add_argument('--pause', type=float, default=1.0, help='seconds to wait between clips')
     parser.add_argument('--audition', action='store_true', help='sample several voices instead of generating')
+    parser.add_argument('--batch', action='store_true',
+                        help='regenerate every clip from one recording per voice and speed, for a consistent voice (recommended)')
     args = parser.parse_args()
     for tool in ('ffmpeg', 'ffprobe'):
         if not shutil.which(tool):
             sys.exit(f'{tool} not found on PATH.')
     key = load_key()
-    audition(args, key) if args.audition else generate(args, key)
+    if args.audition:
+        audition(args, key)
+    elif args.batch:
+        generate_batch(args, key)
+    else:
+        generate(args, key)
 
 
 if __name__ == '__main__':

@@ -266,6 +266,9 @@ function Thailand() {
     <section className="experience-grid wrap"><article className="exp-one"><span>DAY 04 / EXCURSION</span><h2>Move beyond the contest room.</h2><p>A shared day to encounter Thailand through place, culture and conversation. The final route will be confirmed by the organising team.</p></article><article className="exp-two"><span>DAY 05 / CITY PROGRAMME</span><h2>Read Bangkok.</h2><p>Campus, neighbourhood, river and street life become part of the week-long setting.</p></article><article className="exp-three"><span>DAY 07 / CULTURAL NIGHT</span><h2>Celebrate the community.</h2><p>After solutions, awards and closing, teams gather for the host culture and friendships that outlast the score.</p></article></section></>
 }
 
+// Bump whenever the clips are regenerated, so browsers do not keep playing cached old audio.
+const thaiAudioVersion = 3
+
 function ThaiLanguage() {
   const [slow, setSlow] = useState(false)
   const [playing, setPlaying] = useState<string | null>(null)
@@ -273,7 +276,7 @@ function ThaiLanguage() {
   useEffect(() => () => { audioRef.current?.pause() }, [])
   const play = (clip: string) => {
     audioRef.current?.pause()
-    const audio = new Audio(`/audio/thai/${clip}${slow ? '-slow' : ''}.mp3`)
+    const audio = new Audio(`/audio/thai/${clip}${slow ? '-slow' : ''}.mp3?v=${thaiAudioVersion}`)
     audioRef.current = audio
     setPlaying(clip)
     const stop = () => setPlaying((current) => current === clip ? null : current)

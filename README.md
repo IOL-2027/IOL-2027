@@ -74,8 +74,10 @@ The phrase audio on `/about/thai-language` is pre-rendered, not generated in the
 
 ```bash
 python scripts/generate-thai-audio.py --audition                      # hear candidate voices: tmp/voice-audition/index.html
-python scripts/generate-thai-audio.py --force --male NAME --female NAME  # regenerate everything with new voices
+python scripts/generate-thai-audio.py --batch --male NAME --female NAME  # regenerate everything, one recording per voice (consistent sound)
 python scripts/generate-thai-audio.py --only hello-khrap,help --force    # regenerate specific clips
 ```
+
+After regenerating, bump `thaiAudioVersion` in `src/App.tsx` so browsers fetch the new files instead of cached ones. Prefer `--batch`: separate requests give the same voice a slightly different delivery each time.
 
 To add a phrase, add it to `src/thaiPhrases.json` with a new `audio` slug and run the script without `--force`; it only generates missing clips.
