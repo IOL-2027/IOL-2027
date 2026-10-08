@@ -1,13 +1,14 @@
-# Stable preview URL for the development branch.
-# Every push to development refreshes the "development" Firebase Hosting channel,
-# which keeps the same URL. Expiry is reset to 30 days on each deploy.
-name: Deploy development preview to Firebase Hosting
+# Permanent development site: https://iol2027-dev.web.app
+# Every push to the development branch deploys to the "dev" hosting target
+# (site iol2027-dev). It never touches the public site, which deploys from main.
+# The dev site sends X-Robots-Tag: noindex so search engines do not list it.
+name: Deploy development to iol2027-dev
 on:
   push:
     branches:
       - development
 jobs:
-  build_and_preview:
+  build_and_deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,5 +18,5 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_IOL2027 }}
           projectId: iol2027
-          channelId: development
-          expires: 30d
+          channelId: live
+          target: dev
