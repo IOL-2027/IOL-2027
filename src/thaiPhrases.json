@@ -1,0 +1,191 @@
+[
+  {
+    "thai": "สวัสดีครับ / สวัสดีค่ะ",
+    "reading": "sawatdee khráp / sawatdee khâ",
+    "meaning": "Hello",
+    "forms": [
+      {
+        "label": "ครับ form",
+        "speech": "สวัสดีครับ",
+        "ipa": "sà.wàt.diː.kʰráp",
+        "voice": "male",
+        "audio": "hello-khrap"
+      },
+      {
+        "label": "ค่ะ form",
+        "speech": "สวัสดีค่ะ",
+        "ipa": "sà.wàt.diː.kʰâ",
+        "voice": "female",
+        "audio": "hello-kha"
+      }
+    ]
+  },
+  {
+    "thai": "ขอบคุณครับ / ขอบคุณค่ะ",
+    "reading": "khop khun khráp / khop khun khâ",
+    "meaning": "Thank you",
+    "forms": [
+      {
+        "label": "ครับ form",
+        "speech": "ขอบคุณครับ",
+        "ipa": "kʰɔ̀ːp.kʰun.kʰráp",
+        "voice": "male",
+        "audio": "thank-you-khrap"
+      },
+      {
+        "label": "ค่ะ form",
+        "speech": "ขอบคุณค่ะ",
+        "ipa": "kʰɔ̀ːp.kʰun.kʰâ",
+        "voice": "female",
+        "audio": "thank-you-kha"
+      }
+    ]
+  },
+  {
+    "thai": "ขอโทษครับ / ขอโทษค่ะ",
+    "reading": "kho thot khráp / kho thot khâ",
+    "meaning": "Sorry / Excuse me",
+    "forms": [
+      {
+        "label": "ครับ form",
+        "speech": "ขอโทษครับ",
+        "ipa": "kʰɔ̌ː.tʰôːt.kʰráp",
+        "voice": "male",
+        "audio": "sorry-khrap"
+      },
+      {
+        "label": "ค่ะ form",
+        "speech": "ขอโทษค่ะ",
+        "ipa": "kʰɔ̌ː.tʰôːt.kʰâ",
+        "voice": "female",
+        "audio": "sorry-kha"
+      }
+    ]
+  },
+  {
+    "thai": "ไม่เป็นไร",
+    "reading": "mai pen rai",
+    "meaning": "It is okay / You're welcome",
+    "forms": [
+      {
+        "label": "Listen",
+        "speech": "ไม่เป็นไร",
+        "ipa": "mâj.pen.raj",
+        "voice": "female",
+        "audio": "mai-pen-rai"
+      }
+    ]
+  },
+  {
+    "thai": "ใช่",
+    "reading": "chai",
+    "meaning": "Yes",
+    "forms": [
+      {
+        "label": "Listen",
+        "speech": "ใช่",
+        "ipa": "cʰâj",
+        "voice": "female",
+        "audio": "yes"
+      }
+    ]
+  },
+  {
+    "thai": "ไม่ใช่",
+    "reading": "mai chai",
+    "meaning": "No / Not correct",
+    "forms": [
+      {
+        "label": "Listen",
+        "speech": "ไม่ใช่",
+        "ipa": "mâj.cʰâj",
+        "voice": "female",
+        "audio": "no"
+      }
+    ]
+  },
+  {
+    "thai": "อร่อย",
+    "reading": "aroi",
+    "meaning": "Delicious",
+    "forms": [
+      {
+        "label": "Listen",
+        "speech": "อร่อย",
+        "ipa": "ʔà.rɔ̀ːj",
+        "voice": "female",
+        "audio": "delicious"
+      }
+    ]
+  },
+  {
+    "thai": "ชอบ",
+    "reading": "chop",
+    "meaning": "I like it",
+    "forms": [
+      {
+        "label": "Listen",
+        "speech": "ชอบ",
+        "ipa": "cʰɔ̂ːp",
+        "voice": "female",
+        "audio": "i-like-it"
+      }
+    ]
+  },
+  {
+    "thai": "ห้องน้ำอยู่ที่ไหน",
+    "reading": "hong nam yu thi nai",
+    "meaning": "Where is the restroom?",
+    "forms": [
+      {
+        "label": "Listen",
+        "speech": "ห้องน้ำอยู่ที่ไหน",
+        "ipa": "hɔ̂ːŋ.náːm.jùː.tʰîː.nǎj",
+        "voice": "female",
+        "audio": "where-restroom"
+      }
+    ]
+  },
+  {
+    "thai": "เท่าไหร่",
+    "reading": "thao rai",
+    "meaning": "How much?",
+    "forms": [
+      {
+        "label": "Listen",
+        "speech": "เท่าไหร่",
+        "ipa": "tʰâw.ràj",
+        "voice": "female",
+        "audio": "how-much"
+      }
+    ]
+  },
+  {
+    "thai": "ช่วยด้วย",
+    "reading": "chuai duai",
+    "meaning": "Please help",
+    "forms": [
+      {
+        "label": "Listen",
+        "speech": "ช่วยด้วย",
+        "ipa": "cʰûːaj.dûːaj",
+        "voice": "female",
+        "audio": "help"
+      }
+    ]
+  },
+  {
+    "thai": "พูดภาษาอังกฤษได้ไหม",
+    "reading": "phut phasa angkrit dai mai",
+    "meaning": "Can you speak English?",
+    "forms": [
+      {
+        "label": "Listen",
+        "speech": "พูดภาษาอังกฤษได้ไหม",
+        "ipa": "pʰûːt.pʰaː.sǎː.ʔaŋ.krìt.dâːj.mǎj",
+        "voice": "female",
+        "audio": "speak-english"
+      }
+    ]
+  }
+]

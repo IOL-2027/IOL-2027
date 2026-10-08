@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, Camera, CheckCircle, ChevronLeft, ChevronRight, ClipboardCheck, ExternalLink, Lock, MailCheck, MapPin, Menu, QrCode, ShieldCheck, Upload, Users, Volume2, X } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Camera, Car, CheckCircle, ChevronLeft, ChevronRight, ClipboardCheck, ExternalLink, Footprints, Lock, MailCheck, MapPin, Menu, QrCode, ShieldCheck, Upload, Users, Volume2, X } from 'lucide-react'
 import { event, homeBaseRoute, schedule, venues } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
+import thaiPhrases from './thaiPhrases.json'
 
 type NavItem = { label: string; href: string; external?: boolean; children?: { label: string; href: string }[] }
 type RegistrationFieldKind = 'text' | 'email' | 'tel' | 'number' | 'date' | 'time' | 'textarea' | 'select' | 'multiselect' | 'upload' | 'readonly'
@@ -115,20 +116,7 @@ const hotelImages = [
   { src: '/assets/hotel-gallery/10-thai-artwork.jpg', alt: 'Thai-inspired artwork displayed inside Mandarin Hotel Bangkok', caption: 'Thai-inspired hotel artwork' },
 ]
 
-const thaiPhrases = [
-  { thai: 'สวัสดีครับ / สวัสดีค่ะ', reading: 'sawatdee khráp / sawatdee khâ', meaning: 'Hello', speech: ['สวัสดีครับ', 'สวัสดีค่ะ'], ipa: ['sà.wàt.diː.kʰráp', 'sà.wàt.diː.kʰâ'] },
-  { thai: 'ขอบคุณครับ / ขอบคุณค่ะ', reading: 'khop khun khráp / khop khun khâ', meaning: 'Thank you', speech: ['ขอบคุณครับ', 'ขอบคุณค่ะ'], ipa: ['kʰɔ̀ːp.kʰun.kʰráp', 'kʰɔ̀ːp.kʰun.kʰâ'] },
-  { thai: 'ขอโทษครับ / ขอโทษค่ะ', reading: 'kho thot khráp / kho thot khâ', meaning: 'Sorry / Excuse me', speech: ['ขอโทษครับ', 'ขอโทษค่ะ'], ipa: ['kʰɔ̌ː.tʰôːt.kʰráp', 'kʰɔ̌ː.tʰôːt.kʰâ'] },
-  { thai: 'ไม่เป็นไร', reading: 'mai pen rai', meaning: "It is okay / You're welcome", speech: ['ไม่เป็นไร'], ipa: ['mâj.pen.raj'] },
-  { thai: 'ใช่', reading: 'chai', meaning: 'Yes', speech: ['ใช่'], ipa: ['cʰâj'] },
-  { thai: 'ไม่ใช่', reading: 'mai chai', meaning: 'No / Not correct', speech: ['ไม่ใช่'], ipa: ['mâj.cʰâj'] },
-  { thai: 'อร่อย', reading: 'aroi', meaning: 'Delicious', speech: ['อร่อย'], ipa: ['ʔà.rɔ̀ːj'] },
-  { thai: 'ชอบ', reading: 'chop', meaning: 'I like it', speech: ['ชอบ'], ipa: ['cʰɔ̂ːp'] },
-  { thai: 'ห้องน้ำอยู่ที่ไหน', reading: 'hong nam yu thi nai', meaning: 'Where is the restroom?', speech: ['ห้องน้ำอยู่ที่ไหน'], ipa: ['hɔ̂ːŋ.náːm.jùː.tʰîː.nǎj'] },
-  { thai: 'เท่าไหร่', reading: 'thao rai', meaning: 'How much?', speech: ['เท่าไหร่'], ipa: ['tʰâw.ràj'] },
-  { thai: 'ช่วยด้วย', reading: 'chuai duai', meaning: 'Please help', speech: ['ช่วยด้วย'], ipa: ['cʰûːaj.dûːaj'] },
-  { thai: 'พูดภาษาอังกฤษได้ไหม', reading: 'phut phasa angkrit dai mai', meaning: 'Can you speak English?', speech: ['พูดภาษาอังกฤษได้ไหม'], ipa: ['pʰûːt.pʰaː.sǎː.ʔaŋ.krìt.dâːj.mǎj'] },
-]
+
 
 function NavLink({ item, className }: { item: NavItem; className?: string }) {
   const path = window.location.pathname.replace(/\/$/, '') || '/'
@@ -248,7 +236,7 @@ function Home() {
       <article className="feature-card plum"><span>TEAM CONTEST</span><h3>Four minds.<br />One problem.</h3><p>Teams combine perspectives to solve one large-scale challenge together.</p></article>
       <article className="feature-card jade"><span>HOST PROGRAMME</span><h3>One shared<br />language: curiosity.</h3><p>Excursions, culture and friendships turn a competition into a global community.</p></article>
     </section>
-    <section className="venues-preview wrap"><div className="section-heading"><p className="eyebrow">Across Bangkok</p><h2>Three places.<br />One Olympiad.</h2><LinkButton href="/programme">See venues</LinkButton></div><div className="venue-photo-stack">{venues.map((venue) => <article key={venue.index}><img src={venue.image} alt={venue.imageAlt} loading="lazy" style={{ objectPosition: venue.imagePosition }} /><div className="venue-photo-copy"><p>{venue.index} · {venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small></div><a className="venue-photo-credit" href={venue.imageCreditUrl} target="_blank" rel="noreferrer">{venue.imageCredit}</a></article>)}</div></section>
+    <section className="venues-preview wrap"><div className="section-heading"><p className="eyebrow">Across Bangkok</p><h2>Three places.<br />One Olympiad.</h2><LinkButton href="/programme">See venues</LinkButton></div><div className="venue-photo-stack">{venues.map((venue) => <article key={venue.index}><img src={venue.image} alt={venue.imageAlt} loading="lazy" style={{ objectPosition: venue.imagePosition }} /><div className="venue-photo-copy"><p>{venue.index} · {venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small><MapsLink query={venue.mapQuery} name={venue.name} /></div><a className="venue-photo-credit" href={venue.imageCreditUrl} target="_blank" rel="noreferrer">{venue.imageCredit}</a></article>)}</div></section>
     <SponsorPreview />
   </>
 }
@@ -279,67 +267,52 @@ function Thailand() {
 }
 
 function ThaiLanguage() {
-  const [thaiVoice, setThaiVoice] = useState<SpeechSynthesisVoice | null>(null)
-  const [voiceChecked, setVoiceChecked] = useState(false)
   const [slow, setSlow] = useState(false)
-  useEffect(() => {
-    if (!('speechSynthesis' in window)) { setVoiceChecked(true); return }
-    const loadVoice = () => {
-      const voices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.toLowerCase().startsWith('th'))
-      setThaiVoice(voices.find((voice) => voice.localService) || voices[0] || null)
-      setVoiceChecked(true)
-    }
-    loadVoice()
-    window.speechSynthesis.addEventListener('voiceschanged', loadVoice)
-    return () => window.speechSynthesis.removeEventListener('voiceschanged', loadVoice)
-  }, [])
-  const speakThai = (text: string) => {
-    if (!thaiVoice) return
-    window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.voice = thaiVoice
-    utterance.lang = thaiVoice.lang || 'th-TH'
-    utterance.rate = slow ? 0.55 : 0.9
-    utterance.pitch = 1
-    utterance.volume = 1
-    window.speechSynthesis.speak(utterance)
+  const [playing, setPlaying] = useState<string | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  useEffect(() => () => { audioRef.current?.pause() }, [])
+  const play = (clip: string) => {
+    audioRef.current?.pause()
+    const audio = new Audio(`/audio/thai/${clip}${slow ? '-slow' : ''}.mp3`)
+    audioRef.current = audio
+    setPlaying(clip)
+    const stop = () => setPlaying((current) => current === clip ? null : current)
+    audio.addEventListener('ended', stop)
+    audio.addEventListener('error', stop)
+    audio.play().catch(stop)
   }
-  return <><PageIntro title="Useful Thai for your stay" body="A few words and phrases to help you get around, order food, say hello, and enjoy your time in Thailand." /><section className="thai-intro wrap"><div><p className="eyebrow">A quick note</p><h2 className="mixed-heading">Speak gently. <em>Listen closely.</em></h2></div><div className="prose"><p>Thai is a tonal language, so accurate pronunciation depends on a genuine Thai speech voice. The listen buttons are enabled only when your device or browser provides one. If no suitable Thai voice is available, the listen button will be disabled.</p><p>Each phrase shows a broad IPA transcription with tone marks, followed by a plain reading for everyday use. The transcriptions were generated with a Thai grapheme-to-phoneme tool and reviewed by hand.</p><p>Men commonly end polite sentences with <strong>ครับ (khráp)</strong>; women commonly use <strong>ค่ะ (khâ)</strong>. Where both forms are shown, you can listen to each one separately.</p><div className="phrase-speed"><span>Playback speed</span><div role="group" aria-label="Playback speed"><button type="button" className={slow ? undefined : 'active'} aria-pressed={!slow} onClick={() => setSlow(false)}>Normal</button><button type="button" className={slow ? 'active' : undefined} aria-pressed={slow} onClick={() => setSlow(true)}>Slow</button></div></div><p id="thai-voice-status" className={`voice-status ${thaiVoice ? 'voice-ready' : 'voice-unavailable'}`}>{thaiVoice ? `Thai voice ready: ${thaiVoice.name}` : voiceChecked ? 'No Thai speech voice is installed on this device. The reading guide remains available; native-speaker recordings are the recommended final production solution.' : 'Checking for a Thai speech voice...'}</p></div></section><section className="phrase-grid wrap">{thaiPhrases.map((phrase) => <article key={phrase.thai}><h2 lang="th">{phrase.thai}</h2><p className="phrase-ipa">{phrase.ipa.map((value) => `/${value}/`).join('  ·  ')}</p><p className="phrase-reading">{phrase.reading}</p><p>{phrase.meaning}</p><div className="phrase-audio">{phrase.speech.map((spoken, index) => <button type="button" key={spoken} disabled={!thaiVoice} onClick={() => speakThai(spoken)} aria-describedby="thai-voice-status" aria-label={`Play Thai pronunciation for ${spoken}`}><Volume2 size={18} />{phrase.speech.length > 1 ? index === 0 ? 'ครับ form' : 'ค่ะ form' : 'Listen'}</button>)}</div></article>)}</section></>
+  return <><PageIntro title="Useful Thai for your stay" body="A few words and phrases to help you get around, order food, say hello, and enjoy your time in Thailand." /><section className="thai-intro wrap"><div><p className="eyebrow">A quick note</p><h2 className="mixed-heading">Speak gently. <em>Listen closely.</em></h2></div><div className="prose"><p>Thai is a tonal language: the same syllable can mean different things depending on its pitch, so listening matters as much as reading. Press a listen button to hear each phrase, then try it yourself.</p><p>Each phrase shows a broad IPA transcription with tone marks, followed by a plain reading for everyday use. The transcriptions were generated with a Thai grapheme-to-phoneme tool and reviewed by hand.</p><p>Men commonly end polite sentences with <strong>ครับ (khráp)</strong>; women commonly use <strong>ค่ะ (khâ)</strong>. Where both forms are shown, each is spoken by a matching male or female voice.</p><div className="phrase-speed"><span>Playback speed</span><div role="group" aria-label="Playback speed"><button type="button" className={slow ? undefined : 'active'} aria-pressed={!slow} onClick={() => setSlow(false)}>Normal</button><button type="button" className={slow ? 'active' : undefined} aria-pressed={slow} onClick={() => setSlow(true)}>Slow</button></div></div><p className="voice-status">Audio is generated with an AI Thai voice.</p></div></section><section className="phrase-grid wrap">{thaiPhrases.map((phrase) => <article key={phrase.thai}><h2 lang="th">{phrase.thai}</h2><p className="phrase-ipa">{phrase.forms.map((form) => `/${form.ipa}/`).join('  ·  ')}</p><p className="phrase-reading">{phrase.reading}</p><p>{phrase.meaning}</p><div className="phrase-audio">{phrase.forms.map((form) => <button type="button" key={form.audio} className={playing === form.audio ? 'playing' : undefined} aria-pressed={playing === form.audio} onClick={() => play(form.audio)} aria-label={`Play ${form.speech}${slow ? ', slowly' : ''}`}><Volume2 size={18} />{form.label}</button>)}</div></article>)}</section></>
 }
 
-function VenueMaps() {
-  return <section className="venue-maps wrap" id="getting-there">
-    <div className="venue-maps-heading">
+const mapsSearchUrl = (query: string) => `https://www.google.com/maps/search/?api=1&query=${query}`
+
+function MapsLink({ query, name }: { query: string; name: string }) {
+  return <a className="maps-chip" href={mapsSearchUrl(query)} target="_blank" rel="noreferrer" aria-label={`Open ${name} in Google Maps`}><MapPin size={15} />Open in Google Maps<ArrowUpRight size={15} /></a>
+}
+
+function RoutePanel() {
+  const [hotel, , campus] = venues
+  return <article className="route-panel" id="getting-there">
+    <div className="route-panel-copy">
       <p className="eyebrow">Getting there</p>
-      <h2>Find each venue.</h2>
-      <p>Maps point to the host faculty and the hotel. Final building and room allocation is confirmed by the organising team closer to the event.</p>
+      <h3>Walk from the hotel to the contest campus.</h3>
+      <ol className="route-journey">
+        <li><span className="route-dot" aria-hidden="true" /><div><small>From · {hotel.role}</small><strong>{hotel.name}</strong><span>{hotel.address}</span></div></li>
+        <li className="route-leg"><span className="route-line" aria-hidden="true" /><span className="route-leg-label"><Footprints size={15} aria-hidden="true" />Walking route</span></li>
+        <li><span className="route-dot route-dot-end" aria-hidden="true" /><div><small>To · {campus.role}</small><strong>{campus.building}, {campus.name}</strong><span>{campus.address}</span></div></li>
+      </ol>
+      <div className="route-panel-actions">
+        <a className="pill pill-light" href={homeBaseRoute.walking} target="_blank" rel="noreferrer">Open route in Google Maps <span><ArrowUpRight size={16} /></span></a>
+        <a className="route-alt" href={homeBaseRoute.driving} target="_blank" rel="noreferrer"><Car size={15} aria-hidden="true" />Driving directions</a>
+      </div>
+      <p className="route-note">Official transfers run on contest days. This route is for finding your own way around the area.</p>
     </div>
-    <article className="route-card">
-      <div className="route-map"><iframe title={`Walking route from ${homeBaseRoute.from} to ${homeBaseRoute.to}`} src={homeBaseRoute.embed} loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" /></div>
-      <div className="route-copy">
-        <p className="eyebrow">Home base to contest campus</p>
-        <h3>From the hotel to the Faculty of Arts.</h3>
-        <ol className="route-stops"><li><span>From</span>{homeBaseRoute.from}</li><li><span>To</span>{homeBaseRoute.to}</li></ol>
-        <p>Official transfers are provided on contest days. This route is for finding your own way around the area.</p>
-        <div className="route-actions"><a className="pill" href={homeBaseRoute.walking} target="_blank" rel="noreferrer">Open walking route <span><ExternalLink size={16} /></span></a><a className="text-link" href={homeBaseRoute.driving} target="_blank" rel="noreferrer">Driving route <ExternalLink size={14} /></a></div>
-      </div>
-    </article>
-    <div className="venue-maps-grid">{venues.map((venue) => <article key={venue.index}>
-      <div className="venue-map-frame"><iframe title={`Map of ${venue.name}`} src={`https://www.google.com/maps?q=${venue.mapQuery}&output=embed`} loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" /></div>
-      <div className="venue-map-copy">
-        <p className="eyebrow">{venue.role}</p>
-        <h3>{venue.name}</h3>
-        <p className="venue-map-building">{venue.building}</p>
-        <small>{venue.address}</small>
-        <small className="venue-map-transit"><MapPin size={14} /> {venue.transit}</small>
-        <a className="text-link" href={`https://www.google.com/maps/search/?api=1&query=${venue.mapQuery}`} target="_blank" rel="noreferrer">Open in Google Maps <ExternalLink size={14} /></a>
-      </div>
-    </article>)}</div>
-  </section>
+    <div className="route-panel-map"><iframe title={`Walking route from ${hotel.name} to the ${campus.building}, ${campus.name}`} src={homeBaseRoute.embed} loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" /></div>
+  </article>
 }
 
 function Programme() {
-  return <><PageIntro eyebrow="Schedule & venues" title="Eight days in Bangkok." body="The tentative programme runs from 21 to 28 July 2027 across Mandarin Hotel, Kasetsart University, Chulalongkorn University and other programme locations." /><figure className="schedule-artifact wrap"><img src="/assets/iol-2027-schedule.png" alt="Tentative hourly schedule for IOL 2027 from 21 to 28 July" /><figcaption><div><span>TENTATIVE SCHEDULE</span><p>Times and activities may change as the organising team confirms operations.</p></div><a className="pill" href="/downloads/IOL-2027-Schedule.html" target="_blank" rel="noreferrer">Open full schedule <span><ExternalLink size={15} /></span></a></figcaption></figure><section className="timeline wrap">{schedule.map((item) => <article key={item.date}><div><span>{item.day}</span><strong>{item.date}</strong></div><h2>{item.title}</h2><p>{item.detail}</p></article>)}</section><section className="venue-section"><div className="wrap"><p className="eyebrow">Venue plan</p><h2>Bangkok, connected.</h2><div className="venue-cards">{venues.map((venue) => <article key={venue.index}><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small></article>)}</div></div></section><VenueMaps /></>
+  return <><PageIntro eyebrow="Schedule & venues" title="Eight days in Bangkok." body="The tentative programme runs from 21 to 28 July 2027 across Mandarin Hotel, Kasetsart University, Chulalongkorn University and other programme locations." /><figure className="schedule-artifact wrap"><img src="/assets/iol-2027-schedule.png" alt="Tentative hourly schedule for IOL 2027 from 21 to 28 July" width={1320} height={899} /><figcaption><div><span>TENTATIVE SCHEDULE</span><p>Times and activities may change as the organising team confirms operations.</p></div><a className="pill" href="/downloads/IOL-2027-Schedule.html" target="_blank" rel="noreferrer">Open full schedule <span><ExternalLink size={15} /></span></a></figcaption></figure><section className="timeline wrap">{schedule.map((item) => <article key={item.date}><div><span>{item.day}</span><strong>{item.date}</strong></div><h2>{item.title}</h2><p>{item.detail}</p></article>)}</section><section className="venue-section"><div className="wrap"><p className="eyebrow">Venue plan</p><h2>Bangkok, connected.</h2><div className="venue-cards">{venues.map((venue) => <article key={venue.index}><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small><div className="venue-card-place"><span>{venue.building}</span><span>{venue.address}</span></div><MapsLink query={venue.mapQuery} name={venue.name} /></article>)}</div><RoutePanel /></div></section></>
 }
 
 function Hosts() {
@@ -802,7 +775,7 @@ function Accommodation() {
 }
 
 function Transportation() {
-  return <><PageIntro eyebrow="Event guide / Transportation" title="Arrive, move and depart with us." body="Official airport pick-up and drop-off services will be provided at Suvarnabhumi Airport (BKK) and Don Mueang International Airport (DMK) during the designated arrival and departure periods." /><ContentCards cards={[{ label: 'ARRIVAL & DEPARTURE', title: 'Share your flight details.', body: 'Participants will be asked to submit their flight details through the registration system so the organising team can coordinate transportation.' }, { label: 'LOCAL MOVEMENT', title: 'Transfers are provided.', body: 'Transfers between the home base, contest campuses, ceremonies and city programme venues will be provided and coordinated by the organising team.' }]} /><section className="route-link wrap"><a className="text-link" href="/programme#getting-there"><MapPin size={16} /> Walking route from the hotel to the Faculty of Arts, and maps of every venue <ArrowRight size={16} /></a></section><section className="pickup-plan wrap"><div><p className="eyebrow">Airport pick-up service</p><h2>The service timetable will appear here.</h2><p>Pick-up windows, airport meeting points, contact instructions and coach departure times will be published after the transport plan is confirmed.</p></div><div className="pickup-table-wrap"><table className="pickup-table"><caption>Future airport pick-up schedule</caption><thead><tr><th>Airport</th><th>Service period</th><th>Operating hours</th><th>Meeting point</th></tr></thead><tbody><tr><td>BKK / DMK</td><td colSpan={3}>Schedule to be confirmed</td></tr></tbody></table></div></section></>
+  return <><PageIntro eyebrow="Event guide / Transportation" title="Arrive, move and depart with us." body="Official airport pick-up and drop-off services will be provided at Suvarnabhumi Airport (BKK) and Don Mueang International Airport (DMK) during the designated arrival and departure periods." /><ContentCards cards={[{ label: 'ARRIVAL & DEPARTURE', title: 'Share your flight details.', body: 'Participants will be asked to submit their flight details through the registration system so the organising team can coordinate transportation.' }, { label: 'LOCAL MOVEMENT', title: 'Transfers are provided.', body: 'Transfers between the home base, contest campuses, ceremonies and city programme venues will be provided and coordinated by the organising team.' }]} /><section className="route-link wrap"><a className="text-link" href="/programme#getting-there"><Footprints size={16} /> Walking route from the hotel to the Faculty of Arts <ArrowRight size={16} /></a></section><section className="pickup-plan wrap"><div><p className="eyebrow">Airport pick-up service</p><h2>The service timetable will appear here.</h2><p>Pick-up windows, airport meeting points, contact instructions and coach departure times will be published after the transport plan is confirmed.</p></div><div className="pickup-table-wrap"><table className="pickup-table"><caption>Future airport pick-up schedule</caption><thead><tr><th>Airport</th><th>Service period</th><th>Operating hours</th><th>Meeting point</th></tr></thead><tbody><tr><td>BKK / DMK</td><td colSpan={3}>Schedule to be confirmed</td></tr></tbody></table></div></section></>
 }
 
 function ImportantDates() {
@@ -886,7 +859,13 @@ function NotFound() {
 }
 
 function App() {
-  useEffect(() => { window.scrollTo(0, 0) }, [])
+  useEffect(() => {
+    const target = window.location.hash ? document.getElementById(decodeURIComponent(window.location.hash.slice(1))) : null
+    if (!target) { window.scrollTo(0, 0); return }
+    target.scrollIntoView()
+    // Images above the anchor can still be loading; settle on the anchor once they have.
+    if (document.readyState !== 'complete') window.addEventListener('load', () => target.scrollIntoView(), { once: true })
+  }, [])
   const path = window.location.pathname.replace(/\/$/, '') || '/'
   const pages: Record<string, React.ReactElement> = {
     '/': <Home />,
