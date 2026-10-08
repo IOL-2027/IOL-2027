@@ -46,7 +46,7 @@ API = 'https://generativelanguage.googleapis.com/v1beta'
 TTS_MODEL = 'gemini-3.8-flash-tts'
 CHECK_MODEL = 'gemini-3.8-flash'
 
-DEFAULT_VOICES = {'male': 'Charon', 'female': 'Kore'}
+DEFAULT_VOICES = {'male': 'Charon', 'female': 'Despina'}
 AUDITION_VOICES = {
     'male': ['Charon', 'Iapetus', 'Achird', 'Algieba', 'Orus'],
     'female': ['Kore', 'Sulafat', 'Despina', 'Vindemiatrix', 'Aoede'],

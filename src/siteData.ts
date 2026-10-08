@@ -56,12 +56,13 @@ export const venues: Venue[] = [
   },
 ]
 
-// Walking route from the home base to the contest faculty. The embed URL needs no API key;
-// the directions URL opens the Google Maps app on phones that have it installed.
+// Walking route from the home base to the contest faculty. Both ends are pinned to exact
+// Google Maps places and coordinates, so Maps never has to guess the address ("Did you mean").
+// Trailing !3e2 = walking, !3e0 = driving. The embed needs no API key.
 export const homeBaseRoute = {
   from: 'Mandarin Hotel Bangkok',
   to: 'Faculty of Arts, Chulalongkorn University',
-  embed: 'https://maps.google.com/maps?saddr=Mandarin+Hotel+Bangkok,+662+Rama+IV+Road&daddr=Faculty+of+Arts,+Chulalongkorn+University&dirflg=w&output=embed',
-  walking: 'https://www.google.com/maps/dir/?api=1&origin=Mandarin+Hotel+Bangkok,+662+Rama+IV+Road&destination=Faculty+of+Arts,+Chulalongkorn+University&travelmode=walking',
-  driving: 'https://www.google.com/maps/dir/?api=1&origin=Mandarin+Hotel+Bangkok,+662+Rama+IV+Road&destination=Faculty+of+Arts,+Chulalongkorn+University&travelmode=driving',
+  embed: 'https://maps.google.com/maps?saddr=13.7331462,100.5271574&daddr=13.7393128,100.5339437&dirflg=w&output=embed',
+  walking: 'https://www.google.com/maps/dir/Mandarin+Hotel+Bangkok,+managed+by+Centre+Point,+662+Rama+IV+Rd,+Maha+Phruttharam,+Bang+Rak,+Bangkok+10500/Faculty+of+Arts,+Chulalongkorn+University,+254+Phaya+Thai+Rd,+Wang+Mai,+Pathum+Wan,+Bangkok+10330/@13.7359804,100.5279493,17z/data=!3m1!4b1!4m14!4m13!1m5!1m1!1s0x30e29928117c9971:0x5b3d44046d453aac!2m2!1d100.5271574!2d13.7331462!1m5!1m1!1s0x30e29ed44058712b:0x5b71cdd6c94171fd!2m2!1d100.5339437!2d13.7393128!3e2',
+  driving: 'https://www.google.com/maps/dir/Mandarin+Hotel+Bangkok,+managed+by+Centre+Point,+662+Rama+IV+Rd,+Maha+Phruttharam,+Bang+Rak,+Bangkok+10500/Faculty+of+Arts,+Chulalongkorn+University,+254+Phaya+Thai+Rd,+Wang+Mai,+Pathum+Wan,+Bangkok+10330/@13.7359804,100.5279493,17z/data=!3m1!4b1!4m14!4m13!1m5!1m1!1s0x30e29928117c9971:0x5b3d44046d453aac!2m2!1d100.5271574!2d13.7331462!1m5!1m1!1s0x30e29ed44058712b:0x5b71cdd6c94171fd!2m2!1d100.5339437!2d13.7393128!3e0',
 }
