@@ -115,18 +115,18 @@ const hotelImages = [
 ]
 
 const thaiPhrases = [
-  { thai: 'สวัสดีครับ / สวัสดีค่ะ', reading: 'sa-wàt-dii khráp / sa-wàt-dii khâ', ipa: ['/sàʔwàtdiː kʰráp/', '/sàʔwàtdiː kʰâ/'], meaning: 'Hello', speech: ['สวัสดีครับ', 'สวัสดีค่ะ'] },
-  { thai: 'ขอบคุณครับ / ขอบคุณค่ะ', reading: 'khɔ̀ːp khun khráp / khɔ̀ːp khun khâ', ipa: ['/kʰɔ̀ːp kʰun kʰráp/', '/kʰɔ̀ːp kʰun kʰâ/'], meaning: 'Thank you', speech: ['ขอบคุณครับ', 'ขอบคุณค่ะ'] },
-  { thai: 'ขอโทษครับ / ขอโทษค่ะ', reading: 'khɔ̌ː thôːt khráp / khɔ̌ː thôːt khâ', ipa: ['/kʰɔ̌ː tʰôːt kʰráp/', '/kʰɔ̌ː tʰôːt kʰâ/'], meaning: 'Sorry / Excuse me', speech: ['ขอโทษครับ', 'ขอโทษค่ะ'] },
-  { thai: 'ไม่เป็นไร', reading: 'mâj pen raj', ipa: ['/mâj pen raj/'], meaning: "It's okay / You're welcome", speech: ['ไม่เป็นไร'] },
-  { thai: 'ใช่', reading: 'tɕʰâj', ipa: ['/tɕʰâj/'], meaning: 'Yes', speech: ['ใช่'] },
-  { thai: 'ไม่ใช่', reading: 'mâj tɕʰâj', ipa: ['/mâj tɕʰâj/'], meaning: 'No / That is not correct', speech: ['ไม่ใช่'] },
-  { thai: 'อร่อย', reading: 'ʔà-rɔ̀j', ipa: ['/ʔàrɔ̀j/'], meaning: 'Delicious', speech: ['อร่อย'] },
-  { thai: 'ชอบ', reading: 'tɕʰɔ̂ːp', ipa: ['/tɕʰɔ̂ːp/'], meaning: 'I like it', speech: ['ชอบ'] },
-  { thai: 'ห้องน้ำอยู่ที่ไหน', reading: 'hɔ̂ːŋ náːm jùː tʰîː nǎj', ipa: ['/hɔ̂ːŋ náːm jùː tʰîː nǎj/'], meaning: 'Where is the restroom?', speech: ['ห้องน้ำอยู่ที่ไหน'] },
-  { thai: 'เท่าไหร่', reading: 'tʰâw râj', ipa: ['/tʰâw râj/'], meaning: 'How much?', speech: ['เท่าไหร่'] },
-  { thai: 'ช่วยด้วย', reading: 'tɕʰûaj dûaj', ipa: ['/tɕʰûaj dûaj/'], meaning: 'Please help', speech: ['ช่วยด้วย'] },
-  { thai: 'พูดภาษาอังกฤษได้ไหม', reading: 'pʰûːt pʰaː-sǎː ʔaŋ-krìt dâj mǎj', ipa: ['/pʰûːt pʰaːsǎː ʔaŋkrìt dâj mǎj/'], meaning: 'Can you speak English?', speech: ['พูดภาษาอังกฤษได้ไหม'] },
+  { thai: 'สวัสดีครับ / สวัสดีค่ะ', reading: 'sa-wàt-dii khráp / sa-wàt-dii khâ', ipa: ['/sàʔwàtdiː kʰráp/', '/sàʔwàtdiː kʰâ/'], meaning: 'Hello', audio: ['/audio/th/sawatdee-khrap.m4a', '/audio/th/sawatdee-kha.m4a'] },
+  { thai: 'ขอบคุณครับ / ขอบคุณค่ะ', reading: 'khɔ̀ːp khun khráp / khɔ̀ːp khun khâ', ipa: ['/kʰɔ̀ːp kʰun kʰráp/', '/kʰɔ̀ːp kʰun kʰâ/'], meaning: 'Thank you', audio: ['/audio/th/khobkhun-khrap.m4a', '/audio/th/khobkhun-kha.m4a'] },
+  { thai: 'ขอโทษครับ / ขอโทษค่ะ', reading: 'khɔ̌ː thôːt khráp / khɔ̌ː thôːt khâ', ipa: ['/kʰɔ̌ː tʰôːt kʰráp/', '/kʰɔ̌ː tʰôːt kʰâ/'], meaning: 'Sorry / Excuse me', audio: ['/audio/th/khothoat-khrap.m4a', '/audio/th/khothoat-kha.m4a'] },
+  { thai: 'ไม่เป็นไร', reading: 'mâj pen raj', ipa: ['/mâj pen raj/'], meaning: "It's okay / You're welcome", audio: ['/audio/th/mai-penrai.m4a'] },
+  { thai: 'ใช่', reading: 'tɕʰâj', ipa: ['/tɕʰâj/'], meaning: 'Yes', audio: ['/audio/th/chai.m4a'] },
+  { thai: 'ไม่ใช่', reading: 'mâj tɕʰâj', ipa: ['/mâj tɕʰâj/'], meaning: 'No / That is not correct', audio: ['/audio/th/mai-chai.m4a'] },
+  { thai: 'อร่อย', reading: 'ʔà-rɔ̀j', ipa: ['/ʔàrɔ̀j/'], meaning: 'Delicious', audio: ['/audio/th/aroi.m4a'] },
+  { thai: 'ชอบ', reading: 'tɕʰɔ̂ːp', ipa: ['/tɕʰɔ̂ːp/'], meaning: 'I like it', audio: ['/audio/th/chob.m4a'] },
+  { thai: 'ห้องน้ำอยู่ที่ไหน', reading: 'hɔ̂ːŋ náːm jùː tʰîː nǎj', ipa: ['/hɔ̂ːŋ náːm jùː tʰîː nǎj/'], meaning: 'Where is the restroom?', audio: ['/audio/th/hongnam.m4a'] },
+  { thai: 'เท่าไหร่', reading: 'tʰâw râj', ipa: ['/tʰâw râj/'], meaning: 'How much?', audio: ['/audio/th/thaorai.m4a'] },
+  { thai: 'ช่วยด้วย', reading: 'tɕʰûaj dûaj', ipa: ['/tɕʰûaj dûaj/'], meaning: 'Please help', audio: ['/audio/th/chuai-duai.m4a'] },
+  { thai: 'พูดภาษาอังกฤษได้ไหม', reading: 'pʰûːt pʰaː-sǎː ʔaŋ-krìt dâj mǎj', ipa: ['/pʰûːt pʰaːsǎː ʔaŋkrìt dâj mǎj/'], meaning: 'Can you speak English?', audio: ['/audio/th/phut-angkrit.m4a'] },
 ]
 
 function NavLink({ item, className }: { item: NavItem; className?: string }) {
@@ -292,26 +292,9 @@ function Thailand() {
 }
 
 function ThaiLanguage() {
-  const [thaiVoice, setThaiVoice] = useState<SpeechSynthesisVoice | null>(null)
-  const [voiceChecked, setVoiceChecked] = useState(false)
-  useEffect(() => {
-    if (!('speechSynthesis' in window)) { setVoiceChecked(true); return }
-    const pick = () => {
-      const voices = window.speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith('th'))
-      setThaiVoice(voices.find((v) => v.localService) || voices[0] || null)
-      setVoiceChecked(true)
-    }
-    pick()
-    window.speechSynthesis.addEventListener('voiceschanged', pick)
-    return () => window.speechSynthesis.removeEventListener('voiceschanged', pick)
-  }, [])
-
-  const speak = (text: string) => {
-    if (!thaiVoice) return
-    window.speechSynthesis.cancel()
-    const u = new SpeechSynthesisUtterance(text)
-    u.voice = thaiVoice; u.lang = thaiVoice.lang || 'th-TH'; u.rate = 0.76
-    window.speechSynthesis.speak(u)
+  const play = (src: string) => {
+    const a = new Audio(src)
+    a.play().catch(() => {})
   }
 
   return <>
@@ -324,9 +307,6 @@ function ThaiLanguage() {
       <div className="prose">
         <p>Thai is a tonal language with five tones — the same syllable at a different pitch carries a different meaning. IPA notation is shown below each phrase using standard tone marks: low <strong>à</strong>, mid <strong>a</strong>, high <strong>á</strong>, rising <strong>ǎ</strong>, falling <strong>â</strong>.</p>
         <p>Men commonly end polite sentences with <strong>ครับ (kʰráp)</strong>; women commonly use <strong>ค่ะ (kʰâ)</strong>. Where both forms are shown, you can listen to each one separately.</p>
-        <p id="thai-voice-status" className={`voice-status ${thaiVoice ? 'voice-ready' : 'voice-unavailable'}`}>
-          {thaiVoice ? `Thai voice ready — ${thaiVoice.name}` : voiceChecked ? 'No Thai voice on this device. The reading guide and IPA are available without audio.' : 'Checking for a Thai voice…'}
-        </p>
       </div>
     </section>
     <section className="phrase-grid wrap">
@@ -337,10 +317,10 @@ function ThaiLanguage() {
           <p className="phrase-ipa">{phrase.ipa.join(' · ')}</p>
           <p>{phrase.meaning}</p>
           <div className="phrase-audio">
-            {phrase.speech.map((spoken, index) => (
-              <button type="button" key={spoken} disabled={!thaiVoice} onClick={() => speak(spoken)} aria-describedby="thai-voice-status" aria-label={`Play Thai pronunciation for ${spoken}`}>
+            {phrase.audio.map((src, index) => (
+              <button type="button" key={src} onClick={() => play(src)} aria-label={`Play Thai pronunciation${phrase.audio.length > 1 ? (index === 0 ? ' (male)' : ' (female)') : ''}`}>
                 <Volume2 size={18} />
-                {phrase.speech.length > 1 ? (index === 0 ? 'ครับ' : 'ค่ะ') : 'Listen'}
+                {phrase.audio.length > 1 ? (index === 0 ? 'ครับ' : 'ค่ะ') : 'Listen'}
               </button>
             ))}
           </div>
