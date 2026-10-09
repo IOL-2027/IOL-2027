@@ -291,87 +291,28 @@ function Thailand() {
     <section className="experience-grid wrap"><article className="exp-one"><span>DAY 04 / EXCURSION</span><h2>Move beyond the contest room.</h2><p>A shared day to encounter Thailand through place, culture and conversation. The final route will be confirmed by the organising team.</p></article><article className="exp-two"><span>DAY 05 / CITY PROGRAMME</span><h2>Read Bangkok.</h2><p>Campus, neighbourhood, river and street life become part of the week-long setting.</p></article><article className="exp-three"><span>DAY 07 / CULTURAL NIGHT</span><h2>Celebrate the community.</h2><p>After solutions, awards and closing, teams gather for the host culture and friendships that outlast the score.</p></article></section></>
 }
 
-type TTSStatus = 'idle' | 'loading' | 'ready' | 'speaking' | 'error'
-
 function ThaiLanguage() {
-  const [ttsStatus, setTtsStatus] = useState<TTSStatus>('idle')
-  const [loadProgress, setLoadProgress] = useState(0)
-  const [speakingKey, setSpeakingKey] = useState<string | null>(null)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const synthRef = useRef<any>(null)
-  const audioCtxRef = useRef<AudioContext | null>(null)
-
-  // Web Speech API fallback for while model loads
-  const [wsSpeech, setWsSpeech] = useState<SpeechSynthesisVoice | null>(null)
+  const [thaiVoice, setThaiVoice] = useState<SpeechSynthesisVoice | null>(null)
+  const [voiceChecked, setVoiceChecked] = useState(false)
   useEffect(() => {
-    if (!('speechSynthesis' in window)) return
+    if (!('speechSynthesis' in window)) { setVoiceChecked(true); return }
     const pick = () => {
-      const v = window.speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith('th'))
-      setWsSpeech(v.find((v) => v.localService) || v[0] || null)
+      const voices = window.speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith('th'))
+      setThaiVoice(voices.find((v) => v.localService) || voices[0] || null)
+      setVoiceChecked(true)
     }
     pick()
     window.speechSynthesis.addEventListener('voiceschanged', pick)
     return () => window.speechSynthesis.removeEventListener('voiceschanged', pick)
   }, [])
 
-  const loadModel = async () => {
-    if (synthRef.current || ttsStatus === 'loading') return
-    setTtsStatus('loading')
-    setLoadProgress(0)
-    try {
-      const { pipeline, env } = await import('@xenova/transformers')
-      env.allowLocalModels = false
-      const synth = await pipeline('text-to-speech', 'Xenova/mms-tts-tha', {
-        quantized: false,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        progress_callback: (p: any) => {
-          if (p.status === 'progress' && p.total) setLoadProgress(Math.round((p.loaded / p.total) * 100))
-        },
-      })
-      synthRef.current = synth
-      setTtsStatus('ready')
-    } catch {
-      setTtsStatus('error')
-    }
+  const speak = (text: string) => {
+    if (!thaiVoice) return
+    window.speechSynthesis.cancel()
+    const u = new SpeechSynthesisUtterance(text)
+    u.voice = thaiVoice; u.lang = thaiVoice.lang || 'th-TH'; u.rate = 0.76
+    window.speechSynthesis.speak(u)
   }
-
-  const playFloat32 = async (audio: Float32Array, samplingRate: number) => {
-    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-      audioCtxRef.current = new AudioContext()
-    }
-    const ctx = audioCtxRef.current
-    if (ctx.state === 'suspended') await ctx.resume()
-    const buf = ctx.createBuffer(1, audio.length, samplingRate)
-    buf.copyToChannel(audio, 0)
-    const src = ctx.createBufferSource()
-    src.buffer = buf
-    src.connect(ctx.destination)
-    src.start()
-    return new Promise<void>((res) => { src.onended = () => res() })
-  }
-
-  const speak = async (text: string) => {
-    if (speakingKey) return
-    setSpeakingKey(text)
-    try {
-      if (synthRef.current) {
-        setTtsStatus('speaking')
-        const out = await synthRef.current(text)
-        await playFloat32(out.audio, out.sampling_rate)
-        setTtsStatus('ready')
-      } else if (wsSpeech) {
-        window.speechSynthesis.cancel()
-        const u = new SpeechSynthesisUtterance(text)
-        u.voice = wsSpeech; u.lang = wsSpeech.lang || 'th-TH'; u.rate = 0.76
-        window.speechSynthesis.speak(u)
-      }
-    } finally {
-      setSpeakingKey(null)
-    }
-  }
-
-  const canSpeak = ttsStatus === 'ready' || !!wsSpeech
-  const isNeural = ttsStatus === 'ready'
 
   return <>
     <PageIntro title="Useful Thai for your stay" body="A few words and phrases to help you get around, order food, say hello, and enjoy your time in Thailand." />
@@ -383,14 +324,9 @@ function ThaiLanguage() {
       <div className="prose">
         <p>Thai is a tonal language with five tones — the same syllable at a different pitch carries a different meaning. IPA notation is shown below each phrase using standard tone marks: low <strong>à</strong>, mid <strong>a</strong>, high <strong>á</strong>, rising <strong>ǎ</strong>, falling <strong>â</strong>.</p>
         <p>Men commonly end polite sentences with <strong>ครับ (kʰráp)</strong>; women commonly use <strong>ค่ะ (kʰâ)</strong>. Where both forms are shown, you can listen to each one separately.</p>
-        <div className="thai-tts-bar">
-          {ttsStatus === 'idle' && <button type="button" className="tts-load-btn" onClick={loadModel}><Volume2 size={15} /> Load neural Thai voice <small>~80 MB · runs in browser</small></button>}
-          {ttsStatus === 'loading' && <div className="tts-loading"><div className="tts-progress-bar"><span style={{ width: `${loadProgress}%` }} /></div><small>Loading Thai voice model… {loadProgress}%</small></div>}
-          {ttsStatus === 'ready' && <p className="voice-status voice-ready"><Volume2 size={14} /> Neural Thai voice ready — VITS / MMS</p>}
-          {ttsStatus === 'speaking' && <p className="voice-status voice-ready"><Volume2 size={14} /> Speaking…</p>}
-          {ttsStatus === 'error' && <p className="voice-status voice-unavailable">Could not load neural voice. Using device voice if available.</p>}
-          {ttsStatus === 'idle' && wsSpeech && <p className="voice-status voice-ready" style={{ marginTop: 8 }}><small>Device voice available as fallback: {wsSpeech.name}</small></p>}
-        </div>
+        <p id="thai-voice-status" className={`voice-status ${thaiVoice ? 'voice-ready' : 'voice-unavailable'}`}>
+          {thaiVoice ? `Thai voice ready — ${thaiVoice.name}` : voiceChecked ? 'No Thai voice on this device. The reading guide and IPA are available without audio.' : 'Checking for a Thai voice…'}
+        </p>
       </div>
     </section>
     <section className="phrase-grid wrap">
@@ -402,14 +338,7 @@ function ThaiLanguage() {
           <p>{phrase.meaning}</p>
           <div className="phrase-audio">
             {phrase.speech.map((spoken, index) => (
-              <button
-                type="button"
-                key={spoken}
-                disabled={!canSpeak || speakingKey === spoken}
-                onClick={() => speak(spoken)}
-                className={`${speakingKey === spoken ? 'speaking' : ''}${isNeural ? ' neural' : ''}`}
-                aria-label={`Play Thai pronunciation for ${spoken}`}
-              >
+              <button type="button" key={spoken} disabled={!thaiVoice} onClick={() => speak(spoken)} aria-describedby="thai-voice-status" aria-label={`Play Thai pronunciation for ${spoken}`}>
                 <Volume2 size={18} />
                 {phrase.speech.length > 1 ? (index === 0 ? 'ครับ' : 'ค่ะ') : 'Listen'}
               </button>
