@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, Camera, CheckCircle, ChevronLeft, ChevronRight, ClipboardCheck, ExternalLink, FileText, Lock, MailCheck, MapPin, Menu, QrCode, ShieldCheck, Upload, Users, Volume2, X } from 'lucide-react'
-import { event, schedule, venues } from './siteData'
+import { ArrowRight, ArrowUpRight, Camera, Car, CheckCircle, ChevronLeft, ChevronRight, ClipboardCheck, ExternalLink, FileText, Footprints, Lock, MailCheck, MapPin, Menu, QrCode, ShieldCheck, Upload, Users, Volume2, X } from 'lucide-react'
+import { event, homeBaseRoute, schedule, venues } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
+import thaiPhrases from './thaiPhrases.json'
 
 type NavItem = { label: string; href: string; external?: boolean; children?: { label: string; href: string }[] }
 type RegistrationFieldKind = 'text' | 'email' | 'tel' | 'number' | 'date' | 'time' | 'textarea' | 'select' | 'multiselect' | 'upload' | 'readonly'
@@ -83,7 +84,8 @@ const navigation: NavItem[] = [
   { label: 'Gallery', href: '/gallery' },
   { label: 'People', href: '/people', children: [
     { label: 'Committee', href: '/people/committee' },
-    { label: 'Jury & Problem Committee', href: '/people/jury' },
+    { label: 'Jury', href: '/people/jury' },
+    { label: 'Problem Committee', href: '/people/problem-committee' },
     { label: 'Volunteers', href: '/people/volunteers' },
   ] },
   { label: 'Contact', href: '/contact' },
@@ -101,7 +103,7 @@ const newsItems = [
 ]
 
 const hotelImages = [
-  { src: '/assets/mandarin-hotel.jpg', alt: 'Mandarin Hotel Bangkok exterior and surroundings', caption: 'Mandarin Hotel Bangkok' },
+  { src: '/assets/mandarin-hotel.jpg', alt: 'Lobby atrium of Mandarin Hotel Bangkok with crystal chandeliers', caption: 'Mandarin Hotel Bangkok' },
   { src: '/assets/hotel-gallery/01-lobby-atrium.jpg', alt: 'Mandarin Hotel Bangkok lobby atrium', caption: 'Lobby atrium' },
   { src: '/assets/hotel-gallery/02-reception.jpg', alt: 'Mandarin Hotel Bangkok reception counter', caption: 'Reception' },
   { src: '/assets/hotel-gallery/03-lobby-lounge.jpg', alt: 'Mandarin Hotel Bangkok lobby lounge', caption: 'Lobby lounge' },
@@ -114,20 +116,7 @@ const hotelImages = [
   { src: '/assets/hotel-gallery/10-thai-artwork.jpg', alt: 'Thai-inspired artwork displayed inside Mandarin Hotel Bangkok', caption: 'Thai-inspired hotel artwork' },
 ]
 
-const thaiPhrases = [
-  { thai: 'สวัสดีครับ / สวัสดีค่ะ', reading: 'sawatdee khráp / sawatdee khâ', meaning: 'Hello', speech: ['สวัสดีครับ', 'สวัสดีค่ะ'] },
-  { thai: 'ขอบคุณครับ / ขอบคุณค่ะ', reading: 'khop khun khráp / khop khun khâ', meaning: 'Thank you', speech: ['ขอบคุณครับ', 'ขอบคุณค่ะ'] },
-  { thai: 'ขอโทษครับ / ขอโทษค่ะ', reading: 'kho thot khráp / kho thot khâ', meaning: 'Sorry / Excuse me', speech: ['ขอโทษครับ', 'ขอโทษค่ะ'] },
-  { thai: 'ไม่เป็นไร', reading: 'mai pen rai', meaning: "It is okay / You're welcome", speech: ['ไม่เป็นไร'] },
-  { thai: 'ใช่', reading: 'chai', meaning: 'Yes', speech: ['ใช่'] },
-  { thai: 'ไม่ใช่', reading: 'mai chai', meaning: 'No / Not correct', speech: ['ไม่ใช่'] },
-  { thai: 'อร่อย', reading: 'aroi', meaning: 'Delicious', speech: ['อร่อย'] },
-  { thai: 'ชอบ', reading: 'chop', meaning: 'I like it', speech: ['ชอบ'] },
-  { thai: 'ห้องน้ำอยู่ที่ไหน', reading: 'hong nam yu thi nai', meaning: 'Where is the restroom?', speech: ['ห้องน้ำอยู่ที่ไหน'] },
-  { thai: 'เท่าไหร่', reading: 'thao rai', meaning: 'How much?', speech: ['เท่าไหร่'] },
-  { thai: 'ช่วยด้วย', reading: 'chuai duai', meaning: 'Please help', speech: ['ช่วยด้วย'] },
-  { thai: 'พูดภาษาอังกฤษได้ไหม', reading: 'phut phasa angkrit dai mai', meaning: 'Can you speak English?', speech: ['พูดภาษาอังกฤษได้ไหม'] },
-]
+
 
 function NavLink({ item, className }: { item: NavItem; className?: string }) {
   const path = window.location.pathname.replace(/\/$/, '') || '/'
@@ -214,27 +203,13 @@ function HostCarousel() {
 }
 
 function SponsorPreview({ full = false }: { full?: boolean }) {
-  const leadSponsors = [
-    { letter: 'A', name: 'Company A', logoClass: 'logo-company-a' },
-    { letter: 'B', name: 'Company B', logoClass: 'logo-company-b' },
-    { letter: 'C', name: 'Company C', logoClass: 'logo-company-c' },
-  ]
-  const supportingSponsors = [
-    { letter: 'A', name: 'Supporting Company A', logoClass: 'logo-company-a' },
-    { letter: 'B', name: 'Supporting Company B', logoClass: 'logo-company-b' },
-    { letter: 'C', name: 'Supporting Company C', logoClass: 'logo-company-c' },
-    { letter: 'D', name: 'Supporting Company D', logoClass: 'logo-company-d' },
-  ]
+  const logoClasses = ['logo-company-a', 'logo-company-b', 'logo-company-c', 'logo-company-d', 'logo-company-e']
+  const sponsors = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((letter, index) => ({ letter, name: `Company ${letter}`, logoClass: logoClasses[index % logoClasses.length] }))
   return <section className={`commercial-sponsors wrap ${full ? 'commercial-sponsors-full' : 'commercial-sponsors-home'}`}>
-    <div className="sponsor-tier-heading"><p className="eyebrow">Lead sponsors</p><h2>Principal partners of IOL 2027.</h2><p>Lead sponsors provide major support for the programme, venues and participant experience. Every confirmed partner at this level receives the same prominent placement.</p></div>
-    <div className="lead-sponsor-list">{leadSponsors.map((sponsor) => <article className="lead-sponsor-card" key={sponsor.name}>
+    <div className="sponsor-tier-heading"><p className="eyebrow">Sponsors</p><h2>Partners of IOL 2027.</h2><p>Sponsors support the programme, venues and participant experience. Every confirmed sponsor is presented in the same display area: a 320 x 180 px logo area, a 1600 x 500 px feature banner and a description of up to 60 words.</p></div>
+    <div className="sponsor-equal-grid">{sponsors.map((sponsor) => <article className="sponsor-equal-card" key={sponsor.name}>
       <div className={`fictional-logo ${sponsor.logoClass}`}><span>{sponsor.letter}</span><strong>{sponsor.name.toUpperCase()}</strong></div>
-      <div className="lead-sponsor-content"><span>LEAD SPONSOR</span><h3>{sponsor.name}</h3><p>{sponsor.name} helps IOL 2027 welcome international teams and deliver the spaces, services and shared experiences that make the Olympiad possible. Each lead sponsor receives a logo display area of 320 × 180 px, a 1600 × 500 px feature banner, and space for a description of up to 80 words.</p></div>
-    </article>)}</div>
-    <div className="supporting-sponsor-heading"><p className="eyebrow">Supporting sponsors</p><h2>Additional partners, recognised together.</h2><p>Supporting sponsors strengthen the services and activities that help teams enjoy a welcoming, well-organised Olympiad week.</p></div>
-    <div className="supporting-sponsor-grid">{supportingSponsors.map((sponsor) => <article className="supporting-sponsor-card" key={sponsor.name}>
-      <div className={`fictional-logo ${sponsor.logoClass}`}><span>{sponsor.letter}</span><strong>{sponsor.name.toUpperCase()}</strong></div>
-      <div className="supporting-sponsor-content"><span>SUPPORTING SPONSOR</span><h3>{sponsor.name}</h3><p>{sponsor.name} supports the participant services and shared programme that bring the IOL community together in Bangkok. Each supporting sponsor receives a logo display area of 220 × 120 px, a 1200 × 300 px feature banner, and space for a description of up to 40 words.</p></div>
+      <div className="sponsor-equal-content"><h3>{sponsor.name}</h3><p>{sponsor.name} supports IOL 2027 and receives the same placement area as every other confirmed partner.</p></div>
     </article>)}</div>
     {!full && <LinkButton href="/sponsors">View sponsor opportunities</LinkButton>}
   </section>
@@ -261,7 +236,7 @@ function Home() {
       <article className="feature-card plum"><span>TEAM CONTEST</span><h3>Four minds.<br />One problem.</h3><p>Teams combine perspectives to solve one large-scale challenge together.</p></article>
       <article className="feature-card jade"><span>HOST PROGRAMME</span><h3>One shared<br />language: curiosity.</h3><p>Excursions, culture and friendships turn a competition into a global community.</p></article>
     </section>
-    <section className="venues-preview wrap"><div className="section-heading"><p className="eyebrow">Across Bangkok</p><h2>Three places.<br />One Olympiad.</h2><LinkButton href="/programme">See venues</LinkButton></div><div className="venue-stack">{venues.map((venue) => <article key={venue.index}><span>{venue.index}</span><div><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small></div></article>)}</div></section>
+    <section className="venues-preview wrap"><div className="section-heading"><p className="eyebrow">Across Bangkok</p><h2>Three places.<br />One Olympiad.</h2><LinkButton href="/programme">See venues</LinkButton></div><div className="venue-photo-stack">{venues.map((venue) => <article key={venue.index}><img src={venue.image} alt={venue.imageAlt} loading="lazy" style={{ objectPosition: venue.imagePosition }} /><div className="venue-photo-copy"><p>{venue.index} · {venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small><MapsLink query={venue.mapQuery} name={venue.name} /></div><a className="venue-photo-credit" href={venue.imageCreditUrl} target="_blank" rel="noreferrer">{venue.imageCredit}</a></article>)}</div></section>
     <SponsorPreview />
   </>
 }
@@ -291,35 +266,56 @@ function Thailand() {
     <section className="experience-grid wrap"><article className="exp-one"><span>DAY 04 / EXCURSION</span><h2>Move beyond the contest room.</h2><p>A shared day to encounter Thailand through place, culture and conversation. The final route will be confirmed by the organising team.</p></article><article className="exp-two"><span>DAY 05 / CITY PROGRAMME</span><h2>Read Bangkok.</h2><p>Campus, neighbourhood, river and street life become part of the week-long setting.</p></article><article className="exp-three"><span>DAY 07 / CULTURAL NIGHT</span><h2>Celebrate the community.</h2><p>After solutions, awards and closing, teams gather for the host culture and friendships that outlast the score.</p></article></section></>
 }
 
+// Bump whenever the clips are regenerated, so browsers do not keep playing cached old audio.
+const thaiAudioVersion = 3
+
 function ThaiLanguage() {
-  const [thaiVoice, setThaiVoice] = useState<SpeechSynthesisVoice | null>(null)
-  const [voiceChecked, setVoiceChecked] = useState(false)
-  useEffect(() => {
-    if (!('speechSynthesis' in window)) { setVoiceChecked(true); return }
-    const loadVoice = () => {
-      const voices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.toLowerCase().startsWith('th'))
-      setThaiVoice(voices.find((voice) => voice.localService) || voices[0] || null)
-      setVoiceChecked(true)
-    }
-    loadVoice()
-    window.speechSynthesis.addEventListener('voiceschanged', loadVoice)
-    return () => window.speechSynthesis.removeEventListener('voiceschanged', loadVoice)
-  }, [])
-  const speakThai = (text: string) => {
-    if (!thaiVoice) return
-    window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.voice = thaiVoice
-    utterance.lang = thaiVoice.lang || 'th-TH'
-    utterance.rate = 0.76
-    utterance.pitch = 1
-    window.speechSynthesis.speak(utterance)
+  const [slow, setSlow] = useState(false)
+  const [playing, setPlaying] = useState<string | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  useEffect(() => () => { audioRef.current?.pause() }, [])
+  const play = (clip: string) => {
+    audioRef.current?.pause()
+    const audio = new Audio(`/audio/thai/${clip}${slow ? '-slow' : ''}.mp3?v=${thaiAudioVersion}`)
+    audioRef.current = audio
+    setPlaying(clip)
+    const stop = () => setPlaying((current) => current === clip ? null : current)
+    audio.addEventListener('ended', stop)
+    audio.addEventListener('error', stop)
+    audio.play().catch(stop)
   }
-  return <><PageIntro title="Useful Thai for your stay" body="A few words and phrases to help you get around, order food, say hello, and enjoy your time in Thailand." /><section className="thai-intro wrap"><div><p className="eyebrow">A quick note</p><h2 className="mixed-heading">Speak gently. <em>Listen closely.</em></h2></div><div className="prose"><p>Thai is a tonal language, so accurate pronunciation depends on a genuine Thai speech voice. The listen buttons are enabled only when your device or browser provides one. If no suitable Thai voice is available, the listen button will be disabled.</p><p>Men commonly end polite sentences with <strong>ครับ (khráp)</strong>; women commonly use <strong>ค่ะ (khâ)</strong>. Where both forms are shown, you can listen to each one separately.</p><p id="thai-voice-status" className={`voice-status ${thaiVoice ? 'voice-ready' : 'voice-unavailable'}`}>{thaiVoice ? `Thai voice ready: ${thaiVoice.name}` : voiceChecked ? 'No Thai speech voice is installed on this device. The reading guide remains available; native-speaker recordings are the recommended final production solution.' : 'Checking for a Thai speech voice...'}</p></div></section><section className="phrase-grid wrap">{thaiPhrases.map((phrase) => <article key={phrase.thai}><h2 lang="th">{phrase.thai}</h2><p className="phrase-reading">{phrase.reading}</p><p>{phrase.meaning}</p><div className="phrase-audio">{phrase.speech.map((spoken, index) => <button type="button" key={spoken} disabled={!thaiVoice} onClick={() => speakThai(spoken)} aria-describedby="thai-voice-status" aria-label={`Play Thai pronunciation for ${spoken}`}><Volume2 size={18} />{phrase.speech.length > 1 ? index === 0 ? 'ครับ form' : 'ค่ะ form' : 'Listen'}</button>)}</div></article>)}</section></>
+  return <><PageIntro title="Useful Thai for your stay" body="A few words and phrases to help you get around, order food, say hello, and enjoy your time in Thailand." /><section className="thai-intro wrap"><div><p className="eyebrow">A quick note</p><h2 className="mixed-heading">Speak gently. <em>Listen closely.</em></h2></div><div className="prose"><p>Thai is a tonal language: the same syllable can mean different things depending on its pitch, so listening matters as much as reading. Press a listen button to hear each phrase, then try it yourself.</p><p>Each phrase shows a broad IPA transcription with tone marks, followed by a plain reading for everyday use. The transcriptions were generated with a Thai grapheme-to-phoneme tool and reviewed by hand.</p><p>Men commonly end polite sentences with <strong>ครับ (khráp)</strong>; women commonly use <strong>ค่ะ (khâ)</strong>. Where both forms are shown, each is spoken by a matching male or female voice.</p><div className="phrase-speed"><span>Playback speed</span><div role="group" aria-label="Playback speed"><button type="button" className={slow ? undefined : 'active'} aria-pressed={!slow} onClick={() => setSlow(false)}>Normal</button><button type="button" className={slow ? 'active' : undefined} aria-pressed={slow} onClick={() => setSlow(true)}>Slow</button></div></div><p className="voice-status">Audio is generated with an AI Thai voice.</p></div></section><section className="phrase-grid wrap">{thaiPhrases.map((phrase) => <article key={phrase.thai}><h2 lang="th">{phrase.thai}</h2><p className="phrase-ipa">{phrase.forms.map((form) => `/${form.ipa}/`).join('  ·  ')}</p><p className="phrase-reading">{phrase.reading}</p><p>{phrase.meaning}</p><div className="phrase-audio">{phrase.forms.map((form) => <button type="button" key={form.audio} className={playing === form.audio ? 'playing' : undefined} aria-pressed={playing === form.audio} onClick={() => play(form.audio)} aria-label={`Play ${form.speech}${slow ? ', slowly' : ''}`}><Volume2 size={18} />{form.label}</button>)}</div></article>)}</section></>
+}
+
+const mapsSearchUrl = (query: string) => `https://www.google.com/maps/search/?api=1&query=${query}`
+
+function MapsLink({ query, name }: { query: string; name: string }) {
+  return <a className="maps-chip" href={mapsSearchUrl(query)} target="_blank" rel="noreferrer" aria-label={`Open ${name} in Google Maps`}><MapPin size={15} />Open in Google Maps<ArrowUpRight size={15} /></a>
+}
+
+function RoutePanel() {
+  const [hotel, , campus] = venues
+  return <article className="route-panel" id="getting-there">
+    <div className="route-panel-copy">
+      <p className="eyebrow">Getting there</p>
+      <h3>Walk from the hotel to the contest campus.</h3>
+      <ol className="route-journey">
+        <li><span className="route-dot" aria-hidden="true" /><div><small>From · {hotel.role}</small><strong>{hotel.name}</strong><span>{hotel.address}</span></div></li>
+        <li className="route-leg"><span className="route-line" aria-hidden="true" /><span className="route-leg-label"><Footprints size={15} aria-hidden="true" />Walking route</span></li>
+        <li><span className="route-dot route-dot-end" aria-hidden="true" /><div><small>To · {campus.role}</small><strong>{campus.building}, {campus.name}</strong><span>{campus.address}</span></div></li>
+      </ol>
+      <div className="route-panel-actions">
+        <a className="pill pill-light" href={homeBaseRoute.walking} target="_blank" rel="noreferrer">Open route in Google Maps <span><ArrowUpRight size={16} /></span></a>
+        <a className="route-alt" href={homeBaseRoute.driving} target="_blank" rel="noreferrer"><Car size={15} aria-hidden="true" />Driving directions</a>
+      </div>
+      <p className="route-note">Official transfers run on contest days. This route is for finding your own way around the area.</p>
+    </div>
+    <div className="route-panel-map"><iframe title={`Walking route from ${hotel.name} to the ${campus.building}, ${campus.name}`} src={homeBaseRoute.embed} loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" /></div>
+  </article>
 }
 
 function Programme() {
-  return <><PageIntro eyebrow="Schedule & venues" title="Eight days in Bangkok." body="The tentative programme runs from 21 to 28 July 2027 across Mandarin Hotel, Kasetsart University, Chulalongkorn University and other programme locations." /><figure className="schedule-artifact wrap"><img src="/assets/iol-2027-schedule.png" alt="Tentative hourly schedule for IOL 2027 from 21 to 28 July" /><figcaption><div><span>TENTATIVE SCHEDULE</span><p>Times and activities may change as the organising team confirms operations.</p></div><a className="pill" href="/downloads/IOL-2027-Schedule.html" target="_blank" rel="noreferrer">Open full schedule <span><ExternalLink size={15} /></span></a></figcaption></figure><section className="timeline wrap">{schedule.map((item) => <article key={item.date}><div><span>{item.day}</span><strong>{item.date}</strong></div><h2>{item.title}</h2><p>{item.detail}</p></article>)}</section><section className="venue-section"><div className="wrap"><p className="eyebrow">Venue plan</p><h2>Bangkok, connected.</h2><div className="venue-cards">{venues.map((venue) => <article key={venue.index}><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small></article>)}</div></div></section></>
+  return <><PageIntro eyebrow="Schedule & venues" title="Eight days in Bangkok." body="The tentative programme runs from 21 to 28 July 2027 across Mandarin Hotel, Kasetsart University, Chulalongkorn University and other programme locations." /><figure className="schedule-artifact wrap"><img src="/assets/iol-2027-schedule.png" alt="Tentative hourly schedule for IOL 2027 from 21 to 28 July" width={1320} height={899} /><figcaption><div><span>TENTATIVE SCHEDULE</span><p>Times and activities may change as the organising team confirms operations.</p></div><a className="pill" href="/downloads/IOL-2027-Schedule.html" target="_blank" rel="noreferrer">Open full schedule <span><ExternalLink size={15} /></span></a></figcaption></figure><section className="timeline wrap">{schedule.map((item) => <article key={item.date}><div><span>{item.day}</span><strong>{item.date}</strong></div><h2>{item.title}</h2><p>{item.detail}</p></article>)}</section><section className="venue-section"><div className="wrap"><p className="eyebrow">Venue plan</p><h2>Bangkok, connected.</h2><div className="venue-cards">{venues.map((venue) => <article key={venue.index}><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small><div className="venue-card-place"><span>{venue.building}</span><span>{venue.address}</span></div><MapsLink query={venue.mapQuery} name={venue.name} /></article>)}</div><RoutePanel /></div></section></>
 }
 
 function Hosts() {
@@ -327,7 +323,7 @@ function Hosts() {
 }
 
 function Sponsors() {
-  return <><PageIntro eyebrow="Sponsors" title="A clear place for every level of support." body="This page demonstrates how approved sponsors can be presented without confusing them with the official hosts." /><SponsorPreview full /><section className="sponsor-thanks"><p className="eyebrow">Sponsor IOL 2027</p><h2>Help young minds look closer.</h2><a className="text-link" href="mailto:iol2027.th@gmail.com?subject=IOL%202027%20sponsorship">Contact the organising team <ArrowRight size={16} /></a></section></>
+  return <><PageIntro eyebrow="Sponsors" title="A clear place for every sponsor." body="This page demonstrates how approved sponsors can be presented without confusing them with the official hosts." /><SponsorPreview full /><section className="sponsor-thanks"><p className="eyebrow">Sponsor IOL 2027</p><h2>Help young minds look closer.</h2><a className="text-link" href="mailto:iol2027.th@gmail.com?subject=IOL%202027%20sponsorship">Contact the organising team <ArrowRight size={16} /></a></section></>
 }
 
 function Registration() {
@@ -568,10 +564,15 @@ function TeamLeaderAccount() {
         { label: 'Contestants assigned', value: 'Pim, Tawan, Mira, Chanon', help: 'Selected from saved member records.' },
       ] },
     ] },
-    { title: 'People', status: 'Locked', body: 'Member details are unlocked after payment proof is uploaded. Add names, badges, passports, exam languages, shirt sizes and welfare notes for each person.', fields: [], records: memberRecordsData },
-    { title: 'Travel', status: 'Fill later', body: 'Travel is not required for the first registration submission. The Team Leader returns here after flights are booked, then updates arrival and departure details as they change.', fields: [], required: false, notes: [
-      { label: 'When to complete', value: 'After flights are booked', help: 'Keep this section open later because arrival and departure details change often.' },
-      { label: 'Registration requirement', value: 'Not required now', help: 'Team, participant, welfare and payment proof can be submitted first.' },
+    { title: 'People', status: 'In progress', body: 'Add contestants and observers here when their information is ready. The Team Leader is already created from the account and is not entered again.', fields: [], records: memberRecordsData },
+    { title: 'Travel', status: 'Dates now, flights later', body: 'The Team Leader declares the arrival and departure dates of the delegation at first registration, because those dates set the hotel nights the organising team reserves. Flight numbers and times are added later, after booking, and stay open for changes.', fields: [
+      { label: 'Declared arrival date', value: '', help: 'First night at the official hotel. The programme runs from 21 to 28 July 2027.', kind: 'date' },
+      { label: 'Declared departure date', value: '', help: 'Day the delegation leaves the official hotel. It cannot be earlier than the arrival date.', kind: 'date' },
+      { label: 'Nights at the official hotel', value: '', help: 'Calculated from the declared dates and used for room planning.', kind: 'readonly' },
+      { label: 'Nights outside the programme window', value: '', help: 'State any early arrival or late departure so the organising team can check hotel availability and cost.', kind: 'textarea' },
+    ], required: true, notes: [
+      { label: 'When to complete', value: 'Dates now, flights after booking', help: 'The declared dates are needed early. Flight details can be filled in later and changed as needed.' },
+      { label: 'Registration requirement', value: 'Dates required', help: 'Arrival and departure dates are required at first submission because the hotel booking depends on them. Flight details are not.' },
     ], records: [
       { label: 'Arrival details', meta: 'Fill after booking', status: 'Later', fields: [
         { label: 'Direction', value: 'Arrival', help: 'Arrival or departure trip.' },
@@ -860,7 +861,7 @@ function Accommodation() {
 }
 
 function Transportation() {
-  return <><PageIntro eyebrow="Event guide / Transportation" title="Arrive, move and depart with us." body="Official airport pick-up and drop-off services will be provided at Suvarnabhumi Airport (BKK) and Don Mueang International Airport (DMK) during the designated arrival and departure periods." /><ContentCards cards={[{ label: 'ARRIVAL & DEPARTURE', title: 'Share your flight details.', body: 'Participants will be asked to submit their flight details through the registration system so the organising team can coordinate transportation.' }, { label: 'LOCAL MOVEMENT', title: 'Transfers are provided.', body: 'Transfers between the home base, contest campuses, ceremonies and city programme venues will be provided and coordinated by the organising team.' }]} /><section className="pickup-plan wrap"><div><p className="eyebrow">Airport pick-up service</p><h2>The service timetable will appear here.</h2><p>Pick-up windows, airport meeting points, contact instructions and coach departure times will be published after the transport plan is confirmed.</p></div><div className="pickup-table-wrap"><table className="pickup-table"><caption>Future airport pick-up schedule</caption><thead><tr><th>Airport</th><th>Service period</th><th>Operating hours</th><th>Meeting point</th></tr></thead><tbody><tr><td>BKK / DMK</td><td colSpan={3}>Schedule to be confirmed</td></tr></tbody></table></div></section></>
+  return <><PageIntro eyebrow="Event guide / Transportation" title="Arrive, move and depart with us." body="Official airport pick-up and drop-off services will be provided at Suvarnabhumi Airport (BKK) and Don Mueang International Airport (DMK) during the designated arrival and departure periods." /><ContentCards cards={[{ label: 'ARRIVAL & DEPARTURE', title: 'Share your flight details.', body: 'Participants will be asked to submit their flight details through the registration system so the organising team can coordinate transportation.' }, { label: 'LOCAL MOVEMENT', title: 'Transfers are provided.', body: 'Transfers between the home base, contest campuses, ceremonies and city programme venues will be provided and coordinated by the organising team.' }]} /><section className="route-link wrap"><a className="text-link" href="/programme#getting-there"><Footprints size={16} /> Walking route from the hotel to the Faculty of Arts <ArrowRight size={16} /></a></section><section className="pickup-plan wrap"><div><p className="eyebrow">Airport pick-up service</p><h2>The service timetable will appear here.</h2><p>Pick-up windows, airport meeting points, contact instructions and coach departure times will be published after the transport plan is confirmed.</p></div><div className="pickup-table-wrap"><table className="pickup-table"><caption>Future airport pick-up schedule</caption><thead><tr><th>Airport</th><th>Service period</th><th>Operating hours</th><th>Meeting point</th></tr></thead><tbody><tr><td>BKK / DMK</td><td colSpan={3}>Schedule to be confirmed</td></tr></tbody></table></div></section></>
 }
 
 function ImportantDates() {
@@ -882,7 +883,7 @@ function Gallery() {
 }
 
 function People() {
-  return <><PageIntro eyebrow="People" title="Built by many kinds of minds." body="Committee, jury and volunteer information will be added when the approved names and roles are provided." /><SectionLinks links={[{ href: '/people/committee', label: 'Committee', detail: 'The full Thai-language roster of the organising committees and subcommittees.' }, { href: '/people/jury', label: 'Jury & Problem Committee', detail: 'Judges, problem writers, translators and markers.' }, { href: '/people/volunteers', label: 'Volunteers', detail: 'The people who welcome and guide every team.' }]} /></>
+  return <><PageIntro eyebrow="People" title="Built by many kinds of minds." body="Committee, jury and volunteer information will be added when the approved names and roles are provided." /><SectionLinks links={[{ href: '/people/committee', label: 'Committee', detail: 'The full Thai-language roster of the organising committees and subcommittees.' }, { href: '/people/jury', label: 'Jury', detail: 'The international jury for the individual and team contests.' }, { href: '/people/problem-committee', label: 'Problem Committee', detail: 'The authors, translators and markers of the contest problems.' }, { href: '/people/volunteers', label: 'Volunteers', detail: 'The people who welcome and guide every team.' }]} /></>
 }
 
 function CommitteeRoster() {
@@ -919,11 +920,11 @@ function CommitteeRoster() {
   </section>
 }
 
-function PeopleSubpage({ kind }: { kind: 'committee' | 'jury' | 'volunteers' }) {
-  const jury = kind === 'jury'
-  const title = kind === 'committee' ? 'Committee' : jury ? 'Jury & Problem Committee' : 'Volunteers'
-  const body = kind === 'committee' ? 'The approved committees and subcommittees appointed for IOL 2027, published in Thai exactly as they appear in the official appointment document.' : jury ? 'The main judges, problem writers, translators and markers will be introduced with photographs and approved biographies.' : 'The approved volunteer information and responsibilities will be published here.'
-  return <><PageIntro eyebrow={`People / ${title}`} title={title} body={body} />{kind === 'committee' ? <CommitteeRoster /> : jury ? <section className="portrait-grid wrap">{Array.from({ length: 6 }, (_, index) => <article key={index}><div className="portrait-placeholder"><span>PHOTO</span></div><h2>Name to be confirmed</h2><p>Role and biography will be added after approval.</p></article>)}</section> : <section className="two-col wrap"><div><p className="eyebrow">Roster pending</p><h2>Information will be added when the organising team confirms it.</h2></div><div className="prose"><p>This page intentionally does not show photo placeholders. Names, responsibilities and public contact details will be published only after approval.</p></div></section>}</>
+function PeopleSubpage({ kind }: { kind: 'committee' | 'jury' | 'problem-committee' | 'volunteers' }) {
+  const portraits = kind === 'jury' || kind === 'problem-committee'
+  const title = kind === 'committee' ? 'Committee' : kind === 'jury' ? 'Jury' : kind === 'problem-committee' ? 'Problem Committee' : 'Volunteers'
+  const body = kind === 'committee' ? 'The approved committee roster and role descriptions for IOL 2027.' : kind === 'jury' ? 'The jury responsible for moderation, marking standards and the final contest decisions will be introduced with photographs and approved biographies.' : kind === 'problem-committee' ? 'The problem authors, translators and markers who prepare the individual and team contest problems will be introduced with photographs and approved biographies.' : 'The approved volunteer information and responsibilities will be published here.'
+  return <><PageIntro eyebrow={`People / ${title}`} title={title} body={body} />{kind === 'committee' ? <CommitteeRoster /> : portraits ? <section className="portrait-grid wrap">{Array.from({ length: 6 }, (_, index) => <article key={index}><div className="portrait-placeholder"><span>PHOTO</span></div><h2>Name to be confirmed</h2><p>Role and biography will be added after approval.</p></article>)}</section> : <section className="two-col wrap"><div><p className="eyebrow">Roster pending</p><h2>Information will be added when the organising team confirms it.</h2></div><div className="prose"><p>This page intentionally does not show photo placeholders. Names, responsibilities and public contact details will be published only after approval.</p></div></section>}</>
 }
 
 function Contact() {
@@ -944,7 +945,13 @@ function NotFound() {
 }
 
 function App() {
-  useEffect(() => { window.scrollTo(0, 0) }, [])
+  useEffect(() => {
+    const target = window.location.hash ? document.getElementById(decodeURIComponent(window.location.hash.slice(1))) : null
+    if (!target) { window.scrollTo(0, 0); return }
+    target.scrollIntoView()
+    // Images above the anchor can still be loading; settle on the anchor once they have.
+    if (document.readyState !== 'complete') window.addEventListener('load', () => target.scrollIntoView(), { once: true })
+  }, [])
   const path = window.location.pathname.replace(/\/$/, '') || '/'
   const pages: Record<string, React.ReactElement> = {
     '/': <Home />,
@@ -955,7 +962,7 @@ function App() {
     '/logistics': <EventGuide />, '/logistics/accommodation': <Accommodation />, '/logistics/transportation': <Transportation />, '/logistics/important-dates': <ImportantDates />, '/logistics/guidebook': <Guidebook />,
     '/explore': <Thailand />, '/explore/excursions': <Thailand />, '/explore/culture': <Thailand />, '/explore/city-guide': <Thailand />,
     '/gallery': <Gallery />, '/media': <Gallery />, '/media/gallery': <Gallery />, '/media/press': <Contact />, '/news': <Home />,
-    '/people': <People />, '/people/committee': <PeopleSubpage kind="committee" />, '/people/jury': <PeopleSubpage kind="jury" />, '/people/volunteers': <PeopleSubpage kind="volunteers" />,
+    '/people': <People />, '/people/committee': <PeopleSubpage kind="committee" />, '/people/jury': <PeopleSubpage kind="jury" />, '/people/problem-committee': <PeopleSubpage kind="problem-committee" />, '/people/volunteers': <PeopleSubpage kind="volunteers" />,
     '/results': <ExternalResultsRedirect />, '/results/individual': <ExternalResultsRedirect />, '/results/team': <ExternalResultsRedirect />,
     '/contact': <Contact />, '/privacy': <Privacy />,
   }

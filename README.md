@@ -25,6 +25,8 @@ npm run preview
 - `/explore` — cultural programme
 - `/people` — organising roles
 - `/people/committee` — official Thai committee and subcommittee roster
+- `/people/jury` — jury (placeholder)
+- `/people/problem-committee` — problem committee (placeholder)
 - `/news` — chronological announcements
 - `/registration` — registration timeline and PoC entry
 - `/registration/team-leader` — static Team Leader journey prototype
@@ -42,3 +44,40 @@ The included multi-stage `Dockerfile` serves the Vite build through Nginx on por
 ## Registration PoC mode
 
 The badge scanner defaults to a fully static simulation. It accepts the sample code `IOL2027-POC-DEMO` and does not call the API or save a check-in. The existing live API integration remains in place for future development. Set `VITE_BADGE_SCANNER_MODE=live` only after the registration API, database, authentication and staff authorization are ready in the target environment.
+
+## Image credits
+
+Campus photographs are from Wikimedia Commons under CC BY-SA 4.0. The licence requires the author, licence and source to be shown wherever the image is used; the venue cards on the home page link each credit to its source.
+
+| File | Subject | Author | Source |
+| --- | --- | --- | --- |
+| `public/assets/venues/chula-mahavajiravudh.jpg` | Maha Vajiravudh Building, Faculty of Arts, Chulalongkorn University | BunBn | [Commons](https://commons.wikimedia.org/wiki/File:Mahavajiravudh_Building,_Chulalongkorn_University.jpg) |
+| `public/assets/venues/kasetsart-main-auditorium.jpg` | Main Auditorium, Kasetsart University | David Supervid | [Commons](https://commons.wikimedia.org/wiki/File:Kasetsart_University_Auditorium.jpg) |
+
+Mandarin Hotel Bangkok images come from the hotel's official website.
+
+## Hosting
+
+| Site | URL | Deploys from |
+| --- | --- | --- |
+| Public (`prod` target) | https://iol2027.web.app | push to `main` |
+| Development (`dev` target) | https://iol2027-dev.web.app | push to `development` (not indexed by search engines) |
+| Pull request previews | posted as a PR comment | every PR, expires after 7 days |
+
+## Useful Thai audio
+
+The phrase audio on `/about/thai-language` is pre-rendered, not generated in the visitor's browser. `src/thaiPhrases.json` is the single source for the phrases, their IPA and their audio file names; `scripts/generate-thai-audio.py` reads it and writes `public/audio/thai/<slug>.mp3` plus a `-slow` version of each.
+
+- Model: Gemini `gemini-3.8-flash-tts`. Male voice for ครับ forms, female voice for ค่ะ forms and neutral phrases.
+- Each clip is transcribed back with `gemini-3.8-flash` and compared with the intended Thai text; mismatches are listed in `tmp/thai-audio-report.json`. A Thai speaker should still listen before release, because a matching transcript does not prove the tones are right.
+- Requires `GEMINI_API_KEY` in `.env` and `ffmpeg` on PATH. The key is never needed at build or runtime.
+
+```bash
+python scripts/generate-thai-audio.py --audition                      # hear candidate voices: tmp/voice-audition/index.html
+python scripts/generate-thai-audio.py --batch --male NAME --female NAME  # regenerate everything, one recording per voice (consistent sound)
+python scripts/generate-thai-audio.py --only hello-khrap,help --force    # regenerate specific clips
+```
+
+After regenerating, bump `thaiAudioVersion` in `src/App.tsx` so browsers fetch the new files instead of cached ones. Prefer `--batch`: separate requests give the same voice a slightly different delivery each time.
+
+To add a phrase, add it to `src/thaiPhrases.json` with a new `audio` slug and run the script without `--force`; it only generates missing clips.

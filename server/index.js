@@ -474,6 +474,9 @@ app.patch('/api/registration/delegations/:delegationId', asyncHandler(async (req
     numberOfObservers: 'number_of_observers',
     adultRoomPreference: 'adult_room_preference',
     registrationStatus: 'registration_status',
+    declaredArrivalDate: 'declared_arrival_date',
+    declaredDepartureDate: 'declared_departure_date',
+    stayWindowNote: 'stay_window_note',
   }
   const { sets, values } = buildUpdate(req.body, fieldMap)
   values.push(req.params.delegationId)

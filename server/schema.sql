@@ -88,6 +88,16 @@ CREATE TABLE IF NOT EXISTS delegations (
   registration_status text NOT NULL DEFAULT 'draft' CHECK (registration_status IN ('draft', 'submitted', 'payment_pending', 'confirmed', 'locked', 'cancelled')),
   payment_status text NOT NULL DEFAULT 'awaiting_proof' CHECK (payment_status IN ('awaiting_proof', 'awaiting_review', 'approved', 'rejected', 'refunded')),
   travel_status text NOT NULL DEFAULT 'fill_later' CHECK (travel_status IN ('fill_later', 'in_progress', 'submitted', 'locked')),
+  -- Declared stay window: required at first submission because hotel nights are reserved from it.
+  -- Flight details stay in travel_records and are filled in later.
+  declared_arrival_date date,
+  declared_departure_date date,
+  stay_window_note text,
+  CONSTRAINT delegations_stay_window_order CHECK (
+    declared_arrival_date IS NULL
+    OR declared_departure_date IS NULL
+    OR declared_departure_date >= declared_arrival_date
+  ),
   submitted_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
