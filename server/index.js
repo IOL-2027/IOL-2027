@@ -1,6 +1,5 @@
 import 'dotenv/config'
 import crypto from 'node:crypto'
-import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from 'cors'
@@ -16,10 +15,10 @@ import {
   buildRegistrationSubmittedEmail,
   sendEmail,
 } from './email.js'
+import { saveUpload } from './storage.js'
 
 const { Pool } = pg
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const uploadDir = path.resolve(process.cwd(), process.env.UPLOAD_DIR || 'server/uploads')
 const port = Number(process.env.API_PORT || 4000)
 const databaseUrl = process.env.DATABASE_URL
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl }) : null
@@ -616,10 +615,7 @@ app.post('/api/registration/members/:memberId/guardian-consent', upload.single('
 
     const extension = path.extname(req.file.originalname).toLowerCase() || '.bin'
     const storedName = `guardian-${req.params.memberId}-${crypto.randomUUID()}${extension}`
-    const delegationUploadDir = path.join(uploadDir, member.delegation_id)
-    await fs.mkdir(delegationUploadDir, { recursive: true })
-    const storedPath = path.join(delegationUploadDir, storedName)
-    await fs.writeFile(storedPath, req.file.buffer)
+    const storedPath = await saveUpload(`${member.delegation_id}/${storedName}`, req.file)
 
     const attachmentResult = await client.query(
       `INSERT INTO attachments (
@@ -771,10 +767,7 @@ app.post('/api/registration/delegations/:delegationId/payment-proof', upload.sin
 
     const extension = path.extname(req.file.originalname).toLowerCase() || '.bin'
     const storedName = `${crypto.randomUUID()}${extension}`
-    const delegationUploadDir = path.join(uploadDir, req.params.delegationId)
-    await fs.mkdir(delegationUploadDir, { recursive: true })
-    const storedPath = path.join(delegationUploadDir, storedName)
-    await fs.writeFile(storedPath, req.file.buffer)
+    const storedPath = await saveUpload(`${req.params.delegationId}/${storedName}`, req.file)
 
     const attachmentResult = await client.query(
       `INSERT INTO attachments (

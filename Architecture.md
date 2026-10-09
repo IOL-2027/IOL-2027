@@ -239,6 +239,29 @@ The handover runbook must include:
 - Monitoring, incident response, and on-call contacts.
 - Post-event transfer plan to faculty/successor host.
 
+### Registration backend (provisioned October 2026, not yet deployed)
+
+| Piece | Where | Notes |
+| --- | --- | --- |
+| Billing | Billing account `014201-D9EA3B-803C67` (p.chantarusorn@gmail.com) | Shared with the research-trend-analysis project. Budget alert "IOL 2027 monthly": THB 350, scoped to project `iol2027`. |
+| Database | Database `iol2027` on Cloud SQL instance `papertrend-pg` (Postgres 15, asia-southeast1) in project `research-trend-analysis` | Shares the research project's instance to avoid a second always-on database. Login `iol2027_app` owns only this database and has no admin rights. Daily backups and point-in-time recovery come from the instance. |
+| Connection string | Secret Manager secret `iol2027-database-url` in project `iol2027` (asia-southeast1) | Connects through the Cloud SQL socket `/cloudsql/research-trend-analysis:asia-southeast1:papertrend-pg`. |
+| Uploads | Bucket `gs://iol2027-registration-uploads` (asia-southeast1) | Private: uniform access, public access prevention enforced. The server writes here when `UPLOAD_BUCKET` is set (`server/storage.js`). |
+| Server identity | Service account `iol2027-api@iol2027.iam.gserviceaccount.com` | Cloud SQL Client on research-trend-analysis, read access to the database secret, object admin on the uploads bucket. Nothing else. |
+
+Known limits of sharing the instance: an outage or restart of `papertrend-pg` takes registration down too; the `db-f1-micro` tier should be reviewed before event-week check-in; and `papertrend_app` is a cloudsqlsuperuser member, so the research app's login could technically read the IOL database.
+
+Do not deploy the API publicly until authentication and role checks exist: the admin endpoints are currently unprotected.
+
+### After the event: static archive
+
+After IOL 2027 the site becomes a static archive (results, gallery, news) on Firebase Hosting with no login and no database. Before switching:
+
+1. Export anything the archive shows (results, published photos) into static files in the repository.
+2. Delete participant personal data according to the PDPA retention notice: drop the `iol2027` database, empty and delete the uploads bucket, and delete the Cloud Run service and secret.
+3. Delete the `iol2027_app` login from `papertrend-pg` and remove the service account's role on research-trend-analysis.
+4. Unlink billing from project `iol2027` if nothing paid remains; Firebase Hosting for a static site fits the free Spark plan.
+
 ## 13. Architecture decisions to record
 
 | Decision | Current direction | Owner / status |
