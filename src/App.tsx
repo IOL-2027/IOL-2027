@@ -115,18 +115,18 @@ const hotelImages = [
 ]
 
 const thaiPhrases = [
-  { thai: 'สวัสดีครับ / สวัสดีค่ะ', reading: 'sawatdee khráp / sawatdee khâ', meaning: 'Hello', speech: ['สวัสดีครับ', 'สวัสดีค่ะ'] },
-  { thai: 'ขอบคุณครับ / ขอบคุณค่ะ', reading: 'khop khun khráp / khop khun khâ', meaning: 'Thank you', speech: ['ขอบคุณครับ', 'ขอบคุณค่ะ'] },
-  { thai: 'ขอโทษครับ / ขอโทษค่ะ', reading: 'kho thot khráp / kho thot khâ', meaning: 'Sorry / Excuse me', speech: ['ขอโทษครับ', 'ขอโทษค่ะ'] },
-  { thai: 'ไม่เป็นไร', reading: 'mai pen rai', meaning: "It is okay / You're welcome", speech: ['ไม่เป็นไร'] },
-  { thai: 'ใช่', reading: 'chai', meaning: 'Yes', speech: ['ใช่'] },
-  { thai: 'ไม่ใช่', reading: 'mai chai', meaning: 'No / Not correct', speech: ['ไม่ใช่'] },
-  { thai: 'อร่อย', reading: 'aroi', meaning: 'Delicious', speech: ['อร่อย'] },
-  { thai: 'ชอบ', reading: 'chop', meaning: 'I like it', speech: ['ชอบ'] },
-  { thai: 'ห้องน้ำอยู่ที่ไหน', reading: 'hong nam yu thi nai', meaning: 'Where is the restroom?', speech: ['ห้องน้ำอยู่ที่ไหน'] },
-  { thai: 'เท่าไหร่', reading: 'thao rai', meaning: 'How much?', speech: ['เท่าไหร่'] },
-  { thai: 'ช่วยด้วย', reading: 'chuai duai', meaning: 'Please help', speech: ['ช่วยด้วย'] },
-  { thai: 'พูดภาษาอังกฤษได้ไหม', reading: 'phut phasa angkrit dai mai', meaning: 'Can you speak English?', speech: ['พูดภาษาอังกฤษได้ไหม'] },
+  { thai: 'สวัสดีครับ / สวัสดีค่ะ', reading: 'sa-wàt-dii khráp / sa-wàt-dii khâ', ipa: ['/sàʔwàtdiː kʰráp/', '/sàʔwàtdiː kʰâ/'], meaning: 'Hello', speech: ['สวัสดีครับ', 'สวัสดีค่ะ'] },
+  { thai: 'ขอบคุณครับ / ขอบคุณค่ะ', reading: 'khɔ̀ːp khun khráp / khɔ̀ːp khun khâ', ipa: ['/kʰɔ̀ːp kʰun kʰráp/', '/kʰɔ̀ːp kʰun kʰâ/'], meaning: 'Thank you', speech: ['ขอบคุณครับ', 'ขอบคุณค่ะ'] },
+  { thai: 'ขอโทษครับ / ขอโทษค่ะ', reading: 'khɔ̌ː thôːt khráp / khɔ̌ː thôːt khâ', ipa: ['/kʰɔ̌ː tʰôːt kʰráp/', '/kʰɔ̌ː tʰôːt kʰâ/'], meaning: 'Sorry / Excuse me', speech: ['ขอโทษครับ', 'ขอโทษค่ะ'] },
+  { thai: 'ไม่เป็นไร', reading: 'mâj pen raj', ipa: ['/mâj pen raj/'], meaning: "It's okay / You're welcome", speech: ['ไม่เป็นไร'] },
+  { thai: 'ใช่', reading: 'tɕʰâj', ipa: ['/tɕʰâj/'], meaning: 'Yes', speech: ['ใช่'] },
+  { thai: 'ไม่ใช่', reading: 'mâj tɕʰâj', ipa: ['/mâj tɕʰâj/'], meaning: 'No / That is not correct', speech: ['ไม่ใช่'] },
+  { thai: 'อร่อย', reading: 'ʔà-rɔ̀j', ipa: ['/ʔàrɔ̀j/'], meaning: 'Delicious', speech: ['อร่อย'] },
+  { thai: 'ชอบ', reading: 'tɕʰɔ̂ːp', ipa: ['/tɕʰɔ̂ːp/'], meaning: 'I like it', speech: ['ชอบ'] },
+  { thai: 'ห้องน้ำอยู่ที่ไหน', reading: 'hɔ̂ːŋ náːm jùː tʰîː nǎj', ipa: ['/hɔ̂ːŋ náːm jùː tʰîː nǎj/'], meaning: 'Where is the restroom?', speech: ['ห้องน้ำอยู่ที่ไหน'] },
+  { thai: 'เท่าไหร่', reading: 'tʰâw râj', ipa: ['/tʰâw râj/'], meaning: 'How much?', speech: ['เท่าไหร่'] },
+  { thai: 'ช่วยด้วย', reading: 'tɕʰûaj dûaj', ipa: ['/tɕʰûaj dûaj/'], meaning: 'Please help', speech: ['ช่วยด้วย'] },
+  { thai: 'พูดภาษาอังกฤษได้ไหม', reading: 'pʰûːt pʰaː-sǎː ʔaŋ-krìt dâj mǎj', ipa: ['/pʰûːt pʰaːsǎː ʔaŋkrìt dâj mǎj/'], meaning: 'Can you speak English?', speech: ['พูดภาษาอังกฤษได้ไหม'] },
 ]
 
 function NavLink({ item, className }: { item: NavItem; className?: string }) {
@@ -291,31 +291,134 @@ function Thailand() {
     <section className="experience-grid wrap"><article className="exp-one"><span>DAY 04 / EXCURSION</span><h2>Move beyond the contest room.</h2><p>A shared day to encounter Thailand through place, culture and conversation. The final route will be confirmed by the organising team.</p></article><article className="exp-two"><span>DAY 05 / CITY PROGRAMME</span><h2>Read Bangkok.</h2><p>Campus, neighbourhood, river and street life become part of the week-long setting.</p></article><article className="exp-three"><span>DAY 07 / CULTURAL NIGHT</span><h2>Celebrate the community.</h2><p>After solutions, awards and closing, teams gather for the host culture and friendships that outlast the score.</p></article></section></>
 }
 
+type TTSStatus = 'idle' | 'loading' | 'ready' | 'speaking' | 'error'
+
 function ThaiLanguage() {
-  const [thaiVoice, setThaiVoice] = useState<SpeechSynthesisVoice | null>(null)
-  const [voiceChecked, setVoiceChecked] = useState(false)
+  const [ttsStatus, setTtsStatus] = useState<TTSStatus>('idle')
+  const [loadProgress, setLoadProgress] = useState(0)
+  const [speakingKey, setSpeakingKey] = useState<string | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const synthRef = useRef<any>(null)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+
+  // Web Speech API fallback for while model loads
+  const [wsSpeech, setWsSpeech] = useState<SpeechSynthesisVoice | null>(null)
   useEffect(() => {
-    if (!('speechSynthesis' in window)) { setVoiceChecked(true); return }
-    const loadVoice = () => {
-      const voices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.toLowerCase().startsWith('th'))
-      setThaiVoice(voices.find((voice) => voice.localService) || voices[0] || null)
-      setVoiceChecked(true)
+    if (!('speechSynthesis' in window)) return
+    const pick = () => {
+      const v = window.speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith('th'))
+      setWsSpeech(v.find((v) => v.localService) || v[0] || null)
     }
-    loadVoice()
-    window.speechSynthesis.addEventListener('voiceschanged', loadVoice)
-    return () => window.speechSynthesis.removeEventListener('voiceschanged', loadVoice)
+    pick()
+    window.speechSynthesis.addEventListener('voiceschanged', pick)
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', pick)
   }, [])
-  const speakThai = (text: string) => {
-    if (!thaiVoice) return
-    window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.voice = thaiVoice
-    utterance.lang = thaiVoice.lang || 'th-TH'
-    utterance.rate = 0.76
-    utterance.pitch = 1
-    window.speechSynthesis.speak(utterance)
+
+  const loadModel = async () => {
+    if (synthRef.current || ttsStatus === 'loading') return
+    setTtsStatus('loading')
+    setLoadProgress(0)
+    try {
+      const { pipeline, env } = await import('@xenova/transformers')
+      env.allowLocalModels = false
+      const synth = await pipeline('text-to-speech', 'Xenova/mms-tts-tha', {
+        quantized: false,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        progress_callback: (p: any) => {
+          if (p.status === 'progress' && p.total) setLoadProgress(Math.round((p.loaded / p.total) * 100))
+        },
+      })
+      synthRef.current = synth
+      setTtsStatus('ready')
+    } catch {
+      setTtsStatus('error')
+    }
   }
-  return <><PageIntro title="Useful Thai for your stay" body="A few words and phrases to help you get around, order food, say hello, and enjoy your time in Thailand." /><section className="thai-intro wrap"><div><p className="eyebrow">A quick note</p><h2 className="mixed-heading">Speak gently. <em>Listen closely.</em></h2></div><div className="prose"><p>Thai is a tonal language, so accurate pronunciation depends on a genuine Thai speech voice. The listen buttons are enabled only when your device or browser provides one. If no suitable Thai voice is available, the listen button will be disabled.</p><p>Men commonly end polite sentences with <strong>ครับ (khráp)</strong>; women commonly use <strong>ค่ะ (khâ)</strong>. Where both forms are shown, you can listen to each one separately.</p><p id="thai-voice-status" className={`voice-status ${thaiVoice ? 'voice-ready' : 'voice-unavailable'}`}>{thaiVoice ? `Thai voice ready: ${thaiVoice.name}` : voiceChecked ? 'No Thai speech voice is installed on this device. The reading guide remains available; native-speaker recordings are the recommended final production solution.' : 'Checking for a Thai speech voice...'}</p></div></section><section className="phrase-grid wrap">{thaiPhrases.map((phrase) => <article key={phrase.thai}><h2 lang="th">{phrase.thai}</h2><p className="phrase-reading">{phrase.reading}</p><p>{phrase.meaning}</p><div className="phrase-audio">{phrase.speech.map((spoken, index) => <button type="button" key={spoken} disabled={!thaiVoice} onClick={() => speakThai(spoken)} aria-describedby="thai-voice-status" aria-label={`Play Thai pronunciation for ${spoken}`}><Volume2 size={18} />{phrase.speech.length > 1 ? index === 0 ? 'ครับ form' : 'ค่ะ form' : 'Listen'}</button>)}</div></article>)}</section></>
+
+  const playFloat32 = async (audio: Float32Array, samplingRate: number) => {
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+      audioCtxRef.current = new AudioContext()
+    }
+    const ctx = audioCtxRef.current
+    if (ctx.state === 'suspended') await ctx.resume()
+    const buf = ctx.createBuffer(1, audio.length, samplingRate)
+    buf.copyToChannel(audio, 0)
+    const src = ctx.createBufferSource()
+    src.buffer = buf
+    src.connect(ctx.destination)
+    src.start()
+    return new Promise<void>((res) => { src.onended = () => res() })
+  }
+
+  const speak = async (text: string) => {
+    if (speakingKey) return
+    setSpeakingKey(text)
+    try {
+      if (synthRef.current) {
+        setTtsStatus('speaking')
+        const out = await synthRef.current(text)
+        await playFloat32(out.audio, out.sampling_rate)
+        setTtsStatus('ready')
+      } else if (wsSpeech) {
+        window.speechSynthesis.cancel()
+        const u = new SpeechSynthesisUtterance(text)
+        u.voice = wsSpeech; u.lang = wsSpeech.lang || 'th-TH'; u.rate = 0.76
+        window.speechSynthesis.speak(u)
+      }
+    } finally {
+      setSpeakingKey(null)
+    }
+  }
+
+  const canSpeak = ttsStatus === 'ready' || !!wsSpeech
+  const isNeural = ttsStatus === 'ready'
+
+  return <>
+    <PageIntro title="Useful Thai for your stay" body="A few words and phrases to help you get around, order food, say hello, and enjoy your time in Thailand." />
+    <section className="thai-intro wrap">
+      <div>
+        <p className="eyebrow">A quick note</p>
+        <h2 className="mixed-heading">Speak gently. <em>Listen closely.</em></h2>
+      </div>
+      <div className="prose">
+        <p>Thai is a tonal language with five tones — the same syllable at a different pitch carries a different meaning. IPA notation is shown below each phrase using standard tone marks: low <strong>à</strong>, mid <strong>a</strong>, high <strong>á</strong>, rising <strong>ǎ</strong>, falling <strong>â</strong>.</p>
+        <p>Men commonly end polite sentences with <strong>ครับ (kʰráp)</strong>; women commonly use <strong>ค่ะ (kʰâ)</strong>. Where both forms are shown, you can listen to each one separately.</p>
+        <div className="thai-tts-bar">
+          {ttsStatus === 'idle' && <button type="button" className="tts-load-btn" onClick={loadModel}><Volume2 size={15} /> Load neural Thai voice <small>~80 MB · runs in browser</small></button>}
+          {ttsStatus === 'loading' && <div className="tts-loading"><div className="tts-progress-bar"><span style={{ width: `${loadProgress}%` }} /></div><small>Loading Thai voice model… {loadProgress}%</small></div>}
+          {ttsStatus === 'ready' && <p className="voice-status voice-ready"><Volume2 size={14} /> Neural Thai voice ready — VITS / MMS</p>}
+          {ttsStatus === 'speaking' && <p className="voice-status voice-ready"><Volume2 size={14} /> Speaking…</p>}
+          {ttsStatus === 'error' && <p className="voice-status voice-unavailable">Could not load neural voice. Using device voice if available.</p>}
+          {ttsStatus === 'idle' && wsSpeech && <p className="voice-status voice-ready" style={{ marginTop: 8 }}><small>Device voice available as fallback: {wsSpeech.name}</small></p>}
+        </div>
+      </div>
+    </section>
+    <section className="phrase-grid wrap">
+      {thaiPhrases.map((phrase) => (
+        <article key={phrase.thai}>
+          <h2 lang="th">{phrase.thai}</h2>
+          <p className="phrase-reading">{phrase.reading}</p>
+          <p className="phrase-ipa">{phrase.ipa.join(' · ')}</p>
+          <p>{phrase.meaning}</p>
+          <div className="phrase-audio">
+            {phrase.speech.map((spoken, index) => (
+              <button
+                type="button"
+                key={spoken}
+                disabled={!canSpeak || speakingKey === spoken}
+                onClick={() => speak(spoken)}
+                className={`${speakingKey === spoken ? 'speaking' : ''}${isNeural ? ' neural' : ''}`}
+                aria-label={`Play Thai pronunciation for ${spoken}`}
+              >
+                <Volume2 size={18} />
+                {phrase.speech.length > 1 ? (index === 0 ? 'ครับ' : 'ค่ะ') : 'Listen'}
+              </button>
+            ))}
+          </div>
+        </article>
+      ))}
+    </section>
+  </>
 }
 
 function Programme() {
