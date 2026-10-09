@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { api, type DelegationFull, type Invite, type Member } from './api'
 import { ArrowRight, ArrowUpRight, Camera, Car, CheckCircle, ChevronLeft, ChevronRight, ClipboardCheck, ExternalLink, FileText, Footprints, Lock, MailCheck, MapPin, Menu, QrCode, ShieldCheck, Upload, Users, Volume2, X } from 'lucide-react'
 import { event, homeBaseRoute, schedule, venues } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
@@ -344,17 +345,276 @@ function RegistrationHow() {
   return <><PageIntro eyebrow="Registration / How to register" title="One clear path for every team." body="One team leader coordinates the entire process, from registration and payment confirmation to travel information and document delivery." /><section className="steps wrap">{steps.map((step, index) => <article key={step.title}><span>{String(index + 1).padStart(2, '0')}</span><div><h2>{step.title}</h2><p>{step.detail}</p></div></article>)}</section><section className="notice-panel wrap"><p className="eyebrow">Team Leader entry</p><h2>Start with the invitation code. You only need headcounts and room preference for the initial setup.</h2><a className="text-link" href="/registration/team-leader">Create Team Leader Account <ArrowRight size={16} /></a></section></>
 }
 
+const TSHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']
+const EXAM_LANGUAGES = ['English', 'French', 'German', 'Russian', 'Spanish', 'Arabic', 'Chinese', 'Other']
+const ROOM_TYPES = ['Twin room', 'Single if available', 'No preference']
+const GENDERS = ['Male', 'Female', 'Non-binary', 'Prefer not to say']
+const ROOM_PREFS = ['single', 'shared', 'no_preference']
+const ROLES = ['contestant', 'team_leader', 'observer']
+
+function getSession() {
+  try { return { accountId: localStorage.getItem('reg_accountId'), delegationId: localStorage.getItem('reg_delegationId') } } catch { return { accountId: null, delegationId: null } }
+}
+function saveSession(accountId: string, delegationId: string) {
+  try { localStorage.setItem('reg_accountId', accountId); localStorage.setItem('reg_delegationId', delegationId) } catch {}
+}
+function clearSession() {
+  try { localStorage.removeItem('reg_accountId'); localStorage.removeItem('reg_delegationId') } catch {}
+}
+
+function calcAmountDue(d: DelegationFull) {
+  const teamFee = d.delegation.numberOfTeams * 1000
+  const roomFee = d.delegation.numberOfTeams * 2 * 220
+  return teamFee + roomFee
+}
+
+function MemberForm({ delegationId, member, teams, onSave, onCancel, onDelete }: {
+  delegationId: string
+  member: Member | null
+  teams: DelegationFull['teams']
+  onSave: () => void
+  onCancel: () => void
+  onDelete?: () => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+  const tshirtHelp = 'XS ≈ 80 cm · S ≈ 85 cm · M ≈ 90 cm · L ≈ 95 cm · XL ≈ 100 cm · 2XL ≈ 106 cm · 3XL ≈ 112 cm'
+
+  const handleSave = async () => {
+    if (!formRef.current) return
+    setSaving(true); setErr(null)
+    try {
+      const fd = new FormData(formRef.current)
+      const body = {
+        role: String(fd.get('role') || 'contestant'),
+        displayName: String(fd.get('displayName') || '').trim(),
+        officialName: String(fd.get('officialName') || '').trim(),
+        badgeName: String(fd.get('badgeName') || '').trim() || undefined,
+        teamId: String(fd.get('teamId') || '') || undefined,
+        dateOfBirth: String(fd.get('dateOfBirth') || '') || undefined,
+        genderForRoomAllocation: String(fd.get('genderForRoomAllocation') || '') || undefined,
+        examLanguage: String(fd.get('examLanguage') || '') || undefined,
+        tshirtSize: String(fd.get('tshirtSize') || '') || undefined,
+        passportName: String(fd.get('passportName') || '') || undefined,
+        passportNumber: String(fd.get('passportNumber') || '') || undefined,
+        passportNationality: String(fd.get('passportNationality') || '') || undefined,
+        foodAllergyNotes: String(fd.get('foodAllergyNotes') || '') || undefined,
+        medicalAccessibilityNotes: String(fd.get('medicalAccessibilityNotes') || '') || undefined,
+        emergencyContact: String(fd.get('emergencyContact') || '') || undefined,
+        email: String(fd.get('email') || '') || undefined,
+      }
+      if (!body.displayName) { setErr('Display name is required.'); setSaving(false); return }
+      if (!body.officialName) { setErr('Official name is required.'); setSaving(false); return }
+      if (member) {
+        await api.patchMember(member.id, body)
+      } else {
+        await api.createMember(delegationId, body)
+      }
+      onSave()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Save failed.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!member || !window.confirm(`Remove ${member.displayName} from the delegation?`)) return
+    setDeleting(true); setErr(null)
+    try {
+      await api.deleteMember(member.id)
+      onDelete?.()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Delete failed.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const v = (key: keyof Member) => (member ? (member[key] as string | null) ?? '' : '')
+  return (
+    <form ref={formRef} className="reg-member-form" onSubmit={(e) => { e.preventDefault(); void handleSave() }}>
+      {err && <p className="reg-api-error">{err}</p>}
+      <div className="reg-fields">
+        <label className="reg-field"><span className="reg-field-label">Role</span><select className="reg-input" name="role" defaultValue={v('role') || 'contestant'}><option value="">Select…</option>{ROLES.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}</select></label>
+        <label className="reg-field"><span className="reg-field-label">Team</span><select className="reg-input" name="teamId" defaultValue={v('teamId') || ''}><option value="">No team assigned</option>{teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
+        <label className="reg-field"><span className="reg-field-label">Display name *</span><input className="reg-input" name="displayName" defaultValue={v('displayName')} placeholder="Full name as displayed" /><small className="reg-field-help">Used on badges, slides and lists.</small></label>
+        <label className="reg-field"><span className="reg-field-label">Badge name</span><input className="reg-input" name="badgeName" defaultValue={v('badgeName')} placeholder="Short name for badge" /><small className="reg-field-help">First or preferred name on the lanyard.</small></label>
+        <label className="reg-field"><span className="reg-field-label">Official name *</span><input className="reg-input" name="officialName" defaultValue={v('officialName')} placeholder="Name on official records" /><small className="reg-field-help">Used on certificates.</small></label>
+        <label className="reg-field"><span className="reg-field-label">Passport name</span><input className="reg-input" name="passportName" defaultValue={v('passportName')} placeholder="SURNAME GIVEN" /></label>
+        <label className="reg-field"><span className="reg-field-label">Passport number</span><input className="reg-input" name="passportNumber" defaultValue={v('passportNumber')} /></label>
+        <label className="reg-field"><span className="reg-field-label">Passport nationality</span><input className="reg-input" name="passportNationality" defaultValue={v('passportNationality')} /></label>
+        <label className="reg-field"><span className="reg-field-label">Date of birth</span><input className="reg-input" type="date" name="dateOfBirth" defaultValue={v('dateOfBirth')} /></label>
+        <label className="reg-field"><span className="reg-field-label">Gender for room allocation</span><select className="reg-input" name="genderForRoomAllocation" defaultValue={v('genderForRoomAllocation') || ''}><option value="">Select…</option>{GENDERS.map(g => <option key={g} value={g}>{g}</option>)}</select></label>
+        <label className="reg-field"><span className="reg-field-label">Exam language</span><select className="reg-input" name="examLanguage" defaultValue={v('examLanguage') || ''}><option value="">Select…</option>{EXAM_LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}</select></label>
+        <label className="reg-field"><span className="reg-field-label">T-shirt size</span><select className="reg-input" name="tshirtSize" defaultValue={v('tshirtSize') || ''}><option value="">Select…</option>{TSHIRT_SIZES.map(s => <option key={s} value={s}>{s}</option>)}</select><small className="reg-field-help">{tshirtHelp}</small></label>
+        <label className="reg-field reg-field-wide"><span className="reg-field-label">Food and allergy notes</span><textarea className="reg-input" name="foodAllergyNotes" defaultValue={v('foodAllergyNotes')} /></label>
+        <label className="reg-field reg-field-wide"><span className="reg-field-label">Medical or accessibility notes</span><textarea className="reg-input" name="medicalAccessibilityNotes" defaultValue={v('medicalAccessibilityNotes')} /></label>
+        <label className="reg-field reg-field-wide"><span className="reg-field-label">Emergency contact</span><input className="reg-input" name="emergencyContact" defaultValue={v('emergencyContact')} placeholder="Name, +country phone" /></label>
+        <label className="reg-field"><span className="reg-field-label">Email</span><input className="reg-input" type="email" name="email" defaultValue={v('email')} /></label>
+      </div>
+      <div className="reg-actions">
+        <button type="submit" className="reg-btn-save" disabled={saving}>{saving ? 'Saving…' : 'Save member'}</button>
+        <button type="button" className="reg-btn-next" onClick={onCancel}>Cancel</button>
+        {member && member.role !== 'team_leader' && <button type="button" className="reg-btn-reset" onClick={handleDelete} disabled={deleting}>{deleting ? 'Removing…' : 'Remove'}</button>}
+      </div>
+    </form>
+  )
+}
+
 function TeamLeaderAccount() {
-  const [accountStep, setAccountStep] = useState(0)
+  const session = getSession()
+  const [accountStep, setAccountStep] = useState(() => session.delegationId ? 3 : 0)
   const [activeArea, setActiveArea] = useState(0)
   const [savedAreas, setSavedAreas] = useState<string[]>([])
-  const [proofUploaded, setProofUploaded] = useState(true)
-  const [activeRecordByArea, setActiveRecordByArea] = useState<Record<string, number>>({ Teams: 0, People: 0, Travel: 0 })
+  const [activeRecordByArea, setActiveRecordByArea] = useState<Record<string, number>>({ People: -1 })
+
+  // API state
+  const [delegationFull, setDelegationFull] = useState<DelegationFull | null>(null)
+  const [apiLoading, setApiLoading] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
+
+  // Step 0 — invite
+  const codeRef = useRef<HTMLInputElement>(null)
+  const [invite, setInvite] = useState<Invite | null>(null)
+
+  // Step 1 — account details
+  const [email, setEmail] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [password, setPassword] = useState('')
+  const [mobileWhatsapp, setMobileWhatsapp] = useState('')
+  const [numberOfTeams, setNumberOfTeams] = useState(1)
+  const [numberOfContestants, setNumberOfContestants] = useState(4)
+  const [numberOfObservers, setNumberOfObservers] = useState(0)
+  const [adultRoomPref, setAdultRoomPref] = useState('no_preference')
+
+  // Step 2 — email verification
+  const [verCode, setVerCode] = useState('')
+  const [devCode, setDevCode] = useState<string | undefined>()
+  const [accountId, setAccountId] = useState<string | null>(session.accountId)
+
+  // Dashboard
+  const dashFormRef = useRef<HTMLFormElement>(null)
+  const proofInputRef = useRef<HTMLInputElement>(null)
+  const [editingMemberId, setEditingMemberId] = useState<string | 'new' | null>(null)
+
+  const proofUploaded = (delegationFull?.payments.length ?? 0) > 0
+  const delegationId = delegationFull?.delegation.id ?? session.delegationId
+
+  const withApi = useCallback(async (fn: () => Promise<void>) => {
+    setApiLoading(true); setApiError(null)
+    try { await fn() } catch (e) { setApiError(e instanceof Error ? e.message : 'Something went wrong.') } finally { setApiLoading(false) }
+  }, [])
+
+  const loadDelegation = useCallback(async (id?: string) => {
+    const dId = id ?? session.delegationId
+    if (!dId) return
+    const data = await api.getDelegation(dId)
+    setDelegationFull(data)
+    if (data.payments.length > 0) setSavedAreas(prev => [...new Set([...prev, 'Payment & invoice'])])
+    if (data.delegation.registrationStatus === 'submitted') setSavedAreas(prev => [...new Set([...prev, 'Review & submit'])])
+  }, [])
+
+  useEffect(() => {
+    if (session.delegationId && accountStep === 3) void loadDelegation()
+  }, [])
+
+  // Step 0
+  const handleVerifyInvite = () => void withApi(async () => {
+    const code = codeRef.current?.value.trim() || ''
+    const result = await api.verifyInvite(code)
+    setInvite(result.invite)
+    setAccountStep(1)
+  })
+
+  // Step 1
+  const handleCreateAccount = () => void withApi(async () => {
+    const result = await api.createAccount({ inviteCode: invite!.code, email, fullName, password: password || undefined, mobileWhatsapp: mobileWhatsapp || undefined, numberOfTeams, numberOfContestants, numberOfObservers, adultRoomPreference: adultRoomPref })
+    saveSession(result.account.id, result.delegation.id)
+    setAccountId(result.account.id)
+    const verResult = await api.requestVerification(result.account.id)
+    setDevCode(verResult.developmentCode)
+    setDelegationFull({ delegation: result.delegation, teams: [], members: [], travelRecords: [], payments: [], attachments: [], badges: [], checkIns: [] })
+    setAccountStep(2)
+  })
+
+  // Step 2
+  const handleVerifyEmail = () => void withApi(async () => {
+    if (!accountId) return
+    await api.verifyEmail(accountId, verCode)
+    await loadDelegation(session.delegationId ?? delegationFull?.delegation.id)
+    setAccountStep(3)
+  })
+
+  const handleResendCode = () => void withApi(async () => {
+    if (!accountId) return
+    const r = await api.requestVerification(accountId)
+    setDevCode(r.developmentCode)
+  })
+
+  // Dashboard — save current section
+  const handleSaveSection = (areaTitle: string) => void withApi(async () => {
+    const dId = delegationId; if (!dId) return
+    const form = dashFormRef.current
+    if (areaTitle === 'Team Leader setup' && form) {
+      const fd = new FormData(form)
+      await api.patchDelegation(dId, {
+        numberOfTeams: Number(fd.get('numberOfTeams')) || undefined,
+        numberOfContestants: Number(fd.get('numberOfContestants')) || undefined,
+        numberOfObservers: Number(fd.get('numberOfObservers')) || undefined,
+        adultRoomPreference: String(fd.get('adultRoomPreference') || ''),
+        mobileWhatsapp: String(fd.get('mobileWhatsapp') || '') || undefined,
+      })
+      await loadDelegation(dId)
+    } else if (areaTitle === 'Travel' && form) {
+      const fd = new FormData(form)
+      const arrival = String(fd.get('declaredArrivalDate') || '')
+      const departure = String(fd.get('declaredDepartureDate') || '')
+      const note = String(fd.get('stayWindowNote') || '')
+      await api.patchDelegation(dId, { declaredArrivalDate: arrival || undefined, declaredDepartureDate: departure || undefined, stayWindowNote: note || undefined })
+      await loadDelegation(dId)
+    }
+    setSavedAreas(prev => prev.includes(areaTitle) ? prev : [...prev, areaTitle])
+  })
+
+  // Dashboard — payment proof upload
+  const handleProofChange = (file: File) => void withApi(async () => {
+    const dId = delegationId; if (!dId || !delegationFull) return
+    const amountDue = calcAmountDue(delegationFull)
+    await api.uploadPaymentProof(dId, file, { amountDue, invoiceCount: 1 })
+    await loadDelegation(dId)
+    setSavedAreas(prev => [...new Set([...prev, 'Payment & invoice'])])
+  })
+
+  // Dashboard — submit
+  const handleSubmit = () => void withApi(async () => {
+    const dId = delegationId; const aId = accountId ?? session.accountId; if (!dId || !aId) return
+    await api.submitDelegation(dId, aId)
+    await loadDelegation(dId)
+    setSavedAreas(prev => [...new Set([...prev, 'Review & submit'])])
+  })
+
+  const handleReset = () => {
+    clearSession()
+    setAccountStep(0); setActiveArea(0); setSavedAreas([])
+    setInvite(null); setDelegationFull(null); setAccountId(null)
+    setEmail(''); setFullName(''); setPassword('')
+    setVerCode(''); setDevCode(undefined)
+    setEditingMemberId(null)
+  }
 
   const downloadInvoice = () => {
     const win = window.open('', '_blank')
     if (!win) return
-    win.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>IOL 2027 Invoice — Thailand</title><style>
+    const nTeams = del?.numberOfTeams ?? 0
+    const teamFee = nTeams * 1000
+    const roomFee = nTeams * 2 * 220
+    const total = teamFee + roomFee
+    const orgName = del?.accreditedOrganisation || del?.countryTerritory || '—'
+    const payRef = delegationFull?.payments[0]?.paymentReference || 'TBD'
+    win.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>IOL 2027 Invoice</title><style>
       body{margin:0;padding:40px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#160c1b;background:#fff;-webkit-print-color-adjust:exact}
       .header{background:#160c1b;color:#f3eed4;padding:28px 36px;border-radius:12px;margin-bottom:32px}
       .header p{margin:0;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#eda363;font-weight:700}
@@ -375,25 +635,25 @@ function TeamLeaderAccount() {
     </style></head><body>
       <div class="header"><p>IOL 2027 · Bangkok, Thailand</p><h1>Registration Invoice</h1></div>
       <div class="meta">
-        <div class="meta-block"><small>Bill to</small><strong>National Linguistics Olympiad Thailand</strong></div>
-        <div class="meta-block"><small>Payment reference</small><strong>THA-IOL2027-001</strong></div>
+        <div class="meta-block"><small>Bill to</small><strong>${orgName}</strong></div>
+        <div class="meta-block"><small>Payment reference</small><strong>${payRef}</strong></div>
         <div class="meta-block"><small>Invoice date</small><strong>${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</strong></div>
         <div class="meta-block"><small>Due</small><strong>On transfer — before member details unlock</strong></div>
       </div>
       <table>
         <thead><tr><th>Description</th><th>Unit</th><th style="text-align:right">Amount (USD)</th></tr></thead>
         <tbody>
-          <tr><td>IOL 2027 Registration — Early bird</td><td>2 teams × USD 1,000</td><td style="text-align:right">2,000.00</td></tr>
-          <tr><td>Room accommodation (2 rooms per team)</td><td>2 teams × 2 rooms × USD 220</td><td style="text-align:right">880.00</td></tr>
+          <tr><td>IOL 2027 Registration — Early bird</td><td>${nTeams} team${nTeams !== 1 ? 's' : ''} × USD 1,000</td><td style="text-align:right">${teamFee.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td></tr>
+          <tr><td>Room accommodation (2 rooms per team)</td><td>${nTeams} team${nTeams !== 1 ? 's' : ''} × 2 rooms × USD 220</td><td style="text-align:right">${roomFee.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td></tr>
           <tr><td>Observer registration fee</td><td>TBD</td><td style="text-align:right">—</td></tr>
         </tbody>
-        <tfoot><tr class="total-row"><td colspan="2">Total amount due</td><td style="text-align:right">USD 2,880.00 (+ observer fees TBD)</td></tr></tfoot>
+        <tfoot><tr class="total-row"><td colspan="2">Total amount due</td><td style="text-align:right">USD ${total.toLocaleString('en-US', { minimumFractionDigits: 2 })} (+ observer fees TBD)</td></tr></tfoot>
       </table>
       <div class="bank">
         <h3>Bank transfer details</h3>
         <p><strong>Beneficiary:</strong> มูลนิธิส่งเสริมโอลิมปิกวิชาการและพัฒนามาตรฐานวิทยาศาสตร์ศึกษา ในพระอุปถัมภ์สมเด็จพระเจ้าพี่นางเธอ เจ้าฟ้ากัลยาณิวัฒนา กรมหลวงนราธิวาสราชนครินทร์ (สอวน.)</p>
         <p><strong>Bank:</strong> ธนาคารไทยพาณิชย์ (SCB) — account details supplied by Finance after approval</p>
-        <p><strong>Reference:</strong> THA-IOL2027-001 (include in transfer description)</p>
+        <p><strong>Reference:</strong> ${payRef} (include in transfer description)</p>
       </div>
       <div class="notice"><strong>Important:</strong> Transfer the full amount shown above to สอวน (POSN). Select <strong>OUR</strong> when initiating the wire so all intermediary bank charges are borne by the sender — the LOC must receive the full declared amount. Currency conversion costs are the sender's responsibility.</div>
       <div class="footer">
@@ -403,256 +663,115 @@ function TeamLeaderAccount() {
     <script>window.onload=()=>{window.print()}<\/script></body></html>`)
     win.document.close()
   }
-  const steps = [
-    ['Invite code', 'IOL2027-THA-7F3K'],
-    ['Account details', 'leader@national-olympiad.org'],
-    ['Email verification', 'Code 2027'],
+  const steps: [string, string][] = [
+    ['Invite code', invite ? invite.countryTerritory : 'Enter your code'],
+    ['Account details', email || 'Team Leader details'],
+    ['Email verification', 'Check your inbox'],
     ['Registration dashboard', 'Account ready'],
   ]
 
-  const tshirtHelp = 'XS ≈ 80 cm · S ≈ 85 cm · M ≈ 90 cm · L ≈ 95 cm · XL ≈ 100 cm · 2XL ≈ 106 cm · 3XL ≈ 112 cm (chest circumference)'
-  const memberRecordsData: RegistrationRecord[] = [
-    { label: 'Narin Chaiwat', meta: 'Contestant - Team A', status: 'Complete', fields: [
-      { label: 'Role', value: 'Contestant', help: 'Contestant, Team Leader, Deputy or Observer.' },
-      { label: 'Team assignment', value: 'Thailand A', help: 'Connects this person to the team record.' },
-      { label: 'Display name', value: 'Narin Chaiwat', help: 'Used on badges, slides and informal lists.' },
-      { label: 'Badge name', value: 'Narin', help: 'Short name printed on the lanyard badge. First name or preferred name.' },
-      { label: 'Official name', value: 'Narin Chaiwat', help: 'Used on certificates and official records.' },
-      { label: 'Passport name', value: 'CHAIWAT NARIN', help: 'Used only where document matching is required.' },
-      { label: 'Passport number', value: 'AA1234567', help: 'Sensitive data used for travel support and hotel verification.' },
-      { label: 'Passport nationality', value: 'Thai', help: 'Used for accreditation records.' },
-      { label: 'Date of birth', value: '2009-02-12', help: 'Contestant eligibility and minor status check.' },
-      { label: 'Gender for room allocation', value: 'Male', help: 'Used only for rooming and safeguarding arrangements.' },
-      { label: 'Exam language', value: 'English', help: 'Language this contestant will use for the individual examination.' },
-      { label: 'T-shirt size', value: 'M', help: tshirtHelp },
-      { label: 'Polo shirt size', value: 'M', help: tshirtHelp },
-      { label: 'Food and allergy notes', value: 'No shellfish', help: 'Restricted data shared only with food operations.' },
-      { label: 'Medical or accessibility notes', value: 'No special requirements', help: 'Restricted data for welfare and emergency planning.' },
-      { label: 'Emergency contact', value: 'Somchai Chaiwat, +66 82 111 2233', help: 'Sensitive contact used only for safety purposes.' },
-    ] },
-    { label: 'Mali Phan', meta: 'Contestant - Team A', status: 'Missing DOB', fields: [
-      { label: 'Role', value: 'Contestant', help: 'Contestant, Team Leader, Deputy or Observer.' },
-      { label: 'Team assignment', value: 'Thailand A', help: 'Connects this person to the team record.' },
-      { label: 'Display name', value: 'Mali Phan', help: 'Used on badges, slides and informal lists.' },
-      { label: 'Badge name', value: 'Mali', help: 'Short name printed on the lanyard badge. First name or preferred name.' },
-      { label: 'Official name', value: 'Mali Phan', help: 'Used on certificates and official records.' },
-      { label: 'Passport name', value: 'PHAN MALI', help: 'Used only where document matching is required.' },
-      { label: 'Passport number', value: 'AA7654321', help: 'Sensitive data used for travel support and hotel verification.' },
-      { label: 'Passport nationality', value: 'Thai', help: 'Used for accreditation records.' },
-      { label: 'Date of birth', value: '', help: 'Required for contestant eligibility and minor status.' },
-      { label: 'Gender for room allocation', value: 'Female', help: 'Used only for rooming and safeguarding arrangements.' },
-      { label: 'Exam language', value: 'English', help: 'Language this contestant will use for the individual examination.' },
-      { label: 'T-shirt size', value: 'S', help: tshirtHelp },
-      { label: 'Polo shirt size', value: 'S', help: tshirtHelp },
-      { label: 'Food and allergy notes', value: 'Vegetarian', help: 'Restricted data shared only with food operations.' },
-      { label: 'Medical or accessibility notes', value: 'No special requirements', help: 'Restricted data for welfare and emergency planning.' },
-      { label: 'Emergency contact', value: 'Nok Phan, +66 82 222 3344', help: 'Sensitive contact used only for safety purposes.' },
-    ] },
-    { label: 'Kiet Rattanakul', meta: 'Contestant - Team A', status: 'Complete', fields: [
-      { label: 'Role', value: 'Contestant', help: 'Contestant, Team Leader, Deputy or Observer.' },
-      { label: 'Team assignment', value: 'Thailand A', help: 'Connects this person to the team record.' },
-      { label: 'Display name', value: 'Kiet Rattanakul', help: 'Used on badges, slides and informal lists.' },
-      { label: 'Badge name', value: 'Kiet', help: 'Short name printed on the lanyard badge. First name or preferred name.' },
-      { label: 'Official name', value: 'Kiet Rattanakul', help: 'Used on certificates and official records.' },
-      { label: 'Passport name', value: 'RATTANAKUL KIET', help: 'Used only where document matching is required.' },
-      { label: 'Passport number', value: 'AA2468101', help: 'Sensitive data used for travel support and hotel verification.' },
-      { label: 'Passport nationality', value: 'Thai', help: 'Used for accreditation records.' },
-      { label: 'Date of birth', value: '2009-06-03', help: 'Contestant eligibility and minor status check.' },
-      { label: 'Gender for room allocation', value: 'Male', help: 'Used only for rooming and safeguarding arrangements.' },
-      { label: 'Exam language', value: 'English', help: 'Language this contestant will use for the individual examination.' },
-      { label: 'T-shirt size', value: 'M', help: tshirtHelp },
-      { label: 'Polo shirt size', value: 'M', help: tshirtHelp },
-      { label: 'Food and allergy notes', value: 'No pork', help: 'Restricted data shared only with food operations.' },
-      { label: 'Medical or accessibility notes', value: 'Carries inhaler', help: 'Restricted data for welfare and emergency planning.' },
-      { label: 'Emergency contact', value: 'Arun Rattanakul, +66 82 333 4455', help: 'Sensitive contact used only for safety purposes.' },
-    ] },
-    { label: 'Arun Songsiri', meta: 'Contestant - Team A', status: 'Complete', fields: [
-      { label: 'Role', value: 'Contestant', help: 'Contestant, Team Leader, Deputy or Observer.' },
-      { label: 'Team assignment', value: 'Thailand A', help: 'Connects this person to the team record.' },
-      { label: 'Display name', value: 'Arun Songsiri', help: 'Used on badges, slides and informal lists.' },
-      { label: 'Badge name', value: 'Arun', help: 'Short name printed on the lanyard badge. First name or preferred name.' },
-      { label: 'Official name', value: 'Arun Songsiri', help: 'Used on certificates and official records.' },
-      { label: 'Passport name', value: 'SONGSIRI ARUN', help: 'Used only where document matching is required.' },
-      { label: 'Passport number', value: 'AA3579246', help: 'Sensitive data used for travel support and hotel verification.' },
-      { label: 'Passport nationality', value: 'Thai', help: 'Used for accreditation records.' },
-      { label: 'Date of birth', value: '2008-11-18', help: 'Contestant eligibility and minor status check.' },
-      { label: 'Gender for room allocation', value: 'Male', help: 'Used only for rooming and safeguarding arrangements.' },
-      { label: 'Exam language', value: 'English', help: 'Language this contestant will use for the individual examination.' },
-      { label: 'T-shirt size', value: 'L', help: tshirtHelp },
-      { label: 'Polo shirt size', value: 'L', help: tshirtHelp },
-      { label: 'Food and allergy notes', value: 'No restrictions', help: 'Restricted data shared only with food operations.' },
-      { label: 'Medical or accessibility notes', value: 'No special requirements', help: 'Restricted data for welfare and emergency planning.' },
-      { label: 'Emergency contact', value: 'Malee Songsiri, +66 82 444 5566', help: 'Sensitive contact used only for safety purposes.' },
-    ] },
-    { label: 'Prof. Preecha K.', meta: 'Observer', status: 'Payment linked', fields: [
-      { label: 'Role', value: 'Observer', help: 'Observer fees are calculated separately.' },
-      { label: 'Observer category', value: 'Regular observer', help: 'Used by Finance.' },
-      { label: 'Display name', value: 'Prof. Preecha K.', help: 'Used on badge and programme lists.' },
-      { label: 'Badge name', value: 'Prof. Preecha', help: 'Short name printed on the lanyard badge.' },
-      { label: 'Official name', value: 'Preecha Kittisak', help: 'Used on official records.' },
-      { label: 'Passport name', value: 'KITTISAK PREECHA', help: 'Used only where document matching is required.' },
-      { label: 'Passport number', value: 'AB7659001', help: 'Sensitive data used for travel support and hotel verification.' },
-      { label: 'Passport nationality', value: 'Thai', help: 'Used for accreditation records.' },
-      { label: 'Email', value: 'preecha@national-olympiad.org', help: 'Receives personal invitation letter and badge notices.' },
-      { label: 'Gender for room allocation', value: 'Male', help: 'Used only for rooming arrangements.' },
-      { label: 'Room type preference', value: 'Single if available', help: 'May require supplement or approval.' },
-      { label: 'T-shirt size', value: 'L', help: tshirtHelp },
-      { label: 'Polo shirt size', value: 'L', help: tshirtHelp },
-      { label: 'Food and allergy notes', value: 'No pork', help: 'Restricted data shared only with food operations.' },
-      { label: 'Medical or accessibility notes', value: 'No special requirements', help: 'Restricted data for welfare and emergency planning.' },
-      { label: 'Emergency contact', value: 'Maneerat K., +66 81 888 7766', help: 'Sensitive contact used only for safety purposes.' },
-    ] },
-  ]
-
-  const getField = (r: RegistrationRecord, label: string) => r.fields.find(f => f.label === label)?.value ?? ''
-  const welfare = (() => {
-    const mf = memberRecordsData
-    const maleCont = mf.filter(r => getField(r, 'Gender for room allocation') === 'Male' && getField(r, 'Role') === 'Contestant').length
-    const femaleCont = mf.filter(r => getField(r, 'Gender for room allocation') === 'Female' && getField(r, 'Role') === 'Contestant').length
-    const singleNames = mf.filter(r => getField(r, 'Room type preference') === 'Single if available').map(r => getField(r, 'Role'))
-    const restrictions: Record<string, number> = {}
-    mf.forEach(r => {
-      const note = getField(r, 'Food and allergy notes')
-      if (!note || /no restrictions/i.test(note)) return
-      restrictions[note] = (restrictions[note] || 0) + 1
-    })
-    const dietarySummary = Object.entries(restrictions).map(([k, v]) => `${k.toLowerCase()}: ${v}`).join('; ') || 'No restrictions reported'
-    const medIssues = mf.map(r => getField(r, 'Medical or accessibility notes')).filter(n => n && !/no special requirements/i.test(n))
-    const medSummary = medIssues.length === 0 ? 'No special requirements' : `${medIssues.length} note${medIssues.length > 1 ? 's' : ''}: ${medIssues.map(n => n.toLowerCase()).join('; ')}`
-    return {
-      roomingSummary: `${maleCont} male contestant${maleCont !== 1 ? 's' : ''}, ${femaleCont} female contestant${femaleCont !== 1 ? 's' : ''}, ${singleNames.length} adult single${singleNames.length !== 1 ? 's' : ''} requested`,
-      singleRoomReqs: singleNames.join(', ') || 'None',
-      dietarySummary,
-      medSummary,
-    }
-  })()
+  const del = delegationFull?.delegation
+  const members = delegationFull?.members ?? []
+  const teams = delegationFull?.teams ?? []
 
   const areasSource: RegistrationArea[] = [
-    { title: 'Before you begin', status: 'Guide', required: false, body: 'See what is needed now, what can wait, and what happens after submission.', fields: [], notes: [
-      { label: '① Reserve your place', value: 'Team count and observer count only', help: 'Two fields unlock the fee calculation. Contestant names are not needed yet.' },
-      { label: '② Pay and upload proof', value: 'Review calculated fees, fill invoice details, transfer, then upload proof', help: 'Member details are locked until payment proof is submitted. Declare invoice splits before transferring.' },
-      { label: '③ Complete people and teams', value: 'Names, badges, passports, exam languages, shirts and welfare', help: 'Unlocked after payment proof is uploaded. Can be completed in stages.' },
-      { label: '④ Travel — fill later', value: 'Add arrival and departure details after flights are booked', help: 'Travel remains editable after the initial submission.' },
-      { label: 'Event week', value: 'Bring every QR badge for staff scanning', help: 'The QR contains a random reference, never visible personal information.' },
-    ] },
-    { title: 'Team Leader setup', status: 'Editable', body: 'Enter team count and observer count. Rooms are pre-assigned by the organiser — Team Leaders and Observers receive single rooms; contestants share same-gender rooms automatically.', fields: [
-      { label: 'Number of teams', value: '2', help: 'Maximum two teams for an accredited country or territory.' },
-      { label: 'Number of observers', value: '0', help: 'Enter the expected number. Observer fees are calculated separately.' },
-    ], notes: [
-      { label: 'Team Leader', value: 'Dr. Ananya Somchai · leader@national-olympiad.org', help: 'Taken from the verified account and reused automatically.' },
-      { label: 'Country or territory', value: 'Thailand · locked by invitation code', help: 'The invitation determines the official country; it cannot be edited here.' },
-      { label: 'Room allocation', value: 'Pre-assigned — no action needed', help: 'Team Leaders and Observers get single rooms. Contestants are placed in same-gender shared rooms. No preference entry is required.' },
-      { label: 'Next', value: 'Save, then review the calculated fees and fill in invoice details', help: 'Payment instructions and invoice details must be completed before member information is unlocked.' },
-    ] },
-    { title: 'Teams', status: 'Needs review', body: 'Create each team once, assign contestants from the member list, then choose the team contest working language.', fields: [], records: [
-      { label: 'Thailand A', meta: '4 contestants', status: 'Ready', fields: [
-        { label: 'Team name', value: 'Thailand A', help: 'Shown in internal team lists and team contest planning.' },
-        { label: 'Team code', value: 'THA-A', help: 'Short code for staff exports, badges and score systems.' },
-        { label: 'Team contest language', value: 'English', help: 'One working language per team; changes close before the contest.' },
-        { label: 'Team status', value: 'Complete', help: 'Shows whether all assigned contestants have required data.' },
-      ], notes: [
-        { label: 'Team Leader', value: 'Dr. Ananya Somchai · from account', help: 'Reused automatically; no duplicate entry.' },
-        { label: 'Contestants assigned', value: 'Narin, Mali, Kiet, Arun', help: 'Selected from saved member records.' },
-      ] },
-      { label: 'Thailand B', meta: '4 contestants', status: 'Needs language', fields: [
-        { label: 'Team name', value: 'Thailand B', help: 'Second team record for the country.' },
-        { label: 'Team code', value: 'THA-B', help: 'Short code for staff exports, badges and score systems.' },
-        { label: 'Team contest language', value: '', help: 'Required before final submission.' },
-        { label: 'Team status', value: 'Missing working language', help: 'Dashboard should surface the next missing action.' },
-      ], notes: [
-        { label: 'Team Leader', value: 'Dr. Ananya Somchai · from account', help: 'Reused automatically; no duplicate entry.' },
-        { label: 'Contestants assigned', value: 'Pim, Tawan, Mira, Chanon', help: 'Selected from saved member records.' },
-      ] },
-    ] },
-    { title: 'People', status: 'Locked', body: 'Member details are unlocked after payment proof is uploaded. Add names, badges, passports, exam languages, shirt sizes and welfare notes for each person.', fields: [], records: memberRecordsData },
-    { title: 'Travel', status: 'Dates now, flights later', body: 'The Team Leader declares the arrival and departure dates of the delegation at first registration, because those dates set the hotel nights the organising team reserves. Flight numbers and times are added later, after booking, and stay open for changes.', fields: [
-      { label: 'Declared arrival date', value: '', help: 'First night at the official hotel. The programme runs from 21 to 28 July 2027.', kind: 'date' },
-      { label: 'Declared departure date', value: '', help: 'Day the delegation leaves the official hotel. It cannot be earlier than the arrival date.', kind: 'date' },
-      { label: 'Nights at the official hotel', value: '', help: 'Calculated from the declared dates and used for room planning.', kind: 'readonly' },
-      { label: 'Nights outside the programme window', value: '', help: 'State any early arrival or late departure so the organising team can check hotel availability and cost.', kind: 'textarea' },
-    ], required: true, notes: [
-      { label: 'When to complete', value: 'Dates now, flights after booking', help: 'The declared dates are needed early. Flight details can be filled in later and changed as often as needed.' },
-      { label: 'Registration requirement', value: 'Dates required', help: 'Arrival and departure dates are required at first submission because the hotel booking depends on them. Flight details are not.' },
-    ], records: [
-      { label: 'Arrival details', meta: 'Fill after booking', status: 'Later', fields: [
-        { label: 'Direction', value: 'Arrival', help: 'Arrival or departure trip.' },
-        { label: 'Arrival point', value: '', help: 'Airport, train station, bus station or other arrival point.' },
-        { label: 'Flight / service number', value: '', help: 'Used by the transport team after travel is known.' },
-        { label: 'Local date', value: '', help: 'Bangkok local date.' },
-        { label: 'Local time', value: '', help: 'Bangkok local time.' },
-        { label: 'People on this trip', value: '', help: 'Assign participants from the team list when travel is confirmed.' },
-        { label: 'Airport terminal', value: '', help: 'Optional field for transport staff.' },
-        { label: 'Meeting point note', value: 'Assigned after travel submission', help: 'Filled by LOC when pickup details are issued.' },
-        { label: 'Volunteer contact', value: 'To be assigned', help: 'Shown to the Team Leader during arrival week.' },
-        { label: 'Pickup group', value: 'To be assigned', help: 'Assigned by LOC transport.' },
-        { label: 'Change status', value: 'Open', help: 'Leader can update changed flight times before travel.' },
-      ] },
-      { label: 'Departure details', meta: 'Fill after booking', status: 'Later', fields: [
-        { label: 'Direction', value: 'Departure', help: 'Arrival or departure trip.' },
-        { label: 'Departure point', value: '', help: 'Airport, train station, bus station or other departure point.' },
-        { label: 'Flight / service number', value: '', help: 'Used for departure bus planning after travel is known.' },
-        { label: 'Local date', value: '', help: 'Bangkok local date.' },
-        { label: 'Local time', value: '', help: 'Bangkok local time.' },
-        { label: 'People on this trip', value: '', help: 'Assign participants from the team list when travel is confirmed.' },
-        { label: 'Hotel pickup time', value: 'Assigned after travel submission', help: 'Filled by LOC after departure planning.' },
-        { label: 'Bus or van group', value: 'To be assigned', help: 'Used by departure-day staff.' },
-        { label: 'Boarding check', value: 'Not checked in', help: 'Used by arrival-week operations.' },
-        { label: 'Change status', value: 'Open', help: 'Leader can update changed flight times before travel.' },
-      ] },
-    ] },
-    { title: 'Rooms and welfare', status: 'Sensitive', body: 'Summarise rooming, food, medical, accessibility and guardian-consent needs without making the leader retype details already stored on each member.', fields: [
-      { label: 'Rooming summary', value: welfare.roomingSummary, help: 'Generated from member gender and room preference fields.' },
-      { label: 'Room-sharing notes', value: 'Same team preferred', help: 'Handled by the accommodation team.' },
-      { label: 'Single-room requests', value: welfare.singleRoomReqs, help: 'May require supplement or approval.' },
-      { label: 'Dietary summary', value: welfare.dietarySummary, help: 'Generated from member food and allergy notes.' },
-      { label: 'Medical or accessibility summary', value: welfare.medSummary, help: 'Restricted data for welfare and emergency planning.' },
-      { label: 'Guardian consent policy', value: 'Awaiting organiser decision', help: 'No consent upload is required until the organiser confirms the final policy.' },
-      { label: 'Sensitive-data access', value: 'Welfare, food and check-in staff only', help: 'Matches the PDPA requirement for role-limited access.' },
-      { label: 'Retention note', value: 'Delete after event retention period', help: 'Final deletion schedule needs approval.' },
-    ] },
-    { title: 'Payment & invoice', status: 'Awaiting proof', body: 'Review the calculated fees, fill in invoice details before transferring, then upload the transfer proof. Member details are locked until proof is submitted.', notes: [
-      { label: 'Payment method', value: 'Bank transfer only — outside this website', help: 'No card or online payment gateway. Transfer to the approved account, then upload proof here.' },
-      { label: 'How to pay', value: 'Bank transfer to สอวน (POSN) — full amount required', help: 'Transfer the total declared amount in full to สอวน (POSN) via SCB. The LOC must receive the full invoice amount — partial payments are not accepted.' },
-      { label: 'Transfer fees', value: 'Choose OUR — sender pays all bank charges', help: 'Select OUR when initiating the wire so all intermediary bank charges are borne by the sender. The LOC is not responsible for fees deducted by intermediary banks.' },
-      { label: 'Currency conversion', value: 'Sender\'s responsibility', help: 'All currency conversion costs and exchange-rate differences are the sender\'s responsibility. The LOC does not cover foreign-exchange losses.' },
-      { label: 'Invoice deadline', value: 'Declare split details before transferring', help: 'Invoices cannot be split after payment is received. State the number and amounts here first.' },
-    ], fields: [
-      { label: 'Fee tier', value: 'Early bird', help: 'Calculated from the submission date.' },
-      { label: 'Currency', value: 'USD', help: 'Registration fees are charged in USD.' },
-      { label: 'Teams registered', value: '2', help: 'From Team Leader setup. Each team: up to 4 contestants + 1 shared Team Leader.' },
-      { label: 'Calculated team fees', value: '2 teams × USD 1,000 = USD 2,000', help: 'Per team registration fee × number of teams.' },
-      { label: 'Room accommodation', value: '2 teams × 2 rooms × USD 220 = USD 880', help: 'Each team is allocated 2 rooms (1 single for Team Leader + 1 shared for contestants). Room allocation is pre-assigned — no preference required.' },
-      { label: 'Observer fees', value: 'TBD — awaiting organiser rate', help: 'Observer fees are approved separately and will be added when confirmed.' },
-      { label: 'Total amount due', value: 'USD 2,880 (+ observer fees TBD)', help: 'Transfer this full amount to สอวน (POSN). Do not deduct any bank charges — select OUR.' },
-      { label: 'Payment reference', value: 'THA-IOL2027-001', help: 'Include this reference in the bank transfer description.' },
-      { label: 'Bank account status', value: 'SCB POSN account — details pending Finance approval', help: 'Account name, number and SWIFT will be shown here once approved by Finance.' },
-      { label: 'Number of invoices requested', value: '1', help: 'How many invoices do you need? Declare split details before transferring.' },
-      { label: 'Invoice details', value: '', help: 'For one invoice: leave blank. For multiple: state each recipient organisation and the amount (e.g. "National Olympiad Foundation — 1,200 USD; University Fund — 800 USD").' },
-      { label: 'Invoice recipient name', value: 'National Linguistics Olympiad Thailand', help: 'Official organisation name to appear on the invoice.' },
-      { label: 'Invoice recipient address', value: '', help: 'Full postal address for the invoice, if required by your institution.' },
-      { label: 'Proof of payment file', value: 'transfer-iol2027.pdf', help: 'Accepted formats: PDF, JPG or PNG. Uploading this unlocks the People section.' },
-      { label: 'Finance review status', value: 'Awaiting review', help: 'Updated after Finance reconciles the proof with the bank statement.' },
-      { label: 'Receipt / e-receipt status', value: 'Not issued yet', help: 'E-receipt PDF is emailed and available for download after Finance approval.' },
-    ] },
-    { title: 'Badges & check-in', status: 'Preparing', body: 'Each registered person receives an individual QR badge. Staff scan it at arrival and controlled checkpoints throughout the event.', fields: [], required: false, notes: [
-      { label: 'QR contents', value: 'Random badge reference only', help: 'Names, passport details and other personal data are never encoded in the QR.' },
-      { label: 'Issue point', value: 'After names are finalised', help: 'Every contestant, Team Leader and observer receives their own badge.' },
-      { label: 'Scanning', value: 'Arrival desk and approved event checkpoints', help: 'Each scan records the checkpoint, time and result for staff operations.' },
-      { label: 'Current status', value: '5 of 6 badge names ready', help: 'Complete the remaining person record before issuing all badges.' },
-    ] },
-    { title: 'Review & submit', status: 'Not submitted', body: 'Review the complete registration, submit it, then track documents, badges and payment review.', fields: [
-      { label: 'Registration status', value: 'Draft', help: 'Submit when all required sections are complete.' },
-      { label: 'Missing required fields', value: 'Team B working language, Mali date of birth, payment proof', help: 'Travel is not counted as a first-submission requirement.' },
-      { label: 'Submission lock', value: 'Unlocked', help: 'Final lock date and change-request channel need advisor approval.' },
-      { label: 'Invitation letter status', value: 'Available after payment confirmation', help: 'Supports visa applications for registered people.' },
-      { label: 'E-receipt status', value: 'Available after Finance approval', help: 'Receipt PDF is emailed and downloadable.' },
-      { label: 'Badge and QR status', value: 'Pending final badge names', help: 'QR codes are issued after participant names are finalised.' },
-      { label: 'Travel details status', value: 'Fill later', help: 'Arrival and departure details remain open after first registration submission.' },
-      { label: 'Arrival check-in status', value: 'Not arrived', help: 'Updated by the venue check-in system during event week.' },
-      { label: 'LOC message', value: 'No open messages', help: 'Questions from the organising team appear here.' },
+    {
+      title: 'Before you begin', status: 'Guide', required: false,
+      body: 'See what is needed now, what can wait, and what happens after submission.',
+      fields: [],
+      notes: [
+        { label: '① Reserve your place', value: 'Team count and observer count only', help: 'Two fields unlock the fee calculation.' },
+        { label: '② Pay and upload proof', value: 'Review calculated fees, fill invoice details, transfer, then upload proof', help: 'Member details are locked until payment proof is submitted.' },
+        { label: '③ Complete people and teams', value: 'Names, badges, passports, exam languages, shirts and welfare', help: 'Unlocked after payment proof is uploaded.' },
+        { label: '④ Travel — fill later', value: 'Add arrival and departure details after flights are booked', help: 'Travel remains editable after the initial submission.' },
+        { label: 'Event week', value: 'Bring every QR badge for staff scanning', help: 'The QR contains a random reference, never visible personal information.' },
+      ],
+    },
+    {
+      title: 'Team Leader setup', status: 'Editable',
+      body: 'Enter team count and observer count. Rooms are pre-assigned by the organiser — Team Leaders and Observers receive single rooms; contestants share same-gender rooms automatically.',
+      fields: [],
+      notes: [
+        { label: 'Team Leader', value: del ? `${del.primaryTeamLeaderName} · ${del.teamLeaderEmail}` : `${fullName || '—'} · ${email || '—'}`, help: 'From your verified account.' },
+        { label: 'Country', value: del?.countryTerritory || invite?.countryTerritory || '—', help: 'Set by the invitation code.' },
+      ],
+    },
+    {
+      title: 'Teams', status: teams.length > 0 ? 'Needs review' : 'Auto-created',
+      body: 'Teams are created automatically when you save the team count. Review them here.',
+      fields: [],
+      records: teams.map(t => ({
+        label: t.name,
+        meta: `${members.filter(m => m.teamId === t.id).length} members`,
+        status: t.contestLanguage ? 'Ready' : 'Needs language',
+        fields: [
+          { label: 'Team name', value: t.name, help: 'Shown in internal team lists.', kind: 'readonly' as const },
+          { label: 'Team code', value: t.code, help: 'Short code for badges and score systems.', kind: 'readonly' as const },
+          { label: 'Contest language', value: t.contestLanguage || '—', help: 'Required before final submission.', kind: 'readonly' as const },
+          { label: 'Status', value: t.status, help: '', kind: 'readonly' as const },
+        ],
+      })),
+    },
+    {
+      title: 'People', status: proofUploaded ? 'Editable' : 'Locked',
+      body: 'Add names, badges, passports, exam languages, shirt sizes and welfare notes for each person.',
+      fields: [],
+      records: members.map(m => ({
+        label: m.displayName,
+        meta: `${m.role.replace('_', ' ')}${m.teamId ? ' · ' + (teams.find(t => t.id === m.teamId)?.name ?? '') : ''}`,
+        status: m.officialName && m.dateOfBirth ? 'Complete' : 'Incomplete',
+        fields: [],
+      })),
+    },
+    {
+      title: 'Travel', status: del?.declaredArrivalDate ? 'Dates saved' : 'Dates now, flights later',
+      body: 'Declare arrival and departure dates now. Flight details can be added after booking.',
+      fields: [],
+      required: true,
+    },
+    {
+      title: 'Payment & invoice', status: proofUploaded ? 'Proof uploaded' : 'Awaiting proof',
+      body: 'Review the calculated fees, then upload the transfer proof. Member details are locked until proof is submitted.',
+      notes: [
+        { label: 'Payment method', value: 'Bank transfer only — outside this website', help: 'No card or online payment gateway. Transfer to the approved account, then upload proof here.' },
+        { label: 'Transfer fees', value: 'Choose OUR — sender pays all bank charges', help: 'Select OUR when initiating the wire.' },
+        { label: 'Currency conversion', value: "Sender's responsibility", help: 'All conversion costs and exchange-rate differences are the sender\'s responsibility.' },
+      ],
+      fields: [
+        { label: 'Teams registered', value: String(del?.numberOfTeams ?? 0), help: 'From Team Leader setup.', kind: 'readonly' },
+        { label: 'Team fees', value: del ? `${del.numberOfTeams} × USD 1,000 = USD ${del.numberOfTeams * 1000}` : '—', help: 'Per team registration fee.', kind: 'readonly' },
+        { label: 'Room accommodation', value: del ? `${del.numberOfTeams} × 2 rooms × USD 220 = USD ${del.numberOfTeams * 440}` : '—', help: 'Pre-assigned rooms.', kind: 'readonly' },
+        { label: 'Total amount due', value: del ? `USD ${del.numberOfTeams * 1000 + del.numberOfTeams * 440}` : '—', help: 'Transfer this amount.', kind: 'readonly' },
+        { label: 'Proof of payment file', value: proofUploaded ? 'Proof uploaded' : '', help: 'Accepted: PDF, JPG or PNG. Uploading unlocks the People section.', kind: 'upload' },
+      ],
+    },
+    {
+      title: 'Badges & check-in', status: 'Preparing', required: false,
+      body: 'Each registered person receives an individual QR badge. Staff scan it at arrival and approved checkpoints.',
+      fields: [],
+      notes: [
+        { label: 'QR contents', value: 'Random badge reference only', help: 'Names and passport details are never encoded in the QR.' },
+        { label: 'Issue point', value: 'After names are finalised', help: 'Every contestant, Team Leader and observer receives their own badge.' },
+        { label: 'Scanning', value: 'Arrival desk and approved event checkpoints', help: 'Each scan records the checkpoint, time and result.' },
+      ],
+    },
+    {
+      title: 'Review & submit', status: del?.registrationStatus === 'submitted' ? 'Submitted' : 'Not submitted',
+      body: 'Review the complete registration and submit.',
+      fields: [
+        { label: 'Registration status', value: del?.registrationStatus || 'draft', help: 'Submit when all required sections are complete.', kind: 'readonly' },
+        { label: 'Payment status', value: del?.paymentStatus || '—', help: 'Updated after Finance confirms payment.', kind: 'readonly' },
+        { label: 'Submitted at', value: del?.submittedAt ? new Date(del.submittedAt).toLocaleDateString('en-GB') : 'Not yet submitted', help: '', kind: 'readonly' },
+      ],
+    },
+  ]
+
+  const memberRecordsData: RegistrationRecord[] = [
+    { label: 'REMOVED', meta: '', status: '', fields: [
     ] },
   ]
-  const areaOrder = ['Before you begin', 'Team Leader setup', 'Payment & invoice', 'People', 'Teams', 'Rooms and welfare', 'Review & submit', 'Badges & check-in', 'Travel']
+
+  const areaOrder = ['Before you begin', 'Team Leader setup', 'Payment & invoice', 'People', 'Teams', 'Review & submit', 'Badges & check-in', 'Travel']
   const areas = [...areasSource].sort((a, b) => areaOrder.indexOf(a.title) - areaOrder.indexOf(b.title))
   const area = areas[activeArea]
   const activeRecord = activeRecordByArea[area.title] || 0
@@ -700,7 +819,7 @@ function TeamLeaderAccount() {
     if (kind === 'readonly') return <div className="reg-field reg-field-readonly" key={field.label}><span className="reg-field-label">{field.label}</span><strong className="reg-field-value">{field.value || '—'}</strong><small className="reg-field-help">{field.help}</small></div>
     if (kind === 'upload') {
       const isProofField = field.label === 'Proof of payment file'
-      return <label className="reg-field reg-field-wide reg-field-upload" key={field.label}><span className="reg-field-label">{field.label}</span><div className={`reg-upload-zone${isProofField && proofUploaded ? ' reg-upload-done' : ''}`}><Upload size={22} /><span>{field.value || 'Click to upload or drag file here'}</span><small>PDF, JPG or PNG · max 10 MB</small><input type="file" accept={field.accept || '.pdf,.jpg,.jpeg,.png'} onChange={isProofField ? () => setProofUploaded(true) : undefined} /></div>{isProofField && <small className="reg-field-help reg-proof-hint"><CheckCircle size={12} /> Uploading this file unlocks the People section for editing.</small>}{!isProofField && <small className="reg-field-help">{field.help}</small>}</label>
+      return <label className="reg-field reg-field-wide reg-field-upload" key={field.label}><span className="reg-field-label">{field.label}</span><div className={`reg-upload-zone${isProofField && proofUploaded ? ' reg-upload-done' : ''}`}><Upload size={22} /><span>{proofUploaded && isProofField ? 'Proof uploaded — upload again to replace' : 'Click to upload or drag file here'}</span><small>PDF, JPG or PNG · max 10 MB</small><input type="file" accept={field.accept || '.pdf,.jpg,.jpeg,.png'} onChange={isProofField ? (e) => { const f = e.target.files?.[0]; if (f) handleProofChange(f) } : undefined} /></div>{isProofField && <small className="reg-field-help reg-proof-hint"><CheckCircle size={12} /> Uploading unlocks the People section.</small>}{!isProofField && <small className="reg-field-help">{field.help}</small>}</label>
     }
     if (kind === 'select') return <label className="reg-field" key={field.label}><span className="reg-field-label">{field.label}</span><select className="reg-input" defaultValue={field.value}><option value="">Select…</option>{options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}</select><small className="reg-field-help">{field.help}</small></label>
     if (kind === 'multiselect') return <label className="reg-field" key={field.label}><span className="reg-field-label">{field.label}</span><select className="reg-input" multiple defaultValue={field.value.split(',').map((i) => i.trim()).filter(Boolean)}>{options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}</select><small className="reg-field-help">{field.help}</small></label>
@@ -710,22 +829,56 @@ function TeamLeaderAccount() {
   }
   return <>
     <PageIntro eyebrow="Registration / Team Leader" title="Set up your team." body="Verify the official invitation, create the Team Leader account, and reserve places before completing personal details later." />
-    <section className="poc-notice wrap" role="note"><strong>Interactive prototype</strong><p>This preview demonstrates the planned registration journey. Information entered here is not submitted, emailed, uploaded or saved.</p></section>
     <section className="reg-portal wrap">
       <div className="reg-stepbar">
-        {steps.map(([title, detail], index) => <button type="button" key={title} className={`reg-step${index === accountStep ? ' active' : ''}${index < accountStep ? ' done' : ''}`} onClick={() => setAccountStep(index)}><div className="reg-step-num">{index < accountStep ? <CheckCircle size={18} /> : index + 1}</div><div className="reg-step-text"><strong>{title}</strong><small>{detail}</small></div></button>)}
+        {steps.map(([title, detail], index) => <button type="button" key={title} className={`reg-step${index === accountStep ? ' active' : ''}${index < accountStep ? ' done' : ''}`} onClick={() => index < accountStep && setAccountStep(index)}><div className="reg-step-num">{index < accountStep ? <CheckCircle size={18} /> : index + 1}</div><div className="reg-step-text"><strong>{title}</strong><small>{detail}</small></div></button>)}
       </div>
       <div className="reg-stage">
-        {accountStep === 0 && <div className="reg-entry"><div className="reg-entry-context"><h2>Verify your invitation</h2><p>Each official country or territory receives one code. It identifies your country and registration allowance automatically.</p><span className="reg-entry-step-num">01</span></div><div className="reg-entry-form"><label className="reg-label">Invitation code<input className="reg-input" defaultValue="IOL2027-THA-7F3K" placeholder="IOL2027-XXX-XXXX" /></label><div className="reg-trust-line"><ShieldCheck size={17} /><span>Your code connects the account to the correct country.</span></div><button type="button" className="reg-btn-primary" onClick={() => setAccountStep(1)}>Verify invitation <ArrowRight size={16} /></button></div></div>}
-        {accountStep === 1 && <div className="reg-entry"><div className="reg-entry-context"><h2>Create the Team Leader account</h2><p>These details become the official Team Leader record and are reused across teams, badges and communication.</p><span className="reg-entry-step-num">02</span></div><div className="reg-entry-form reg-entry-form-grid"><div className="reg-verified-country"><div><CheckCircle size={19} /><span>Invitation verified</span></div><strong>Thailand</strong><small>National Linguistics Olympiad</small><p><Lock size={14} /> Country is fixed by the invitation code</p></div><label className="reg-label">Team Leader email<input className="reg-input" type="email" defaultValue="leader@national-olympiad.org" /><small className="reg-entry-help">Used for login, verification and official notices.</small></label><label className="reg-label">Team Leader full name<input className="reg-input" defaultValue="Dr. Ananya Somchai" /><small className="reg-entry-help">Reused automatically; you will not type it again.</small></label><label className="reg-label">Password<input className="reg-input" type="password" defaultValue="IOL2027secure" /><small className="reg-entry-help">Use at least 12 characters.</small></label><div className="reg-entry-form-actions"><button type="button" className="reg-btn-primary" onClick={() => setAccountStep(2)}>Create account and email code <ArrowRight size={16} /></button></div></div></div>}
-        {accountStep === 2 && <div className="reg-entry"><div className="reg-entry-context"><h2>Check your email</h2><p>Enter the six-digit code sent to the Team Leader email. It expires after 30 minutes.</p><span className="reg-entry-step-num">03</span></div><div className="reg-entry-form"><div className="reg-mail-state"><MailCheck size={24} /><div><strong>Code sent</strong><span>leader@national-olympiad.org</span></div></div><label className="reg-label">Six-digit verification code<input className="reg-input reg-code-input" inputMode="numeric" defaultValue="202027" maxLength={6} placeholder="000000" /></label><button type="button" className="reg-btn-primary" onClick={() => setAccountStep(3)}>Verify and continue <ArrowRight size={16} /></button><button type="button" className="reg-btn-text">Resend code</button></div></div>}
+        {accountStep === 0 && (
+          <div className="reg-entry">
+            <div className="reg-entry-context"><h2>Verify your invitation</h2><p>Each official country or territory receives one code. It identifies your country and registration allowance automatically.</p><span className="reg-entry-step-num">01</span></div>
+            <div className="reg-entry-form">
+              {apiError && <p className="reg-api-error">{apiError}</p>}
+              <label className="reg-label">Invitation code<input ref={codeRef} className="reg-input" placeholder="IOL2027-XXX-XXXX" /></label>
+              <div className="reg-trust-line"><ShieldCheck size={17} /><span>Your code connects the account to the correct country.</span></div>
+              <button type="button" className="reg-btn-primary" onClick={handleVerifyInvite} disabled={apiLoading}>{apiLoading ? 'Checking…' : <>Verify invitation <ArrowRight size={16} /></>}</button>
+            </div>
+          </div>
+        )}
+        {accountStep === 1 && (
+          <div className="reg-entry">
+            <div className="reg-entry-context"><h2>Create the Team Leader account</h2><p>These details become the official Team Leader record and are reused across teams, badges and communication.</p><span className="reg-entry-step-num">02</span></div>
+            <div className="reg-entry-form reg-entry-form-grid">
+              <div className="reg-verified-country"><div><CheckCircle size={19} /><span>Invitation verified</span></div><strong>{invite?.countryTerritory || '—'}</strong><small>{invite?.accreditedOrganisation || ''}</small><p><Lock size={14} /> Country is fixed by the invitation code</p></div>
+              {apiError && <p className="reg-api-error">{apiError}</p>}
+              <label className="reg-label">Team Leader email<input className="reg-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="leader@organisation.org" /><small className="reg-entry-help">Used for login, verification and official notices.</small></label>
+              <label className="reg-label">Team Leader full name<input className="reg-input" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Full Name" /><small className="reg-entry-help">Reused automatically; you will not type it again.</small></label>
+              <label className="reg-label">Password<input className="reg-input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 12 characters" /><small className="reg-entry-help">Use at least 12 characters.</small></label>
+              <label className="reg-label">Number of teams<select className="reg-input" value={numberOfTeams} onChange={e => setNumberOfTeams(Number(e.target.value))}><option value={1}>1 team</option><option value={2}>2 teams</option></select><small className="reg-entry-help">You can adjust this later in the dashboard.</small></label>
+              <div className="reg-entry-form-actions"><button type="button" className="reg-btn-primary" onClick={handleCreateAccount} disabled={apiLoading}>{apiLoading ? 'Creating account…' : <>Create account and email code <ArrowRight size={16} /></>}</button></div>
+            </div>
+          </div>
+        )}
+        {accountStep === 2 && (
+          <div className="reg-entry">
+            <div className="reg-entry-context"><h2>Check your email</h2><p>Enter the six-digit code sent to the Team Leader email. It expires after 30 minutes.</p><span className="reg-entry-step-num">03</span></div>
+            <div className="reg-entry-form">
+              <div className="reg-mail-state"><MailCheck size={24} /><div><strong>Code sent</strong><span>{email}</span></div></div>
+              {devCode && <div className="reg-trust-line" style={{ background: 'rgba(237,163,99,.12)', borderRadius: 8, padding: '8px 12px' }}><ShieldCheck size={17} /><span>Dev mode — code: <strong>{devCode}</strong></span></div>}
+              {apiError && <p className="reg-api-error">{apiError}</p>}
+              <label className="reg-label">Six-digit verification code<input className="reg-input reg-code-input" inputMode="numeric" value={verCode} onChange={e => setVerCode(e.target.value)} maxLength={6} placeholder="000000" /></label>
+              <button type="button" className="reg-btn-primary" onClick={handleVerifyEmail} disabled={apiLoading}>{apiLoading ? 'Verifying…' : <>Verify and continue <ArrowRight size={16} /></>}</button>
+              <button type="button" className="reg-btn-text" onClick={handleResendCode} disabled={apiLoading}>Resend code</button>
+            </div>
+          </div>
+        )}
         {accountStep === 3 && <div className="reg-dashboard">
           <div className="reg-dash-head">
-            <div><p className="reg-dash-eyebrow">Team Leader workspace</p><h2>Thailand</h2><span className="reg-dash-owner">Dr. Ananya Somchai · verified</span></div>
+            <div><p className="reg-dash-eyebrow">Team Leader workspace</p><h2>{del?.countryTerritory || '—'}</h2><span className="reg-dash-owner">{del?.primaryTeamLeaderName || fullName} · verified</span></div>
             <div className="reg-progress-block"><span className="reg-progress-pct">{progress}%</span><div className="reg-progress-bar"><span style={{ width: `${progress}%` }} /></div><small>{savedRequiredAreas.length} of {requiredAreas.length} sections saved</small></div>
           </div>
           <div className="reg-summary-strip">
-            <article><Users size={18} /><div><strong>2 teams</strong><span>Up to 8 contestants · 0 observers</span></div></article>
+            <article><Users size={18} /><div><strong>{del ? `${del.numberOfTeams} team${del.numberOfTeams !== 1 ? 's' : ''}` : '—'}</strong><span>{del ? `${del.numberOfContestants} contestants · ${del.numberOfObservers} observers` : 'Loading…'}</span></div></article>
             <article><ClipboardCheck size={18} /><div><strong>{proofUploaded ? 'Proof uploaded' : 'Payment pending'}</strong><span>{proofUploaded ? 'People section unlocked' : 'Upload proof to unlock members'}</span></div></article>
             <article><QrCode size={18} /><div><strong>QR badges</strong><span>Issued after final names</span></div></article>
           </div>
@@ -750,16 +903,66 @@ function TeamLeaderAccount() {
                 <h3>{selectedRecord?.label || area.title}</h3>
                 <p>{area.body}</p>
               </div>
-              {readonlyNotes && <div className="reg-info-notes">{readonlyNotes.map((note) => <article key={note.label}><span>{note.label}</span><strong>{note.value}</strong><small>{note.help}</small></article>)}</div>}
-              {area.title === 'Badges & check-in' && <a className="reg-scanner-link" href="/registration/check-in"><QrCode size={20} /><div><strong>Open staff badge scanner</strong><span>Camera scan with manual-code fallback</span></div><ArrowRight size={17} /></a>}
-              {area.records && <div className="reg-record-list"><div className="reg-record-list-head"><strong>{area.title} list</strong><button type="button" className="reg-btn-add">+ Add record</button></div>{area.records.map((record, index) => <button type="button" key={record.label} className={`reg-record-item${index === activeRecord ? ' active' : ''}`} onClick={() => chooseRecord(index)}><div><strong>{record.label}</strong><span>{record.meta}</span></div><span className={`reg-badge reg-badge-${getRecordStatusClass(record.status)}`}>{record.status}</span></button>)}</div>}
-              <div className="reg-fields" key={`${area.title}-${activeRecord}`}>{visibleFields.map((field) => renderRegistrationField(field))}</div>
-              <div className="reg-actions">
-                <button type="button" className="reg-btn-save" onClick={saveArea}>Save section</button>
-                {area.title === 'Payment & invoice' && <button type="button" className="reg-btn-invoice" onClick={downloadInvoice}><FileText size={14} /> Download invoice</button>}
-                <button type="button" className="reg-btn-next" onClick={nextArea}>{nextButtonLabel} <ArrowRight size={14} /></button>
-                <button type="button" className="reg-btn-reset" onClick={() => { setAccountStep(0); setActiveArea(0); setSavedAreas([]); setProofUploaded(false); setActiveRecordByArea({ Teams: 0, People: 0, Travel: 0 }) }}>Start over</button>
-              </div>
+              {area.title === 'Team Leader setup' ? (
+                <form ref={dashFormRef} onSubmit={e => e.preventDefault()}>
+                  <div className="reg-fields">
+                    <label className="reg-field"><span className="reg-field-label">Number of teams</span><select className="reg-input" name="numberOfTeams" defaultValue={String(del?.numberOfTeams ?? numberOfTeams)}><option value="1">1 team</option><option value="2">2 teams</option></select><small className="reg-field-help">Maximum two teams for an accredited country or territory.</small></label>
+                    <label className="reg-field"><span className="reg-field-label">Number of contestants</span><input className="reg-input" type="number" name="numberOfContestants" min={1} max={8} defaultValue={del?.numberOfContestants ?? numberOfContestants} /><small className="reg-field-help">Max 4 per team, up to 8 total.</small></label>
+                    <label className="reg-field"><span className="reg-field-label">Number of observers</span><input className="reg-input" type="number" name="numberOfObservers" min={0} defaultValue={del?.numberOfObservers ?? numberOfObservers} /><small className="reg-field-help">Observer fees are calculated separately.</small></label>
+                    <label className="reg-field"><span className="reg-field-label">WhatsApp mobile</span><input className="reg-input" type="tel" name="mobileWhatsapp" defaultValue={del?.mobileWhatsapp ?? ''} placeholder="+66 8x xxx xxxx" /><small className="reg-field-help">For LOC communications during event week.</small></label>
+                  </div>
+                  {readonlyNotes && <div className="reg-info-notes">{readonlyNotes.map((note) => <article key={note.label}><span>{note.label}</span><strong>{note.value}</strong><small>{note.help}</small></article>)}</div>}
+                </form>
+              ) : area.title === 'Travel' ? (
+                <form ref={dashFormRef} onSubmit={e => e.preventDefault()}>
+                  <div className="reg-fields">
+                    <label className="reg-field"><span className="reg-field-label">Declared arrival date</span><input className="reg-input" type="date" name="declaredArrivalDate" defaultValue={del?.declaredArrivalDate ?? ''} /><small className="reg-field-help">First night at the official hotel. Programme runs 21–28 July 2027.</small></label>
+                    <label className="reg-field"><span className="reg-field-label">Declared departure date</span><input className="reg-input" type="date" name="declaredDepartureDate" defaultValue={del?.declaredDepartureDate ?? ''} /><small className="reg-field-help">Day the delegation leaves the official hotel.</small></label>
+                    <label className="reg-field reg-field-wide"><span className="reg-field-label">Stay window notes</span><textarea className="reg-input" name="stayWindowNote" defaultValue={del?.stayWindowNote ?? ''} placeholder="Early arrival or late departure notes" /></label>
+                  </div>
+                </form>
+              ) : area.title === 'People' && editingMemberId ? (
+                <MemberForm
+                  delegationId={delegationId!}
+                  teams={teams}
+                  member={editingMemberId === 'new' ? null : members.find(m => m.id === editingMemberId) ?? null}
+                  onSave={() => { setEditingMemberId(null); if (delegationId) void loadDelegation(delegationId) }}
+                  onDelete={() => { setEditingMemberId(null); if (delegationId) void loadDelegation(delegationId) }}
+                  onCancel={() => setEditingMemberId(null)}
+                />
+              ) : area.title === 'People' ? (
+                <div className="reg-record-list">
+                  <div className="reg-record-list-head">
+                    <strong>People ({members.length})</strong>
+                    {delegationId && <button type="button" className="reg-btn-add" onClick={() => setEditingMemberId('new')}>+ Add person</button>}
+                  </div>
+                  {members.map(m => (
+                    <button type="button" key={m.id} className="reg-record-item" onClick={() => setEditingMemberId(m.id)}>
+                      <div><strong>{m.displayName}</strong><span>{m.role.replace('_', ' ')}{m.teamId ? ' · ' + (teams.find(t => t.id === m.teamId)?.name ?? '') : ''}</span></div>
+                      <span className={`reg-badge reg-badge-${m.officialName && m.dateOfBirth ? 'done' : 'warn'}`}>{m.officialName && m.dateOfBirth ? 'Complete' : 'Incomplete'}</span>
+                    </button>
+                  ))}
+                  {members.length === 0 && <p style={{ padding: '16px 0', color: '#857888' }}>No members added yet. Click "+ Add person" to begin.</p>}
+                </div>
+              ) : <>
+                {readonlyNotes && <div className="reg-info-notes">{readonlyNotes.map((note) => <article key={note.label}><span>{note.label}</span><strong>{note.value}</strong><small>{note.help}</small></article>)}</div>}
+                {area.title === 'Badges & check-in' && <a className="reg-scanner-link" href="/registration/check-in"><QrCode size={20} /><div><strong>Open staff badge scanner</strong><span>Camera scan with manual-code fallback</span></div><ArrowRight size={17} /></a>}
+                {area.records && <div className="reg-record-list"><div className="reg-record-list-head"><strong>{area.title}</strong></div>{area.records.map((record, index) => <button type="button" key={record.label} className={`reg-record-item${index === activeRecord ? ' active' : ''}`} onClick={() => chooseRecord(index)}><div><strong>{record.label}</strong><span>{record.meta}</span></div><span className={`reg-badge reg-badge-${getRecordStatusClass(record.status)}`}>{record.status}</span></button>)}</div>}
+                <div className="reg-fields" key={`${area.title}-${activeRecord}`}>{visibleFields.map((field) => renderRegistrationField(field))}</div>
+              </>}
+              {area.title !== 'People' || !editingMemberId ? (
+                <div className="reg-actions">
+                  {apiError && <p className="reg-api-error">{apiError}</p>}
+                  {area.title === 'Review & submit'
+                    ? <button type="button" className="reg-btn-save" onClick={handleSubmit} disabled={apiLoading || del?.registrationStatus === 'submitted'}>{apiLoading ? 'Submitting…' : del?.registrationStatus === 'submitted' ? 'Submitted ✓' : 'Submit registration'}</button>
+                    : !['Before you begin', 'People', 'Badges & check-in', 'Teams'].includes(area.title)
+                      ? <button type="button" className="reg-btn-save" onClick={() => handleSaveSection(area.title)} disabled={apiLoading}>{apiLoading ? 'Saving…' : 'Save section'}</button>
+                      : null}
+                  {area.title === 'Payment & invoice' && <button type="button" className="reg-btn-invoice" onClick={downloadInvoice}><FileText size={14} /> Download invoice</button>}
+                  <button type="button" className="reg-btn-next" onClick={nextArea}>{nextButtonLabel} <ArrowRight size={14} /></button>
+                  <button type="button" className="reg-btn-reset" onClick={handleReset}>Start over</button>
+                </div>
+              ) : null}
               </>}
             </div>
           </div>
