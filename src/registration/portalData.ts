@@ -77,7 +77,7 @@ export const programmeWindow = { first: '2027-07-21', last: '2027-07-28' }
 export const selectOptions: Record<string, string[]> = {
   'Number of teams': ['1', '2'],
   Role: ['Contestant', 'Team Leader', 'Deputy', 'Observer'],
-  'Team assignment': ['Thailand A', 'Thailand B', 'Not assigned'],
+  'Team assignment': ['Thailand A', 'Thailand B', 'Thailand A and Thailand B', 'Not assigned'],
   'Team contest language': ['English', 'French', 'German', 'Russian', 'Spanish', 'Arabic', 'Chinese', 'Other'],
   'Gender for room allocation': ['Female', 'Male', 'Non-binary', 'Prefer to discuss with the organisers'],
   'Exam language': ['English', 'French', 'German', 'Russian', 'Spanish', 'Arabic', 'Chinese', 'Other'],
@@ -159,11 +159,13 @@ function welfareFacts(): Fact[] {
   const medical = people.map((p) => p.medical).filter((m) => m && !/no special requirements/i.test(m))
   return [
     { label: 'Rooming', value: `${male} male and ${female} female contestants`, help: 'Contestants share same-gender rooms. Team Leaders and observers get single rooms.' },
-    { label: 'Single-room requests', value: singles.join(', ') || 'None' },
+    { label: 'Single-room requests', value: singles.join(', ') || 'None', help: 'A single room may carry a supplement or need approval.' },
+    { label: 'Room sharing', value: 'Same team preferred', help: 'Arranged by the accommodation team.' },
     { label: 'Food', value: diets.length ? diets.join(' · ') : 'No restrictions reported', help: 'Taken from each person’s food and allergy notes.' },
     { label: 'Medical and accessibility', value: medical.length ? medical.join(' · ') : 'Nothing reported' },
     { label: 'Guardian consent', value: 'Policy awaiting organiser decision', help: 'No upload is needed until the organisers confirm the policy.' },
     { label: 'Who can see this', value: 'Welfare, food and check-in staff only', help: 'Access is limited by role under Thailand’s PDPA.' },
+    { label: 'How long it is kept', value: 'Deleted after the event', help: 'The exact retention period is awaiting approval.' },
   ]
 }
 
@@ -201,10 +203,10 @@ export const sections: Section[] = [
     records: {
       noun: 'team', plural: 'teams', items: [
         { id: 'tha-a', label: 'Thailand A', meta: '4 contestants', status: 'complete',
-          facts: [{ label: 'Team code', value: 'THA-A' }, { label: 'Contestants', value: 'Narin, Mali, Kiet, Arun' }],
+          facts: [{ label: 'Team code', value: 'THA-A' }, { label: 'Team Leader', value: `${delegation.leaderName}, from your account` }, { label: 'Contestants', value: 'Narin, Mali, Kiet, Arun' }],
           fields: [{ label: 'Team name', value: 'Thailand A' }, { label: 'Team contest language', value: 'English', kind: 'select', help: 'One language per team. Changes close before the contest.' }] },
         { id: 'tha-b', label: 'Thailand B', meta: '4 contestants', status: 'attention', issue: 'Working language missing',
-          facts: [{ label: 'Team code', value: 'THA-B' }, { label: 'Contestants', value: 'Pim, Tawan, Mira, Chanon' }],
+          facts: [{ label: 'Team code', value: 'THA-B' }, { label: 'Team Leader', value: `${delegation.leaderName}, from your account` }, { label: 'Contestants', value: 'Pim, Tawan, Mira, Chanon' }],
           fields: [{ label: 'Team name', value: 'Thailand B' }, { label: 'Team contest language', value: '', kind: 'select', help: 'One language per team. Changes close before the contest.' }] },
       ],
     },
@@ -226,7 +228,7 @@ export const sections: Section[] = [
     records: {
       noun: 'trip', plural: 'trips', items: [
         { id: 'arrival', label: 'Arrival', meta: 'Add after booking', status: 'later',
-          facts: [{ label: 'Meeting point', value: 'Sent after you submit flights' }, { label: 'Pickup group', value: 'Assigned by the transport team' }],
+          facts: [{ label: 'Meeting point', value: 'Sent after you submit flights' }, { label: 'Pickup group', value: 'Assigned by the transport team' }, { label: 'Volunteer contact', value: 'Shown to you during arrival week' }, { label: 'Changes', value: 'Open: update flight times until the travel deadline' }],
           fields: [
             { label: 'Arrival point', value: '', kind: 'select' },
             { label: 'Flight or service number', value: '' },
@@ -236,7 +238,7 @@ export const sections: Section[] = [
             { label: 'People on this trip', value: '', kind: 'checkboxes' },
           ] },
         { id: 'departure', label: 'Departure', meta: 'Add after booking', status: 'later',
-          facts: [{ label: 'Hotel pickup time', value: 'Sent after departure planning' }, { label: 'Bus group', value: 'Assigned by the transport team' }],
+          facts: [{ label: 'Hotel pickup time', value: 'Sent after departure planning' }, { label: 'Bus group', value: 'Assigned by the transport team' }, { label: 'Boarding check', value: 'Recorded by staff on departure day' }, { label: 'Changes', value: 'Open: update flight times until the travel deadline' }],
           fields: [
             { label: 'Departure point', value: '', kind: 'select' },
             { label: 'Flight or service number', value: '' },
@@ -254,6 +256,7 @@ export const sections: Section[] = [
       { label: 'Invitation letters', value: 'Sent after payment is confirmed', help: 'Each person’s letter supports their visa application.' },
       { label: 'E-receipt', value: 'Emailed after Finance approves the payment' },
       { label: 'QR badges', value: 'Issued once names are final' },
+      { label: 'Arrival check-in', value: 'Recorded at the venue during event week' },
     ],
   },
   {
@@ -261,7 +264,8 @@ export const sections: Section[] = [
     intro: 'Every registered person gets their own QR badge. Staff scan it on arrival and at event checkpoints.',
     facts: [
       { label: 'What the QR holds', value: 'A random badge reference only', help: 'No name, passport or other personal data is encoded.' },
-      { label: 'When badges are issued', value: 'After names are final' },
+      { label: 'When badges are issued', value: 'After names are final', help: 'Every contestant, Team Leader and observer gets their own badge.' },
+      { label: 'Where it is scanned', value: 'Arrival desk and event checkpoints', help: 'Each scan records the checkpoint, time and result.' },
       { label: 'Ready now', value: '4 of 5 badge names' },
     ],
   },

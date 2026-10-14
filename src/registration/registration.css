@@ -145,6 +145,10 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-ws-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 20px 40px; padding: 26px 32px; border-radius: var(--reg-radius-lg); background: var(--night); color: var(--cream); }
 .reg-ws-who h2 { margin: 0; font-size: 30px; letter-spacing: -.04em; line-height: 1.1; }
 .reg-ws-who p { margin: 4px 0 0; font-size: 14px; color: var(--reg-on-dark-muted); }
+.reg-ws-summary { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 12px 0 0; padding: 0; list-style: none; font-size: 14px; font-weight: 600; color: var(--cream); }
+.reg-ws-summary li { display: flex; align-items: center; gap: 10px; }
+.reg-ws-summary li + li::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--reg-on-dark-muted); }
+.reg-pay-rules { margin-top: 32px; }
 .reg-ws-progress { justify-self: end; width: min(100%, 320px); }
 .reg-ws-progress p { margin: 0 0 8px; font-size: 14px; color: var(--reg-on-dark-muted); }
 .reg-ws-progress strong { color: var(--cream); font-size: 16px; font-variant-numeric: tabular-nums; }

@@ -422,6 +422,11 @@ function Workspace({ onRestart }: { onRestart: () => void }) {
         <div className="reg-ws-who">
           <h2>{delegation.country}</h2>
           <p>{delegation.leaderName} · Team Leader</p>
+          <ul className="reg-ws-summary" aria-label="Delegation summary">
+            <li>{fees.teams} {fees.teams === 1 ? 'team' : 'teams'} · up to {fees.teams * 4} contestants</li>
+            <li>{fees.observers} {fees.observers === 1 ? 'observer' : 'observers'}</li>
+            <li>{submitted ? 'Registration submitted' : proofName ? 'Payment: waiting for Finance' : 'Payment: waiting for proof'}</li>
+          </ul>
         </div>
         <div className="reg-ws-progress">
           <p><strong>{submitted ? 'Submitted' : `${doneCount} of ${required.length}`}</strong>{submitted ? ' · you can still update travel and people' : ' steps done'}</p>
@@ -522,7 +527,7 @@ function Workspace({ onRestart }: { onRestart: () => void }) {
                   <table className="reg-fee-table">
                     <tbody>
                       {feeLines.map((line) => (
-                        <tr key={line.label}><th scope="row">{line.label}<small>{line.detail}</small></th><td>{line.amount === null ? (fees.observers ? 'To be confirmed' : '—') : money(line.amount)}</td></tr>
+                        <tr key={line.label}><th scope="row">{line.label}<small>{line.detail}</small></th><td>{line.amount === null ? (fees.observers ? 'Rate to be confirmed' : '—') : money(line.amount)}</td></tr>
                       ))}
                     </tbody>
                     <tfoot><tr><th scope="row">Total</th><td>{money(feeTotal)}</td></tr></tfoot>
@@ -546,6 +551,16 @@ function Workspace({ onRestart }: { onRestart: () => void }) {
                   <p className="reg-aside"><Info size={18} aria-hidden="true" />Account name, number and SWIFT code appear here once Finance approves them.</p>
                 </section>
               </div>
+
+              <section className="reg-block reg-pay-rules" aria-labelledby="pay-rules">
+                <h4 id="pay-rules">Payment rules</h4>
+                <Facts items={[
+                  { label: 'How', value: 'Bank transfer only', help: 'There is no card or online payment. Transfer outside this website, then upload the proof here.' },
+                  { label: 'Amount', value: 'The full invoice amount', help: 'The organisers must receive the full amount. Partial payments are not accepted.' },
+                  { label: 'Bank charges', value: 'Paid by you (OUR)', help: 'The organisers cannot cover charges that intermediary banks deduct.' },
+                  { label: 'Currency conversion', value: 'Paid by you', help: 'Conversion costs and exchange-rate differences are the sender’s responsibility.' },
+                ]} />
+              </section>
 
               <fieldset className="reg-fieldset">
                 <legend>Invoice details</legend>
@@ -675,6 +690,13 @@ function Workspace({ onRestart }: { onRestart: () => void }) {
                 </ul>
               </section>
             ) : <p className="reg-aside reg-aside-ok"><Check size={18} strokeWidth={3} aria-hidden="true" />Everything is ready to submit.</p>}
+            <h4 className="reg-subhead">Current status</h4>
+            <Facts items={[
+              { label: 'Registration', value: 'Draft, not submitted yet' },
+              { label: 'Changes after submitting', value: 'Allowed until the change deadline', help: 'The final lock date and the change-request channel are awaiting approval.' },
+              { label: 'Travel', value: stay.arrival && stay.departure && !stayProblem ? 'Stay dates added; flights can follow' : 'Stay dates still needed' },
+              { label: 'Messages from the organisers', value: 'None' },
+            ]} />
             <h4 className="reg-subhead">After you submit</h4>
             <Facts items={section.facts ?? []} />
             <div className="reg-panel-actions">
