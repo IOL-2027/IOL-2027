@@ -1,5 +1,5 @@
 // Converts API data into the portal's records and fields, and form data back into API payloads.
-import type { DelegationData, Member, Team, TravelRecord } from './api'
+import type { Attachment, DelegationData, GuardianConsentPolicy, Member, Team, TravelRecord } from './api'
 import type { Field, PortalRecord } from './portalData'
 
 const shirtHelp = 'Chest: XS 80 cm · S 85 · M 90 · L 95 · XL 100 · 2XL 106 · 3XL 112'
@@ -55,15 +55,25 @@ export function missingPersonFields(member: Partial<Member> & { role: Member['ro
   return memberDefs(member.role).filter((def) => !def.optional && def.key !== 'role' && !String(member[def.key] ?? '').trim())
 }
 
-export function personRecord(member: Member, teams: Team[]): PortalRecord {
-  const missing = missingPersonFields(member)
+/** The signed guardian consent form for this person, if one was uploaded. */
+export const consentFor = (member: Member, attachments: Attachment[]) => attachments.find((a) => a.kind === 'guardian_consent' && a.memberId === member.id)
+
+/** Everything still needed for this person: empty details, plus the consent form when the policy asks for one. */
+export function personGaps(member: Member, attachments: Attachment[]) {
+  const gaps = missingPersonFields(member).map((f) => f.label)
+  if (member.needsGuardianConsent && !consentFor(member, attachments)) gaps.push('Guardian consent form')
+  return gaps
+}
+
+export function personRecord(member: Member, teams: Team[], attachments: Attachment[]): PortalRecord {
+  const missing = personGaps(member, attachments)
   const team = teams.find((t) => t.id === member.teamId)
   return {
     id: member.id,
     label: member.displayName,
     meta: member.role === 'team_leader' ? 'Team Leader' : member.role === 'observer' ? 'Observer' : `Contestant${team ? ` · ${team.name}` : ''}`,
     status: missing.length ? 'attention' : 'complete',
-    issue: missing.length ? (missing.length === 1 ? `${missing[0].label} missing` : `${missing.length} details missing`) : undefined,
+    issue: missing.length ? (missing.length === 1 ? `${missing[0]} missing` : `${missing.length} details missing`) : undefined,
     fields: personFields(member, teams),
   }
 }
@@ -90,7 +100,7 @@ export function teamRecord(team: Team, data: DelegationData): PortalRecord {
     issue: team.contestLanguage ? undefined : 'Working language missing',
     facts: [
       { label: 'Team code', value: team.code },
-      { label: 'Team Leader', value: `${data.delegation.primaryTeamLeaderName}, from your account` },
+      { label: 'Team Leader', value: data.delegation.primaryTeamLeaderName, help: 'From the Team Leader account.' },
       { label: 'Contestants', value: contestants.join(', ') || 'None assigned yet' },
     ],
     fields: [
@@ -152,7 +162,18 @@ export function tripPayload(form: FormData, direction: 'arrival' | 'departure', 
 }
 
 /** The welfare summary is built from people's records; nobody retypes it. */
-export function welfareFacts(members: Member[]) {
+function guardianConsentFact(members: Member[], policy: GuardianConsentPolicy, attachments: Attachment[]) {
+  if (!policy.required) return { label: 'Guardian consent', value: 'Not required at the moment', help: 'The organisers will tell you if this changes.' }
+  const minors = members.filter((m) => m.needsGuardianConsent)
+  const done = minors.filter((m) => consentFor(m, attachments)).length
+  return {
+    label: 'Guardian consent',
+    value: minors.length ? `${done} of ${minors.length} forms uploaded` : 'Nobody needs one',
+    help: `Required for contestants under ${policy.ageThreshold} on ${new Date(`${policy.referenceDate}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}. Upload each form on the person’s record.`,
+  }
+}
+
+export function welfareFacts(members: Member[], policy: GuardianConsentPolicy, attachments: Attachment[]) {
   const contestants = members.filter((m) => m.role === 'contestant')
   const male = contestants.filter((m) => m.genderForRoomAllocation === 'Male').length
   const female = contestants.filter((m) => m.genderForRoomAllocation === 'Female').length
@@ -165,7 +186,7 @@ export function welfareFacts(members: Member[]) {
     { label: 'Room sharing', value: 'Same team preferred', help: 'Arranged by the accommodation team.' },
     { label: 'Food', value: diets.length ? diets.join(' · ') : 'No restrictions reported', help: 'Taken from each person’s food and allergy notes.' },
     { label: 'Medical and accessibility', value: medical.length ? medical.join(' · ') : 'Nothing reported' },
-    { label: 'Guardian consent', value: 'Policy awaiting organiser decision', help: 'No upload is needed until the organisers confirm the policy.' },
+    guardianConsentFact(members, policy, attachments),
     { label: 'Who can see this', value: 'Welfare, food and check-in staff only', help: 'Access is limited by role under Thailand’s PDPA.' },
     { label: 'How long it is kept', value: 'Deleted after the event', help: 'The exact retention period is awaiting approval.' },
   ]
