@@ -50,7 +50,7 @@ The API enforces this matrix on every request (`server/auth.js`). Hiding a butto
 
 ## Test accounts
 
-These exist **only on the development environment** (https://iol2027-dev.web.app). They use the reserved `.test` domain, so no real email is ever sent to them.
+These exist **only on the development environment**. Sign in at https://iol2027-dev.web.app/registration/team-leader. They use the reserved `.test` domain, so no real email is ever sent to them.
 
 | Role | Email | Linked to |
 | --- | --- | --- |
@@ -76,9 +76,9 @@ It is never committed to the repository. Recreate or reset the accounts with `np
 
 ### Test invite codes
 
-Unused codes for trying the full sign-up flow from scratch:
+Unused codes for trying the full sign-up flow from scratch. Each works once; `npm run db:seed-test` makes them unused again. Until emails are switched on, the dev site shows the 6-digit email code on screen.
 
 | Code | Country |
 | --- | --- |
-| `IOL2027-TST-0001` | Testland A (TEST) |
-| `IOL2027-TST-0002` | Testland B (TEST) |
+| `IOL2027-TST-0001` | Testland (TEST) |
+| `IOL2027-TST-0002` | Sampleland (TEST) |

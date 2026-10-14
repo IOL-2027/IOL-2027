@@ -30,7 +30,7 @@
 - Firebase Hosting serves `dist/` and rewrites unknown paths to `index.html`.
 - GitHub Actions workflow can build and deploy Hosting from the `main` branch.
 
-The current public pages are a content-ready static preview. They do not yet implement authentication, a registration database, admin CRUD, uploads, payment reconciliation, QR generation/scanning, or live results.
+The public site (`main`) is static. The development site (`development`, https://iol2027-dev.web.app) also routes `/api/**` to the registration API on Cloud Run, so the Team Leader portal there signs in, saves to the database, uploads proofs and has a role-based back office. Live results, news admin and the badge scanner are not built yet.
 
 ### Current route strategy
 
@@ -239,7 +239,7 @@ The handover runbook must include:
 - Monitoring, incident response, and on-call contacts.
 - Post-event transfer plan to faculty/successor host.
 
-### Registration backend (provisioned October 2026, not yet deployed)
+### Registration backend (development deployment, October 2026)
 
 | Piece | Where | Notes |
 | --- | --- | --- |
@@ -248,10 +248,11 @@ The handover runbook must include:
 | Connection string | Secret Manager secret `iol2027-database-url` in project `iol2027` (asia-southeast1) | Connects through the Cloud SQL socket `/cloudsql/research-trend-analysis:asia-southeast1:papertrend-pg`. |
 | Uploads | Bucket `gs://iol2027-registration-uploads` (asia-southeast1) | Private: uniform access, public access prevention enforced. The server writes here when `UPLOAD_BUCKET` is set (`server/storage.js`). |
 | Server identity | Service account `iol2027-api@iol2027.iam.gserviceaccount.com` | Cloud SQL Client on research-trend-analysis, read access to the database secret, object admin on the uploads bucket. Nothing else. |
+| API | Cloud Run service `iol2027-api` (asia-southeast1), image in Artifact Registry `registration` | Scales to zero, max 2 instances. Firebase Hosting rewrites `/api/**` to it on the dev target only. Deploy steps: `server/README.md`. |
 
 Known limits of sharing the instance: an outage or restart of `papertrend-pg` takes registration down too; the `db-f1-micro` tier should be reviewed before event-week check-in; and `papertrend_app` is a cloudsqlsuperuser member, so the research app's login could technically read the IOL database.
 
-Do not deploy the API publicly until authentication and role checks exist: the admin endpoints are currently unprotected.
+Every API route now checks the session and role (docs/ROLES.md). Before the public site gets the `/api/**` rewrite: switch on emails, set `EXPOSE_DEV_CODES` off, remove the test accounts, and review the shared-instance limits above.
 
 ### After the event: static archive
 

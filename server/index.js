@@ -1,7 +1,6 @@
 import 'dotenv/config'
 import crypto from 'node:crypto'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
 import multer from 'multer'
@@ -15,19 +14,36 @@ import {
   buildRegistrationSubmittedEmail,
   sendEmail,
 } from './email.js'
-import { saveUpload } from './storage.js'
+import { readUpload, saveUpload } from './storage.js'
+import {
+  DELEGATION_ADMINS, DELEGATION_READERS, HttpError, ROLES,
+  checkPasswordRules, createSession, destroySession, filterMember, hashPassword, loginBlocked, recordLogin,
+  requireAuth, requireRequestHeader, requireRole, requireVerified, sessionMiddleware, verifyPassword,
+} from './auth.js'
+import { calculateFees, feeConfig } from './fees.js'
 
 const { Pool } = pg
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const port = Number(process.env.API_PORT || 4000)
+// Return DATE columns as YYYY-MM-DD text. The default parser builds a local-midnight Date, which shifts
+// birthdays and travel dates by a day on servers ahead of UTC (Thailand is UTC+7).
+pg.types.setTypeParser(1082, (value) => value)
+const port = Number(process.env.PORT || process.env.API_PORT || 4000)
 const databaseUrl = process.env.DATABASE_URL
-const pool = databaseUrl ? new Pool({ connectionString: databaseUrl }) : null
+const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: Number(process.env.DB_POOL_MAX || 5) }) : null
+// Development only: return email verification codes in the API response while no email provider is configured.
+const exposeDevCodes = process.env.EXPOSE_DEV_CODES === 'true'
 
 const app = express()
-const corsOrigins = process.env.APP_ORIGIN?.split(',').map((origin) => origin.trim()).filter(Boolean)
+app.set('trust proxy', true)
+app.disable('x-powered-by')
 
-app.use(cors({ origin: corsOrigins?.length ? corsOrigins : true }))
+// The site and API share an origin (Vite proxy locally, Firebase rewrite in the cloud), so CORS is
+// only needed when APP_ORIGIN names a different origin.
+const corsOrigins = process.env.APP_ORIGIN?.split(',').map((origin) => origin.trim()).filter(Boolean)
+if (corsOrigins?.length) app.use(cors({ origin: corsOrigins, credentials: true }))
 app.use(express.json({ limit: '1mb' }))
+app.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next() })
+app.use(sessionMiddleware(requireDb))
+app.use(requireRequestHeader)
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -35,19 +51,12 @@ const upload = multer({
   fileFilter: (_req, file, callback) => {
     const allowed = new Set(['application/pdf', 'image/jpeg', 'image/png'])
     if (allowed.has(file.mimetype)) callback(null, true)
-    else callback(new ApiError(400, 'Only PDF, JPG and PNG files are accepted.'))
+    else callback(new HttpError(400, 'Only PDF, JPG and PNG files are accepted.'))
   },
 })
 
-class ApiError extends Error {
-  constructor(status, message) {
-    super(message)
-    this.status = status
-  }
-}
-
 function requireDb() {
-  if (!pool) throw new ApiError(503, 'DATABASE_URL is not configured.')
+  if (!pool) throw new HttpError(503, 'DATABASE_URL is not configured.')
   return pool
 }
 
@@ -75,7 +84,7 @@ function asyncHandler(handler) {
 }
 
 function requiredString(value, name) {
-  if (typeof value !== 'string' || !value.trim()) throw new ApiError(400, `${name} is required.`)
+  if (typeof value !== 'string' || !value.trim()) throw new HttpError(400, `${name} is required.`)
   return value.trim()
 }
 
@@ -86,74 +95,36 @@ function optionalString(value) {
 function optionalNumber(value) {
   if (value === undefined || value === null || value === '') return null
   const number = Number(value)
-  if (!Number.isFinite(number)) throw new ApiError(400, 'Expected a numeric value.')
+  if (!Number.isFinite(number)) throw new HttpError(400, 'Expected a numeric value.')
   return number
-}
-
-function optionalBoolean(value) {
-  if (value === undefined || value === null || value === '') return null
-  if (typeof value === 'boolean') return value
-  if (typeof value === 'string') {
-    if (['yes', 'true', '1'].includes(value.toLowerCase())) return true
-    if (['no', 'false', '0'].includes(value.toLowerCase())) return false
-  }
-  throw new ApiError(400, 'Expected a boolean value.')
 }
 
 function normalizeRole(role) {
   const value = requiredString(role, 'role').toLowerCase().replaceAll(' ', '_')
-  if (!['contestant', 'team_leader', 'observer'].includes(value)) throw new ApiError(400, 'Invalid member role.')
+  if (!['contestant', 'team_leader', 'observer'].includes(value)) throw new HttpError(400, 'Invalid member role.')
   return value
 }
 
 function normalizeDirection(direction) {
   const value = requiredString(direction, 'direction').toLowerCase()
-  if (!['arrival', 'departure'].includes(value)) throw new ApiError(400, 'Travel direction must be arrival or departure.')
+  if (!['arrival', 'departure'].includes(value)) throw new HttpError(400, 'Travel direction must be arrival or departure.')
   return value
 }
 
 function normalizeChangeStatus(value) {
   if (!value) return 'open'
   const normalized = String(value).toLowerCase().replaceAll(' ', '_')
-  if (!['open', 'submitted_to_loc', 'locked'].includes(normalized)) throw new ApiError(400, 'Invalid travel change status.')
+  if (!['open', 'submitted_to_loc', 'locked'].includes(normalized)) throw new HttpError(400, 'Invalid travel change status.')
   return normalized
 }
 
-function hashPassword(password) {
-  if (!password) return null
-  const salt = crypto.randomBytes(16).toString('hex')
-  const key = crypto.scryptSync(password, salt, 64).toString('hex')
-  return `scrypt:${salt}:${key}`
-}
+const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex')
+const toCamel = (value) => value.replace(/_([a-z])/g, (_match, char) => char.toUpperCase())
+const camelizeRow = (row) => Object.fromEntries(Object.entries(row).map(([key, value]) => [toCamel(key), value]))
+const camelizeRows = (rows) => rows.map(camelizeRow)
 
-function hashToken(token) {
-  return crypto.createHash('sha256').update(token).digest('hex')
-}
-
-async function sendVerificationEmail({ accountId, email, code, countryTerritory, fullName }) {
-  const { subject, html } = buildVerificationEmail({ countryTerritory: countryTerritory || 'your delegation', fullName: fullName || email, code })
-  try {
-    const result = await sendEmail({ pool: requireDb(), to: email, subject, html, purpose: 'account_verification', accountId })
-    return { delivery: camelizeRow(result.delivery), configured: result.configured }
-  } catch {
-    throw new ApiError(502, 'The verification email could not be sent. Please try again.')
-  }
-}
-
-function toCamel(value) {
-  return value.replace(/_([a-z])/g, (_match, char) => char.toUpperCase())
-}
-
-function camelizeRow(row) {
-  return Object.fromEntries(Object.entries(row).map(([key, value]) => [toCamel(key), value]))
-}
-
-function camelizeRows(rows) {
-  return rows.map(camelizeRow)
-}
-
-async function insertAudit(client, { actorAccountId = null, delegationId = null, eventType, entityType, entityId = null, details = {} }) {
-  await client.query(
+async function insertAudit(db, { actorAccountId = null, delegationId = null, eventType, entityType, entityId = null, details = {} }) {
+  await db.query(
     `INSERT INTO audit_events (actor_account_id, delegation_id, event_type, entity_type, entity_id, details)
      VALUES ($1, $2, $3, $4, $5, $6)`,
     [actorAccountId, delegationId, eventType, entityType, entityId, details],
@@ -165,7 +136,7 @@ function buildUpdate(body, fieldMap) {
   const values = []
   for (const [bodyKey, column] of Object.entries(fieldMap)) {
     if (Object.prototype.hasOwnProperty.call(body, bodyKey)) {
-      values.push(body[bodyKey])
+      values.push(body[bodyKey] === '' ? null : body[bodyKey])
       sets.push(`${column} = $${values.length}`)
     }
   }
@@ -174,29 +145,49 @@ function buildUpdate(body, fieldMap) {
   return { sets, values }
 }
 
-const registrationOptions = {
-  memberRoles: ['contestant', 'team_leader', 'observer'],
-  teamLimit: [1, 2],
-  observerLimit: null,
-  workingLanguages: ['English', 'French', 'German', 'Russian', 'Spanish', 'Arabic', 'Chinese', 'Other'],
-  tshirtSizes: [
-    { size: 'XS', chestCm: 80 }, { size: 'S', chestCm: 85 }, { size: 'M', chestCm: 90 },
-    { size: 'L', chestCm: 95 }, { size: 'XL', chestCm: 100 }, { size: '2XL', chestCm: 106 },
-    { size: '3XL', chestCm: 112 },
-  ],
-  roomTypes: ['Twin room', 'Single if available', 'No preference'],
-  guardianConsentPolicy: 'pending_organiser_decision',
-  travelDirections: ['arrival', 'departure'],
-  payment: {
-    collection: 'outside_website',
-    acceptedProofFormats: ['application/pdf', 'image/jpeg', 'image/png'],
-    transferFeeInstruction: 'OUR',
-    currency: 'USD',
-  },
-  backend: {
-    database: 'PostgreSQL',
-  },
+/* ------------------------------------------------------------------ */
+/* Access control                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Throws unless the signed-in user may read (or write) this delegation.
+ * Team Leaders reach only their own; other delegations answer 404 so their existence is not revealed.
+ */
+async function authorizeDelegation(req, delegationId, mode = 'read') {
+  const { role, id } = req.user
+  if (DELEGATION_ADMINS.includes(role)) return
+  if (mode === 'read' && DELEGATION_READERS.includes(role)) return
+  if (role === 'team_leader') {
+    const owned = await query('SELECT 1 FROM delegations WHERE id = $1 AND account_id = $2', [delegationId, id])
+    if (owned.rowCount) return
+  }
+  throw new HttpError(404, 'Delegation not found.')
 }
+
+/** Resolves the delegation that owns a team, member, travel record or attachment. */
+async function delegationOf(table, id) {
+  const tables = { teams: 'teams', members: 'members', travel: 'travel_records', attachments: 'attachments', payments: 'payments' }
+  const result = await query(`SELECT delegation_id FROM ${tables[table]} WHERE id = $1`, [id])
+  if (!result.rowCount) throw new HttpError(404, 'Not found.')
+  return result.rows[0].delegation_id
+}
+
+const delegationAccess = (mode) => asyncHandler(async (req, _res, next) => {
+  await authorizeDelegation(req, req.params.delegationId, mode)
+  next()
+})
+
+const childAccess = (table, param, mode = 'write') => asyncHandler(async (req, _res, next) => {
+  req.delegationId = await delegationOf(table, req.params[param])
+  await authorizeDelegation(req, req.delegationId, mode)
+  next()
+})
+
+const signedIn = [requireAuth, requireVerified]
+
+/* ------------------------------------------------------------------ */
+/* Public                                                              */
+/* ------------------------------------------------------------------ */
 
 app.get('/api/health', asyncHandler(async (_req, res) => {
   if (!pool) return res.status(503).json({ ok: false, database: 'not_configured' })
@@ -205,882 +196,710 @@ app.get('/api/health', asyncHandler(async (_req, res) => {
 }))
 
 app.get('/api/registration/options', (_req, res) => {
-  res.json(registrationOptions)
+  res.json({
+    memberRoles: ['contestant', 'team_leader', 'observer'],
+    teamLimit: [1, 2],
+    workingLanguages: ['English', 'French', 'German', 'Russian', 'Spanish', 'Arabic', 'Chinese', 'Other'],
+    payment: { collection: 'outside_website', transferFeeInstruction: 'OUR', currency: feeConfig.currency },
+  })
 })
 
 app.post('/api/registration/invite/verify', asyncHandler(async (req, res) => {
-  const code = requiredString(req.body.code, 'invite code')
+  const code = requiredString(req.body.code, 'invite code').toUpperCase()
   const result = await query(
-    `SELECT id, code, country_territory, accredited_organisation, contact_email, max_teams, status
-     FROM invite_codes
-     WHERE code = $1 AND status = 'active'`,
+    `SELECT code, country_territory, accredited_organisation, max_teams
+     FROM invite_codes WHERE code = $1 AND status = 'active' AND used_by_account_id IS NULL`,
     [code],
   )
-  if (!result.rowCount) throw new ApiError(404, 'Invite code was not found or is no longer active.')
+  if (!result.rowCount) throw new HttpError(404, 'That code was not found or has already been used. Check the invitation email, or contact the organisers.')
   res.json({ invite: camelizeRow(result.rows[0]) })
 }))
 
-app.post('/api/registration/team-leader-account', asyncHandler(async (req, res) => {
-  const inviteCode = requiredString(req.body.inviteCode, 'inviteCode')
-  const email = requiredString(req.body.email, 'email').toLowerCase()
-  const fullName = requiredString(req.body.fullName, 'fullName')
-  const passwordHash = hashPassword(req.body.password)
+/* ------------------------------------------------------------------ */
+/* Accounts and sessions                                               */
+/* ------------------------------------------------------------------ */
 
-  const created = await withTransaction(async (client) => {
-    const inviteResult = await client.query(
-      `SELECT *
-       FROM invite_codes
-       WHERE code = $1 AND status = 'active'
-       FOR UPDATE`,
-      [inviteCode],
-    )
-    if (!inviteResult.rowCount) throw new ApiError(404, 'Invite code was not found or is no longer active.')
-    const invite = inviteResult.rows[0]
-
-    const accountResult = await client.query('SELECT * FROM accounts WHERE lower(email) = lower($1)', [email])
-    const account = accountResult.rowCount
-      ? (await client.query(
-        `UPDATE accounts
-         SET full_name = $2, password_hash = COALESCE($3, password_hash), updated_at = now()
-         WHERE id = $1
-         RETURNING *`,
-        [accountResult.rows[0].id, fullName, passwordHash],
-      )).rows[0]
-      : (await client.query(
-        `INSERT INTO accounts (email, full_name, password_hash)
-         VALUES ($1, $2, $3)
-         RETURNING *`,
-        [email, fullName, passwordHash],
-      )).rows[0]
-
-    const delegationResult = await client.query(
-      `INSERT INTO delegations (
-        account_id,
-        invite_code_id,
-        country_territory,
-        accredited_organisation,
-        primary_team_leader_name,
-        team_leader_email,
-        mobile_whatsapp,
-        registration_contact_email,
-        number_of_teams,
-        number_of_contestants,
-        number_of_observers,
-        adult_room_preference
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 1), COALESCE($10, 4), COALESCE($11, 0), COALESCE($12, 'no_preference'))
-      ON CONFLICT (invite_code_id) DO UPDATE SET
-        account_id = EXCLUDED.account_id,
-        primary_team_leader_name = EXCLUDED.primary_team_leader_name,
-        team_leader_email = EXCLUDED.team_leader_email,
-        mobile_whatsapp = EXCLUDED.mobile_whatsapp,
-        registration_contact_email = EXCLUDED.registration_contact_email,
-        number_of_teams = EXCLUDED.number_of_teams,
-        number_of_contestants = EXCLUDED.number_of_contestants,
-        number_of_observers = EXCLUDED.number_of_observers,
-        adult_room_preference = EXCLUDED.adult_room_preference,
-        updated_at = now()
-      RETURNING *`,
-      [
-        account.id,
-        invite.id,
-        invite.country_territory,
-        invite.accredited_organisation,
-        fullName,
-        email,
-        optionalString(req.body.mobileWhatsapp),
-        optionalString(req.body.registrationContactEmail) || invite.contact_email,
-        optionalNumber(req.body.numberOfTeams),
-        optionalNumber(req.body.numberOfContestants),
-        optionalNumber(req.body.numberOfObservers),
-        optionalString(req.body.adultRoomPreference),
-      ],
-    )
-    const delegation = delegationResult.rows[0]
-
-    const teamLeaderResult = await client.query(
-      `SELECT id FROM members WHERE delegation_id = $1 AND role = 'team_leader' ORDER BY created_at LIMIT 1`,
-      [delegation.id],
-    )
-    if (teamLeaderResult.rowCount) {
-      await client.query(
-        `UPDATE members
-         SET display_name = $2, badge_name = $2, official_name = $2, email = $3, updated_at = now()
-         WHERE id = $1`,
-        [teamLeaderResult.rows[0].id, fullName, email],
-      )
-    } else {
-      await client.query(
-        `INSERT INTO members (delegation_id, role, display_name, badge_name, official_name, email)
-         VALUES ($1, 'team_leader', $2, $2, $2, $3)`,
-        [delegation.id, fullName, email],
-      )
-    }
-
-    await client.query(
-      `UPDATE invite_codes
-       SET used_at = COALESCE(used_at, now()), used_by_account_id = $1, updated_at = now()
-       WHERE id = $2`,
-      [account.id, invite.id],
-    )
-    await insertAudit(client, {
-      actorAccountId: account.id,
-      delegationId: delegation.id,
-      eventType: 'team_leader_account_upserted',
-      entityType: 'delegation',
-      entityId: delegation.id,
-      details: { inviteCode },
-    })
-
-    return { account, delegation }
-  })
-
-  res.status(201).json({ account: camelizeRow(created.account), delegation: camelizeRow(created.delegation) })
-}))
-
-app.post('/api/registration/accounts/:accountId/request-email-verification', asyncHandler(async (req, res) => {
-  const accountResult = await query(
-    `SELECT a.id, a.email, a.full_name, d.country_territory
-     FROM accounts a
-     LEFT JOIN delegations d ON d.account_id = a.id
-     WHERE a.id = $1
-     ORDER BY d.created_at DESC
-     LIMIT 1`,
-    [req.params.accountId],
-  )
-  if (!accountResult.rowCount) throw new ApiError(404, 'Account not found.')
-  const account = accountResult.rows[0]
-  const code = String(crypto.randomInt(100000, 999999))
-  const tokenHash = hashToken(code)
+async function issueVerificationCode(account) {
+  const code = String(crypto.randomInt(100000, 1000000))
   await query(
     `INSERT INTO email_verification_tokens (account_id, token_hash, expires_at)
      VALUES ($1, $2, now() + interval '30 minutes')`,
-    [req.params.accountId, tokenHash],
+    [account.id, hashToken(code)],
   )
-  const emailResult = await sendVerificationEmail({
-    accountId: req.params.accountId,
-    email: account.email,
-    code,
-    countryTerritory: account.country_territory,
-    fullName: account.full_name,
+  const { subject, html } = buildVerificationEmail({ countryTerritory: account.countryTerritory || 'your delegation', fullName: account.fullName, code })
+  let configured = false
+  try {
+    configured = (await sendEmail({ pool: requireDb(), to: account.email, subject, html, purpose: 'account_verification', accountId: account.id })).configured
+  } catch (error) {
+    console.error('verification email failed', error.message)
+    if (!exposeDevCodes) throw new HttpError(502, 'The verification email could not be sent. Please try again.')
+  }
+  return { emailSent: configured, developmentCode: exposeDevCodes && !configured ? code : undefined }
+}
+
+async function currentUserPayload(user) {
+  if (!user) return { user: null }
+  const payload = { user: { ...user } }
+  if (user.role === 'team_leader') {
+    const d = await query('SELECT id, country_territory FROM delegations WHERE account_id = $1 ORDER BY created_at LIMIT 1', [user.id])
+    payload.user.delegationId = d.rows[0]?.id ?? null
+    payload.user.country = d.rows[0]?.country_territory ?? null
+  }
+  return payload
+}
+
+app.get('/api/auth/me', asyncHandler(async (req, res) => {
+  res.json(await currentUserPayload(req.user))
+}))
+
+app.post('/api/auth/login', asyncHandler(async (req, res) => {
+  const email = requiredString(req.body.email, 'Email').toLowerCase()
+  const password = typeof req.body.password === 'string' ? req.body.password : ''
+  if (await loginBlocked(requireDb(), email)) throw new HttpError(429, 'Too many failed attempts. Try again in 15 minutes.')
+  const result = await query('SELECT id, password_hash, disabled_at FROM accounts WHERE lower(email) = $1', [email])
+  const account = result.rows[0]
+  const ok = Boolean(account && !account.disabled_at && verifyPassword(password, account.password_hash))
+  await recordLogin(requireDb(), email, req.ip, ok)
+  if (!ok) throw new HttpError(401, 'That email and password do not match an account.')
+  await createSession(requireDb(), req, res, account.id)
+  const me = await query('SELECT id, email, full_name, role, member_id, email_verified_at FROM accounts WHERE id = $1', [account.id])
+  const row = me.rows[0]
+  res.json(await currentUserPayload({ id: row.id, email: row.email, fullName: row.full_name, role: row.role, memberId: row.member_id, emailVerified: Boolean(row.email_verified_at) }))
+}))
+
+app.post('/api/auth/logout', asyncHandler(async (req, res) => {
+  await destroySession(requireDb(), req, res)
+  res.status(204).end()
+}))
+
+app.post('/api/registration/team-leader-account', asyncHandler(async (req, res) => {
+  const inviteCode = requiredString(req.body.inviteCode, 'Invitation code').toUpperCase()
+  const email = requiredString(req.body.email, 'Email').toLowerCase()
+  const fullName = requiredString(req.body.fullName, 'Full name')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, 'Enter an email address like name@example.org.')
+  checkPasswordRules(req.body.password)
+
+  const created = await withTransaction(async (client) => {
+    const invite = (await client.query(
+      `SELECT * FROM invite_codes WHERE code = $1 AND status = 'active' AND used_by_account_id IS NULL FOR UPDATE`,
+      [inviteCode],
+    )).rows[0]
+    if (!invite) throw new HttpError(404, 'That code was not found or has already been used.')
+    // An existing account is never modified here: that would let anyone holding a code reset its password.
+    const existing = await client.query('SELECT 1 FROM accounts WHERE lower(email) = $1', [email])
+    if (existing.rowCount) throw new HttpError(409, 'An account with this email already exists. Sign in instead.')
+
+    const account = (await client.query(
+      `INSERT INTO accounts (email, full_name, password_hash, role) VALUES ($1, $2, $3, 'team_leader') RETURNING *`,
+      [email, fullName, hashPassword(req.body.password)],
+    )).rows[0]
+    const delegation = (await client.query(
+      `INSERT INTO delegations (account_id, invite_code_id, country_territory, accredited_organisation,
+         primary_team_leader_name, team_leader_email, registration_contact_email, number_of_teams, number_of_contestants, number_of_observers)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 4, 0) RETURNING *`,
+      [account.id, invite.id, invite.country_territory, invite.accredited_organisation, fullName, email, invite.contact_email],
+    )).rows[0]
+    await client.query(
+      `INSERT INTO members (delegation_id, role, display_name, badge_name, official_name, email)
+       VALUES ($1, 'team_leader', $2, $2, $2, $3)`,
+      [delegation.id, fullName, email],
+    )
+    await ensureTeams(client, delegation)
+    await client.query(`UPDATE invite_codes SET status = 'used', used_at = now(), used_by_account_id = $1, updated_at = now() WHERE id = $2`, [account.id, invite.id])
+    await insertAudit(client, { actorAccountId: account.id, delegationId: delegation.id, eventType: 'team_leader_account_created', entityType: 'delegation', entityId: delegation.id, details: { inviteCode } })
+    return { account, delegation }
   })
+
+  await createSession(requireDb(), req, res, created.account.id)
+  const verification = await issueVerificationCode({ id: created.account.id, email, fullName, countryTerritory: created.delegation.country_territory })
   res.status(201).json({
-    ok: true,
-    delivery: emailResult.delivery,
-    emailProviderConfigured: emailResult.configured,
-    developmentCode: process.env.NODE_ENV === 'production' || emailResult.configured ? undefined : code,
+    ...(await currentUserPayload({ id: created.account.id, email, fullName, role: 'team_leader', memberId: null, emailVerified: false })),
+    ...verification,
   })
 }))
 
-app.post('/api/registration/accounts/:accountId/verify-email', asyncHandler(async (req, res) => {
-  const code = requiredString(req.body.code, 'verification code')
-  const tokenHash = hashToken(code)
-  const verified = await withTransaction(async (client) => {
-    const tokenResult = await client.query(
-      `SELECT *
-       FROM email_verification_tokens
-       WHERE account_id = $1
-         AND token_hash = $2
-         AND used_at IS NULL
-         AND expires_at > now()
-       ORDER BY created_at DESC
-       LIMIT 1
-       FOR UPDATE`,
-      [req.params.accountId, tokenHash],
-    )
-    if (!tokenResult.rowCount) throw new ApiError(400, 'Verification code is invalid or expired.')
-    await client.query('UPDATE email_verification_tokens SET used_at = now() WHERE id = $1', [tokenResult.rows[0].id])
-    const accountResult = await client.query(
-      `UPDATE accounts
-       SET email_verified_at = now(), updated_at = now()
-       WHERE id = $1
-       RETURNING *`,
-      [req.params.accountId],
-    )
-    return accountResult.rows[0]
-  })
-  res.json({ account: camelizeRow(verified) })
+app.post('/api/auth/verify-email/request', requireAuth, asyncHandler(async (req, res) => {
+  if (req.user.emailVerified) return res.json({ alreadyVerified: true })
+  const recent = await query(`SELECT 1 FROM email_verification_tokens WHERE account_id = $1 AND created_at > now() - interval '60 seconds'`, [req.user.id])
+  if (recent.rowCount) throw new HttpError(429, 'A code was sent less than a minute ago. Please wait before asking for another.')
+  const d = await query('SELECT country_territory FROM delegations WHERE account_id = $1 LIMIT 1', [req.user.id])
+  res.status(201).json(await issueVerificationCode({ ...req.user, countryTerritory: d.rows[0]?.country_territory }))
 }))
 
-app.get('/api/registration/delegations/:delegationId', asyncHandler(async (req, res) => {
-  const delegationResult = await query('SELECT * FROM delegations WHERE id = $1', [req.params.delegationId])
-  if (!delegationResult.rowCount) throw new ApiError(404, 'Delegation not found.')
+app.post('/api/auth/verify-email', requireAuth, asyncHandler(async (req, res) => {
+  const code = requiredString(req.body.code, 'Verification code')
+  await withTransaction(async (client) => {
+    const token = (await client.query(
+      `SELECT id FROM email_verification_tokens
+       WHERE account_id = $1 AND token_hash = $2 AND used_at IS NULL AND expires_at > now()
+       ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
+      [req.user.id, hashToken(code)],
+    )).rows[0]
+    if (!token) throw new HttpError(400, 'That code is wrong or has expired. Ask for a new one.')
+    await client.query('UPDATE email_verification_tokens SET used_at = now() WHERE id = $1', [token.id])
+    await client.query('UPDATE accounts SET email_verified_at = now(), updated_at = now() WHERE id = $1', [req.user.id])
+  })
+  res.json(await currentUserPayload({ ...req.user, emailVerified: true }))
+}))
 
-  const [teamResult, memberResult, travelResult, paymentResult, attachmentResult, badgeResult, checkInResult] = await Promise.all([
-    query('SELECT * FROM teams WHERE delegation_id = $1 ORDER BY code', [req.params.delegationId]),
-    query('SELECT * FROM members WHERE delegation_id = $1 ORDER BY role, display_name', [req.params.delegationId]),
+/* ------------------------------------------------------------------ */
+/* Delegation (Team Leader, or staff by role)                          */
+/* ------------------------------------------------------------------ */
+
+const TEAM_LETTERS = ['A', 'B']
+
+/** Keeps the team rows in step with number_of_teams: adds missing teams, removes unused extra ones. */
+async function ensureTeams(db, delegation) {
+  const want = Math.min(Math.max(Number(delegation.number_of_teams) || 1, 1), 2)
+  const existing = (await db.query('SELECT * FROM teams WHERE delegation_id = $1 ORDER BY code', [delegation.id])).rows
+  const prefix = delegation.country_territory.replace(/\s*\(TEST\)\s*/i, '').trim()
+  const short = prefix.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase()
+  for (let i = existing.length; i < want; i++) {
+    await db.query(
+      `INSERT INTO teams (delegation_id, name, code, status) VALUES ($1, $2, $3, 'draft') ON CONFLICT DO NOTHING`,
+      [delegation.id, `${prefix} ${TEAM_LETTERS[i]}`, `${short}-${TEAM_LETTERS[i]}`],
+    )
+  }
+  for (const team of existing.slice(want)) {
+    const used = await db.query('SELECT 1 FROM members WHERE team_id = $1 LIMIT 1', [team.id])
+    if (!used.rowCount) await db.query('DELETE FROM teams WHERE id = $1', [team.id])
+  }
+}
+
+function openPaymentQuery(db, delegationId) {
+  return db.query(
+    `SELECT * FROM payments WHERE delegation_id = $1 AND status IN ('awaiting_proof', 'rejected', 'awaiting_review')
+     ORDER BY created_at DESC LIMIT 1`,
+    [delegationId],
+  )
+}
+
+app.get('/api/registration/delegations/:delegationId', ...signedIn, delegationAccess('read'), asyncHandler(async (req, res) => {
+  const id = req.params.delegationId
+  const delegationResult = await query('SELECT * FROM delegations WHERE id = $1', [id])
+  if (!delegationResult.rowCount) throw new HttpError(404, 'Delegation not found.')
+  const delegation = delegationResult.rows[0]
+  const [teams, members, travel, payments, attachments, badges] = await Promise.all([
+    query('SELECT * FROM teams WHERE delegation_id = $1 ORDER BY code', [id]),
+    query(`SELECT * FROM members WHERE delegation_id = $1 ORDER BY CASE role WHEN 'team_leader' THEN 0 WHEN 'contestant' THEN 1 ELSE 2 END, created_at`, [id]),
     query(
-      `SELECT tr.*,
-        COALESCE(json_agg(trp.member_id) FILTER (WHERE trp.member_id IS NOT NULL), '[]'::json) AS member_ids
-       FROM travel_records tr
-       LEFT JOIN travel_record_people trp ON trp.travel_record_id = tr.id
-       WHERE tr.delegation_id = $1
-       GROUP BY tr.id
-       ORDER BY tr.direction, tr.local_date NULLS LAST, tr.local_time NULLS LAST`,
-      [req.params.delegationId],
+      `SELECT tr.*, COALESCE(json_agg(trp.member_id) FILTER (WHERE trp.member_id IS NOT NULL), '[]'::json) AS member_ids
+       FROM travel_records tr LEFT JOIN travel_record_people trp ON trp.travel_record_id = tr.id
+       WHERE tr.delegation_id = $1 GROUP BY tr.id ORDER BY tr.direction`,
+      [id],
     ),
-    query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC', [req.params.delegationId]),
-    query(
-      `SELECT id, delegation_id, member_id, kind, original_filename, mime_type, size_bytes, uploaded_by_account_id, created_at
-       FROM attachments
-       WHERE delegation_id = $1
-       ORDER BY created_at DESC`,
-      [req.params.delegationId],
-    ),
-    query(
-      `SELECT bc.id, bc.member_id, bc.public_id, bc.status, bc.issued_at, bc.revoked_at
-       FROM badge_credentials bc
-       JOIN members m ON m.id = bc.member_id
-       WHERE m.delegation_id = $1
-       ORDER BY bc.issued_at DESC`,
-      [req.params.delegationId],
-    ),
-    query(
-      `SELECT cie.id, cie.member_id, cie.checkpoint, cie.result, cie.scanned_at
-       FROM check_in_events cie
-       JOIN members m ON m.id = cie.member_id
-       WHERE m.delegation_id = $1
-       ORDER BY cie.scanned_at DESC
-       LIMIT 100`,
-      [req.params.delegationId],
-    ),
+    query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC', [id]),
+    query(`SELECT id, member_id, kind, original_filename, mime_type, size_bytes, created_at FROM attachments WHERE delegation_id = $1 ORDER BY created_at DESC`, [id]),
+    query(`SELECT bc.member_id, bc.status, bc.issued_at FROM badge_credentials bc JOIN members m ON m.id = bc.member_id WHERE m.delegation_id = $1`, [id]),
   ])
-
   res.json({
-    delegation: camelizeRow(delegationResult.rows[0]),
-    teams: camelizeRows(teamResult.rows),
-    members: camelizeRows(memberResult.rows),
-    travelRecords: camelizeRows(travelResult.rows),
-    payments: camelizeRows(paymentResult.rows),
-    attachments: camelizeRows(attachmentResult.rows),
-    badges: camelizeRows(badgeResult.rows),
-    checkIns: camelizeRows(checkInResult.rows),
-    paymentInstructions: {
-      collection: 'outside_website',
-      method: 'bank_transfer',
-      transferFeeInstruction: 'OUR',
-      proofUploadOnly: true,
-    },
+    delegation: camelizeRow(delegation),
+    fees: calculateFees({ numberOfTeams: delegation.number_of_teams, numberOfObservers: delegation.number_of_observers }),
+    teams: camelizeRows(teams.rows),
+    members: camelizeRows(members.rows.map((m) => filterMember(m, req.user.role))),
+    travelRecords: camelizeRows(travel.rows),
+    payments: camelizeRows(payments.rows),
+    attachments: camelizeRows(attachments.rows),
+    badges: camelizeRows(badges.rows),
   })
 }))
 
-app.patch('/api/registration/delegations/:delegationId', asyncHandler(async (req, res) => {
+app.patch('/api/registration/delegations/:delegationId', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
+  const body = { ...req.body }
+  if ('numberOfTeams' in body) {
+    const teams = Number(body.numberOfTeams)
+    if (![1, 2].includes(teams)) throw new HttpError(400, 'A country can register one or two teams.')
+    body.numberOfTeams = teams
+    body.numberOfContestants = teams * 4
+  }
+  if ('numberOfObservers' in body) {
+    const observers = Number(body.numberOfObservers)
+    if (!Number.isInteger(observers) || observers < 0 || observers > 20) throw new HttpError(400, 'Number of observers must be a whole number from 0 to 20.')
+    body.numberOfObservers = observers
+  }
+  if ('completedSteps' in body) {
+    const allowed = ['start', 'setup', 'teams', 'people', 'welfare', 'travel']
+    if (!Array.isArray(body.completedSteps) || body.completedSteps.some((s) => !allowed.includes(s))) throw new HttpError(400, 'Invalid step list.')
+    body.completedSteps = [...new Set(body.completedSteps)]
+  }
+  if (body.declaredArrivalDate && body.declaredDepartureDate && body.declaredDepartureDate < body.declaredArrivalDate) {
+    throw new HttpError(400, 'Departure must be on or after the arrival date.')
+  }
   const fieldMap = {
     mobileWhatsapp: 'mobile_whatsapp',
     registrationContactEmail: 'registration_contact_email',
     numberOfTeams: 'number_of_teams',
     numberOfContestants: 'number_of_contestants',
     numberOfObservers: 'number_of_observers',
-    adultRoomPreference: 'adult_room_preference',
-    registrationStatus: 'registration_status',
     declaredArrivalDate: 'declared_arrival_date',
     declaredDepartureDate: 'declared_departure_date',
     stayWindowNote: 'stay_window_note',
+    welfareNote: 'welfare_note',
+    completedSteps: 'completed_steps',
   }
-  const { sets, values } = buildUpdate(req.body, fieldMap)
-  values.push(req.params.delegationId)
-  const result = await query(`UPDATE delegations SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values)
-  if (!result.rowCount) throw new ApiError(404, 'Delegation not found.')
-  res.json({ delegation: camelizeRow(result.rows[0]) })
+  const delegation = await withTransaction(async (client) => {
+    const { sets, values } = buildUpdate(body, fieldMap)
+    values.push(req.params.delegationId)
+    const result = await client.query(`UPDATE delegations SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values)
+    if (!result.rowCount) throw new HttpError(404, 'Delegation not found.')
+    if ('numberOfTeams' in body) await ensureTeams(client, result.rows[0])
+    return result.rows[0]
+  })
+  res.json({ delegation: camelizeRow(delegation) })
 }))
 
-app.post('/api/registration/delegations/:delegationId/teams', asyncHandler(async (req, res) => {
+app.put('/api/registration/delegations/:delegationId/invoice', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
+  const invoiceCount = optionalNumber(req.body.invoiceCount) ?? 1
+  if (!Number.isInteger(invoiceCount) || invoiceCount < 1 || invoiceCount > 10) throw new HttpError(400, 'Number of invoices must be from 1 to 10.')
+  const payment = await withTransaction(async (client) => {
+    const delegation = (await client.query('SELECT * FROM delegations WHERE id = $1 FOR UPDATE', [req.params.delegationId])).rows[0]
+    const fees = calculateFees({ numberOfTeams: delegation.number_of_teams, numberOfObservers: delegation.number_of_observers })
+    const values = [requiredString(req.body.recipientName, 'Invoice recipient name'), optionalString(req.body.recipientAddress), invoiceCount, optionalString(req.body.splitNote), fees.total, fees.tier]
+    const open = (await openPaymentQuery(client, delegation.id)).rows[0]
+    if (open?.status === 'awaiting_review') throw new HttpError(409, 'Your proof is being reviewed. Contact the organisers to change invoice details.')
+    if (open) {
+      return (await client.query(
+        `UPDATE payments SET invoice_recipient_name = $1, invoice_recipient_address = $2, invoice_count = $3, invoice_split_note = $4,
+           amount_due = $5, fee_tier = $6, updated_at = now() WHERE id = $7 RETURNING *`,
+        [...values, open.id],
+      )).rows[0]
+    }
+    const short = delegation.country_territory.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase()
+    const reference = `${short}-IOL2027-${crypto.randomBytes(2).toString('hex').toUpperCase()}`
+    return (await client.query(
+      `INSERT INTO payments (delegation_id, invoice_recipient_name, invoice_recipient_address, invoice_count, invoice_split_note, amount_due, fee_tier, currency, payment_reference, status)
+       VALUES ($7, $1, $2, $3, $4, $5, $6, 'USD', $8, 'awaiting_proof') RETURNING *`,
+      [...values, delegation.id, reference],
+    )).rows[0]
+  })
+  res.json({ payment: camelizeRow(payment) })
+}))
+
+app.post('/api/registration/delegations/:delegationId/teams', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
   const result = await query(
-    `INSERT INTO teams (delegation_id, name, code, leader_member_id, contest_language, status)
-     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'draft'))
-     RETURNING *`,
-    [
-      req.params.delegationId,
-      requiredString(req.body.name, 'team name'),
-      requiredString(req.body.code, 'team code'),
-      optionalString(req.body.leaderMemberId),
-      optionalString(req.body.contestLanguage),
-      optionalString(req.body.status),
-    ],
+    `INSERT INTO teams (delegation_id, name, code, contest_language, status) VALUES ($1, $2, $3, $4, 'draft') RETURNING *`,
+    [req.params.delegationId, requiredString(req.body.name, 'Team name'), requiredString(req.body.code, 'Team code'), optionalString(req.body.contestLanguage)],
   )
   res.status(201).json({ team: camelizeRow(result.rows[0]) })
 }))
 
-app.patch('/api/registration/teams/:teamId', asyncHandler(async (req, res) => {
-  const fieldMap = {
-    name: 'name',
-    code: 'code',
-    leaderMemberId: 'leader_member_id',
-    contestLanguage: 'contest_language',
-    status: 'status',
-  }
-  const { sets, values } = buildUpdate(req.body, fieldMap)
+app.patch('/api/registration/teams/:teamId', ...signedIn, childAccess('teams', 'teamId'), asyncHandler(async (req, res) => {
+  const body = { ...req.body }
+  if ('contestLanguage' in body) body.status = optionalString(body.contestLanguage) ? 'ready' : 'draft'
+  const { sets, values } = buildUpdate(body, { name: 'name', contestLanguage: 'contest_language', status: 'status' })
   values.push(req.params.teamId)
   const result = await query(`UPDATE teams SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values)
-  if (!result.rowCount) throw new ApiError(404, 'Team not found.')
   res.json({ team: camelizeRow(result.rows[0]) })
 }))
 
-app.post('/api/registration/delegations/:delegationId/members', asyncHandler(async (req, res) => {
+const memberFields = {
+  teamId: 'team_id',
+  role: 'role',
+  observerCategory: 'observer_category',
+  displayName: 'display_name',
+  badgeName: 'badge_name',
+  officialName: 'official_name',
+  passportName: 'passport_name',
+  passportNumber: 'passport_number',
+  passportNationality: 'passport_nationality',
+  dateOfBirth: 'date_of_birth',
+  genderForRoomAllocation: 'gender_for_room_allocation',
+  examLanguage: 'exam_language',
+  tshirtSize: 'tshirt_size',
+  poloSize: 'polo_size',
+  foodAllergyNotes: 'food_allergy_notes',
+  medicalAccessibilityNotes: 'medical_accessibility_notes',
+  emergencyContact: 'emergency_contact',
+  roomTypePreference: 'room_type_preference',
+  email: 'email',
+  mobileWhatsapp: 'mobile_whatsapp',
+}
+
+/** People can only be added or edited once proof of payment is uploaded (Team Leader flow), except by admins. */
+async function requirePeopleOpen(req, delegationId) {
+  if (DELEGATION_ADMINS.includes(req.user.role)) return
+  const paid = await query(`SELECT 1 FROM payments WHERE delegation_id = $1 AND status IN ('awaiting_review', 'approved') LIMIT 1`, [delegationId])
+  if (!paid.rowCount) throw new HttpError(409, 'People opens once proof of payment is uploaded.')
+}
+
+async function checkTeamBelongs(teamId, delegationId) {
+  if (!teamId) return
+  const ok = await query('SELECT 1 FROM teams WHERE id = $1 AND delegation_id = $2', [teamId, delegationId])
+  if (!ok.rowCount) throw new HttpError(400, 'That team belongs to another delegation.')
+}
+
+app.post('/api/registration/delegations/:delegationId/members', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
+  await requirePeopleOpen(req, req.params.delegationId)
+  const body = { ...req.body, role: normalizeRole(req.body.role || 'contestant') }
+  if (body.role === 'team_leader') throw new HttpError(400, 'The Team Leader record is created with the account.')
+  await checkTeamBelongs(body.teamId, req.params.delegationId)
+  const displayName = requiredString(body.displayName, 'Display name')
+  const entries = Object.entries(memberFields).filter(([key]) => key in body)
+  const columns = ['delegation_id', ...entries.map(([, column]) => column)]
+  const values = [req.params.delegationId, ...entries.map(([key]) => (body[key] === '' ? null : body[key]))]
   const result = await query(
-    `INSERT INTO members (
-      delegation_id,
-      team_id,
-      role,
-      observer_category,
-      display_name,
-      badge_name,
-      official_name,
-      passport_name,
-      passport_number,
-      passport_nationality,
-      date_of_birth,
-      gender_for_room_allocation,
-      exam_language,
-      tshirt_size,
-      food_allergy_notes,
-      medical_accessibility_notes,
-      emergency_contact,
-      room_type_preference,
-      email,
-      mobile_whatsapp
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-    RETURNING *`,
-    [
-      req.params.delegationId,
-      optionalString(req.body.teamId),
-      normalizeRole(req.body.role),
-      optionalString(req.body.observerCategory),
-      requiredString(req.body.displayName, 'displayName'),
-      optionalString(req.body.badgeName) || requiredString(req.body.displayName, 'displayName'),
-      requiredString(req.body.officialName, 'officialName'),
-      optionalString(req.body.passportName),
-      optionalString(req.body.passportNumber),
-      optionalString(req.body.passportNationality),
-      optionalString(req.body.dateOfBirth),
-      optionalString(req.body.genderForRoomAllocation),
-      optionalString(req.body.examLanguage),
-      optionalString(req.body.tshirtSize),
-      optionalString(req.body.foodAllergyNotes),
-      optionalString(req.body.medicalAccessibilityNotes),
-      optionalString(req.body.emergencyContact),
-      optionalString(req.body.roomTypePreference),
-      optionalString(req.body.email),
-      optionalString(req.body.mobileWhatsapp),
-    ],
+    `INSERT INTO members (${columns.join(', ')}) VALUES (${columns.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
+    values,
   )
+  await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.params.delegationId, eventType: 'member_added', entityType: 'member', entityId: result.rows[0].id })
   res.status(201).json({ member: camelizeRow(result.rows[0]) })
 }))
 
-app.patch('/api/registration/members/:memberId', asyncHandler(async (req, res) => {
-  const payload = { ...req.body }
-  if (payload.role) payload.role = normalizeRole(payload.role)
-
-  const fieldMap = {
-    teamId: 'team_id',
-    role: 'role',
-    observerCategory: 'observer_category',
-    displayName: 'display_name',
-    badgeName: 'badge_name',
-    officialName: 'official_name',
-    passportName: 'passport_name',
-    passportNumber: 'passport_number',
-    passportNationality: 'passport_nationality',
-    dateOfBirth: 'date_of_birth',
-    genderForRoomAllocation: 'gender_for_room_allocation',
-    examLanguage: 'exam_language',
-    tshirtSize: 'tshirt_size',
-    foodAllergyNotes: 'food_allergy_notes',
-    medicalAccessibilityNotes: 'medical_accessibility_notes',
-    emergencyContact: 'emergency_contact',
-    roomTypePreference: 'room_type_preference',
-    email: 'email',
-    mobileWhatsapp: 'mobile_whatsapp',
-  }
-  const { sets, values } = buildUpdate(payload, fieldMap)
+app.patch('/api/registration/members/:memberId', ...signedIn, childAccess('members', 'memberId'), asyncHandler(async (req, res) => {
+  await requirePeopleOpen(req, req.delegationId)
+  const body = { ...req.body }
+  if (body.role) body.role = normalizeRole(body.role)
+  await checkTeamBelongs(body.teamId, req.delegationId)
+  const { sets, values } = buildUpdate(body, memberFields)
   values.push(req.params.memberId)
   const result = await query(`UPDATE members SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values)
-  if (!result.rowCount) throw new ApiError(404, 'Member not found.')
+  await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'member_updated', entityType: 'member', entityId: req.params.memberId, details: { fields: Object.keys(req.body) } })
   res.json({ member: camelizeRow(result.rows[0]) })
 }))
 
-app.delete('/api/registration/members/:memberId', asyncHandler(async (req, res) => {
-  const result = await query('DELETE FROM members WHERE id = $1 RETURNING id', [req.params.memberId])
-  if (!result.rowCount) throw new ApiError(404, 'Member not found.')
+app.delete('/api/registration/members/:memberId', ...signedIn, childAccess('members', 'memberId'), asyncHandler(async (req, res) => {
+  const member = (await query('SELECT role FROM members WHERE id = $1', [req.params.memberId])).rows[0]
+  if (member.role === 'team_leader') throw new HttpError(400, 'The Team Leader record cannot be removed.')
+  await query('DELETE FROM members WHERE id = $1', [req.params.memberId])
+  await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'member_removed', entityType: 'member', entityId: req.params.memberId })
   res.status(204).end()
 }))
 
-app.post('/api/registration/members/:memberId/guardian-consent', upload.single('consent'), asyncHandler(async (req, res) => {
-  if (!req.file) throw new ApiError(400, 'Guardian consent file is required.')
-  const response = await withTransaction(async (client) => {
-    const memberResult = await client.query('SELECT * FROM members WHERE id = $1 FOR UPDATE', [req.params.memberId])
-    if (!memberResult.rowCount) throw new ApiError(404, 'Member not found.')
-    const member = memberResult.rows[0]
-
-    const extension = path.extname(req.file.originalname).toLowerCase() || '.bin'
-    const storedName = `guardian-${req.params.memberId}-${crypto.randomUUID()}${extension}`
-    const storedPath = await saveUpload(`${member.delegation_id}/${storedName}`, req.file)
-
-    const attachmentResult = await client.query(
-      `INSERT INTO attachments (
-        delegation_id,
-        member_id,
-        kind,
-        original_filename,
-        stored_path,
-        mime_type,
-        size_bytes,
-        uploaded_by_account_id
-      )
-      VALUES ($1, $2, 'guardian_consent', $3, $4, $5, $6, $7)
-      RETURNING id, delegation_id, member_id, kind, original_filename, mime_type, size_bytes, uploaded_by_account_id, created_at`,
-      [
-        member.delegation_id,
-        req.params.memberId,
-        req.file.originalname,
-        storedPath,
-        req.file.mimetype,
-        req.file.size,
-        optionalString(req.body.uploadedByAccountId),
-      ],
-    )
-    const attachment = attachmentResult.rows[0]
-    await insertAudit(client, {
-      actorAccountId: optionalString(req.body.uploadedByAccountId),
-      delegationId: member.delegation_id,
-      eventType: 'guardian_consent_uploaded',
-      entityType: 'member',
-      entityId: req.params.memberId,
-      details: { originalFilename: req.file.originalname, mimeType: req.file.mimetype },
-    })
-    return attachment
+app.post('/api/registration/members/:memberId/guardian-consent', ...signedIn, childAccess('members', 'memberId'), upload.single('consent'), asyncHandler(async (req, res) => {
+  if (!req.file) throw new HttpError(400, 'Guardian consent file is required.')
+  const extension = path.extname(req.file.originalname).toLowerCase() || '.bin'
+  const storedPath = await saveUpload(`${req.delegationId}/guardian-${req.params.memberId}-${crypto.randomUUID()}${extension}`, req.file)
+  const attachment = await withTransaction(async (client) => {
+    const row = (await client.query(
+      `INSERT INTO attachments (delegation_id, member_id, kind, original_filename, stored_path, mime_type, size_bytes, uploaded_by_account_id)
+       VALUES ($1, $2, 'guardian_consent', $3, $4, $5, $6, $7)
+       RETURNING id, delegation_id, member_id, kind, original_filename, mime_type, size_bytes, created_at`,
+      [req.delegationId, req.params.memberId, req.file.originalname, storedPath, req.file.mimetype, req.file.size, req.user.id],
+    )).rows[0]
+    await insertAudit(client, { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'guardian_consent_uploaded', entityType: 'member', entityId: req.params.memberId })
+    return row
   })
-  res.status(201).json({ attachment: camelizeRow(response) })
+  res.status(201).json({ attachment: camelizeRow(attachment) })
 }))
 
-app.post('/api/registration/delegations/:delegationId/travel', asyncHandler(async (req, res) => {
+async function setTripPeople(db, travelRecordId, delegationId, peopleIds) {
+  if (!Array.isArray(peopleIds)) return
+  await db.query('DELETE FROM travel_record_people WHERE travel_record_id = $1', [travelRecordId])
+  for (const memberId of peopleIds) {
+    const own = await db.query('SELECT 1 FROM members WHERE id = $1 AND delegation_id = $2', [memberId, delegationId])
+    if (!own.rowCount) throw new HttpError(400, 'A person on this trip belongs to another delegation.')
+    await db.query('INSERT INTO travel_record_people (travel_record_id, member_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [travelRecordId, memberId])
+  }
+}
+
+app.post('/api/registration/delegations/:delegationId/travel', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
   const travel = await withTransaction(async (client) => {
-    const result = await client.query(
-      `INSERT INTO travel_records (
-        delegation_id,
-        direction,
-        travel_point,
-        flight_service_number,
-        local_date,
-        local_time,
-        terminal,
-        change_status
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *`,
-      [
-        req.params.delegationId,
-        normalizeDirection(req.body.direction),
-        optionalString(req.body.travelPoint),
-        optionalString(req.body.flightServiceNumber),
-        optionalString(req.body.localDate),
-        optionalString(req.body.localTime),
-        optionalString(req.body.terminal),
-        normalizeChangeStatus(req.body.changeStatus),
-      ],
-    )
-    const travelRecord = result.rows[0]
-    const peopleIds = Array.isArray(req.body.peopleIds) ? req.body.peopleIds : []
-    for (const memberId of peopleIds) {
-      await client.query(
-        `INSERT INTO travel_record_people (travel_record_id, member_id)
-         VALUES ($1, $2)
-         ON CONFLICT DO NOTHING`,
-        [travelRecord.id, memberId],
-      )
-    }
-    await client.query(
-      `UPDATE delegations
-       SET travel_status = 'in_progress', updated_at = now()
-       WHERE id = $1`,
-      [req.params.delegationId],
-    )
-    return travelRecord
+    const row = (await client.query(
+      `INSERT INTO travel_records (delegation_id, direction, travel_point, flight_service_number, local_date, local_time, terminal, change_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [req.params.delegationId, normalizeDirection(req.body.direction), optionalString(req.body.travelPoint), optionalString(req.body.flightServiceNumber),
+        optionalString(req.body.localDate), optionalString(req.body.localTime), optionalString(req.body.terminal), normalizeChangeStatus(req.body.changeStatus)],
+    )).rows[0]
+    await setTripPeople(client, row.id, req.params.delegationId, req.body.peopleIds)
+    await client.query(`UPDATE delegations SET travel_status = 'in_progress', updated_at = now() WHERE id = $1`, [req.params.delegationId])
+    return row
   })
   res.status(201).json({ travelRecord: camelizeRow(travel) })
 }))
 
-app.patch('/api/registration/travel/:travelRecordId', asyncHandler(async (req, res) => {
+app.patch('/api/registration/travel/:travelRecordId', ...signedIn, childAccess('travel', 'travelRecordId'), asyncHandler(async (req, res) => {
   const travel = await withTransaction(async (client) => {
-    const payload = { ...req.body }
-    if (payload.direction) payload.direction = normalizeDirection(payload.direction)
-    if (payload.changeStatus) payload.changeStatus = normalizeChangeStatus(payload.changeStatus)
-
-    const fieldMap = {
-      direction: 'direction',
-      travelPoint: 'travel_point',
-      flightServiceNumber: 'flight_service_number',
-      localDate: 'local_date',
-      localTime: 'local_time',
-      terminal: 'terminal',
-      changeStatus: 'change_status',
-    }
-    const { sets, values } = buildUpdate(payload, fieldMap)
+    const body = { ...req.body }
+    if (body.changeStatus) body.changeStatus = normalizeChangeStatus(body.changeStatus)
+    const { sets, values } = buildUpdate(body, { travelPoint: 'travel_point', flightServiceNumber: 'flight_service_number', localDate: 'local_date', localTime: 'local_time', terminal: 'terminal', changeStatus: 'change_status' })
     values.push(req.params.travelRecordId)
     const result = await client.query(`UPDATE travel_records SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values)
-    if (!result.rowCount) throw new ApiError(404, 'Travel record not found.')
-
-    if (Array.isArray(req.body.peopleIds)) {
-      await client.query('DELETE FROM travel_record_people WHERE travel_record_id = $1', [req.params.travelRecordId])
-      for (const memberId of req.body.peopleIds) {
-        await client.query(
-          `INSERT INTO travel_record_people (travel_record_id, member_id)
-           VALUES ($1, $2)
-           ON CONFLICT DO NOTHING`,
-          [req.params.travelRecordId, memberId],
-        )
-      }
-    }
+    await setTripPeople(client, req.params.travelRecordId, req.delegationId, req.body.peopleIds)
     return result.rows[0]
   })
   res.json({ travelRecord: camelizeRow(travel) })
 }))
 
-app.post('/api/registration/delegations/:delegationId/payment-proof', upload.single('proof'), asyncHandler(async (req, res) => {
-  if (!req.file) throw new ApiError(400, 'Proof of payment file is required.')
+app.post('/api/registration/delegations/:delegationId/payment-proof', ...signedIn, delegationAccess('write'), upload.single('proof'), asyncHandler(async (req, res) => {
+  if (!req.file) throw new HttpError(400, 'Choose the proof of transfer file to upload.')
+  const extension = path.extname(req.file.originalname).toLowerCase() || '.bin'
+  const storedPath = await saveUpload(`${req.params.delegationId}/proof-${crypto.randomUUID()}${extension}`, req.file)
   const response = await withTransaction(async (client) => {
-    const delegationResult = await client.query('SELECT * FROM delegations WHERE id = $1 FOR UPDATE', [req.params.delegationId])
-    if (!delegationResult.rowCount) throw new ApiError(404, 'Delegation not found.')
-    const delegation = delegationResult.rows[0]
-    const paymentReference = optionalString(req.body.paymentReference) || `${delegation.country_territory.slice(0, 3).toUpperCase()}-IOL2027-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
-
-    const paymentResult = await client.query(
-      `INSERT INTO payments (delegation_id, fee_tier, currency, amount_due, payment_reference, invoice_count, invoice_split_note, status)
-       VALUES ($1, COALESCE($2, 'early_bird'), 'USD', COALESCE($3, 0), $4, COALESCE($5, 1), $6, 'awaiting_review')
-       ON CONFLICT (delegation_id, payment_reference) DO UPDATE SET
-         invoice_count = EXCLUDED.invoice_count,
-         invoice_split_note = EXCLUDED.invoice_split_note,
-         status = 'awaiting_review',
-         updated_at = now()
-       RETURNING *`,
-      [
-        req.params.delegationId,
-        optionalString(req.body.feeTier),
-        optionalNumber(req.body.amountDue),
-        paymentReference,
-        optionalNumber(req.body.invoiceCount),
-        optionalString(req.body.invoiceSplitNote),
-      ],
-    )
-    const payment = paymentResult.rows[0]
-
-    const extension = path.extname(req.file.originalname).toLowerCase() || '.bin'
-    const storedName = `${crypto.randomUUID()}${extension}`
-    const storedPath = await saveUpload(`${req.params.delegationId}/${storedName}`, req.file)
-
-    const attachmentResult = await client.query(
-      `INSERT INTO attachments (
-        delegation_id,
-        kind,
-        original_filename,
-        stored_path,
-        mime_type,
-        size_bytes,
-        uploaded_by_account_id
-      )
-      VALUES ($1, 'payment_proof', $2, $3, $4, $5, $6)
-      RETURNING id, delegation_id, kind, original_filename, mime_type, size_bytes, uploaded_by_account_id, created_at`,
-      [
-        req.params.delegationId,
-        req.file.originalname,
-        storedPath,
-        req.file.mimetype,
-        req.file.size,
-        optionalString(req.body.uploadedByAccountId),
-      ],
-    )
-    const attachment = attachmentResult.rows[0]
-
-    const updatedPaymentResult = await client.query(
-      `UPDATE payments
-       SET proof_attachment_id = $1, status = 'awaiting_review', updated_at = now()
-       WHERE id = $2
-       RETURNING *`,
+    const payment = (await openPaymentQuery(client, req.params.delegationId)).rows[0]
+    if (!payment) throw new HttpError(409, 'Save the invoice details before uploading proof.')
+    const attachment = (await client.query(
+      `INSERT INTO attachments (delegation_id, kind, original_filename, stored_path, mime_type, size_bytes, uploaded_by_account_id)
+       VALUES ($1, 'payment_proof', $2, $3, $4, $5, $6)
+       RETURNING id, delegation_id, kind, original_filename, mime_type, size_bytes, created_at`,
+      [req.params.delegationId, req.file.originalname, storedPath, req.file.mimetype, req.file.size, req.user.id],
+    )).rows[0]
+    const updated = (await client.query(
+      `UPDATE payments SET proof_attachment_id = $1, status = 'awaiting_review', review_note = NULL, updated_at = now() WHERE id = $2 RETURNING *`,
       [attachment.id, payment.id],
-    )
-    await client.query(
-      `UPDATE delegations
-       SET payment_status = 'awaiting_review', updated_at = now()
-       WHERE id = $1`,
-      [req.params.delegationId],
-    )
-    await insertAudit(client, {
-      actorAccountId: optionalString(req.body.uploadedByAccountId),
-      delegationId: req.params.delegationId,
-      eventType: 'payment_proof_uploaded',
-      entityType: 'payment',
-      entityId: payment.id,
-      details: { originalFilename: req.file.originalname, mimeType: req.file.mimetype },
-    })
-
-    return { payment: updatedPaymentResult.rows[0], attachment }
+    )).rows[0]
+    await client.query(`UPDATE delegations SET payment_status = 'awaiting_review', updated_at = now() WHERE id = $1`, [req.params.delegationId])
+    await insertAudit(client, { actorAccountId: req.user.id, delegationId: req.params.delegationId, eventType: 'payment_proof_uploaded', entityType: 'payment', entityId: payment.id, details: { originalFilename: req.file.originalname } })
+    return { payment: updated, attachment }
   })
 
-  // emails: confirm to TL + alert to Finance — fire-and-forget, never block the response
-  const delegationFull = await query(
-    `SELECT d.country_territory, d.team_leader_email, d.primary_team_leader_name,
-            p.payment_reference, p.amount_due, p.currency, p.invoice_count, a.original_filename
-     FROM delegations d
-     JOIN payments p ON p.delegation_id = d.id AND p.id = $1
-     LEFT JOIN attachments a ON a.id = p.proof_attachment_id
-     WHERE d.id = $2`,
-    [response.payment.id, req.params.delegationId],
-  )
-  if (delegationFull.rowCount) {
-    const row = delegationFull.rows[0]
-    const emailCtx = {
-      countryTerritory: row.country_territory,
-      fullName: row.primary_team_leader_name,
-      paymentReference: row.payment_reference,
-      amountDue: row.amount_due,
-      currency: row.currency || 'USD',
-      invoiceCount: row.invoice_count,
-      proofFilename: row.original_filename,
-      delegationId: req.params.delegationId,
-    }
-    const tlEmail = buildProofReceivedEmail(emailCtx)
-    sendEmail({ pool: requireDb(), to: row.team_leader_email, ...tlEmail, purpose: 'payment_proof_received', delegationId: req.params.delegationId }).catch(console.error)
-    if (process.env.FINANCE_EMAIL) {
-      const finEmail = buildFinanceAlertEmail(emailCtx)
-      sendEmail({ pool: requireDb(), to: process.env.FINANCE_EMAIL, ...finEmail, purpose: 'finance_proof_alert', delegationId: req.params.delegationId }).catch(console.error)
-    }
+  const d = (await query('SELECT country_territory, team_leader_email, primary_team_leader_name FROM delegations WHERE id = $1', [req.params.delegationId])).rows[0]
+  const emailCtx = {
+    countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, paymentReference: response.payment.payment_reference,
+    amountDue: response.payment.amount_due, currency: response.payment.currency || 'USD', invoiceCount: response.payment.invoice_count,
+    proofFilename: req.file.originalname, delegationId: req.params.delegationId,
   }
-
-  res.status(201).json({
-    payment: camelizeRow(response.payment),
-    attachment: camelizeRow(response.attachment),
-    paymentCollection: 'outside_website',
-  })
+  sendEmail({ pool: requireDb(), to: d.team_leader_email, ...buildProofReceivedEmail(emailCtx), purpose: 'payment_proof_received', delegationId: req.params.delegationId }).catch((e) => console.error(e.message))
+  if (process.env.FINANCE_EMAIL) {
+    sendEmail({ pool: requireDb(), to: process.env.FINANCE_EMAIL, ...buildFinanceAlertEmail(emailCtx), purpose: 'finance_proof_alert', delegationId: req.params.delegationId }).catch((e) => console.error(e.message))
+  }
+  res.status(201).json({ payment: camelizeRow(response.payment), attachment: camelizeRow(response.attachment) })
 }))
 
-app.post('/api/registration/members/:memberId/badge', asyncHandler(async (req, res) => {
-  const memberResult = await query(
-    `SELECT id, delegation_id, display_name, badge_name, role FROM members WHERE id = $1`,
-    [req.params.memberId],
-  )
-  if (!memberResult.rowCount) throw new ApiError(404, 'Member not found.')
-
-  const publicId = crypto.randomUUID()
-  const secret = crypto.randomBytes(24).toString('base64url')
-  const secretHash = hashToken(secret)
-  const credentialResult = await query(
-    `INSERT INTO badge_credentials (member_id, public_id, secret_hash, status)
-     VALUES ($1, $2, $3, 'active')
-     ON CONFLICT (member_id) DO UPDATE SET
-       public_id = EXCLUDED.public_id,
-       secret_hash = EXCLUDED.secret_hash,
-       status = 'active',
-       issued_at = now(),
-       revoked_at = NULL
-     RETURNING id, member_id, public_id, status, issued_at`,
-    [req.params.memberId, publicId, secretHash],
-  )
-  const qrPayload = `IOL2027:${publicId}.${secret}`
-  const qrDataUrl = await QRCode.toDataURL(qrPayload, {
-    errorCorrectionLevel: 'M',
-    margin: 1,
-    width: 480,
-    color: { dark: '#160c1b', light: '#ffffff' },
-  })
-  await query(
-    `INSERT INTO audit_events (delegation_id, event_type, entity_type, entity_id, details)
-     VALUES ($1, 'badge_issued', 'member', $2, $3)`,
-    [memberResult.rows[0].delegation_id, req.params.memberId, { publicId }],
-  )
-  res.status(201).json({
-    badge: camelizeRow(credentialResult.rows[0]),
-    member: camelizeRow(memberResult.rows[0]),
-    qrDataUrl,
-  })
+app.get('/api/registration/attachments/:attachmentId', ...signedIn, asyncHandler(async (req, res) => {
+  const attachment = (await query('SELECT * FROM attachments WHERE id = $1', [req.params.attachmentId])).rows[0]
+  if (!attachment) throw new HttpError(404, 'File not found.')
+  if (req.user.role === 'finance_admin') {
+    if (attachment.kind !== 'payment_proof') throw new HttpError(404, 'File not found.')
+  } else {
+    await authorizeDelegation(req, attachment.delegation_id, req.user.role === 'welfare_staff' ? 'none' : 'read')
+  }
+  res.set('Content-Type', attachment.mime_type)
+  res.set('Content-Disposition', `attachment; filename="${attachment.original_filename.replace(/[^\w.\- ]/g, '_')}"`)
+  ;(await readUpload(attachment.stored_path)).on('error', (e) => { console.error(e.message); res.destroy() }).pipe(res)
 }))
 
-app.post('/api/registration/check-in/scan', asyncHandler(async (req, res) => {
-  const payload = requiredString(req.body.payload, 'QR payload')
-  const checkpoint = requiredString(req.body.checkpoint, 'checkpoint')
-  const encoded = payload.startsWith('IOL2027:') ? payload.slice('IOL2027:'.length) : payload
-  const separator = encoded.indexOf('.')
-  if (separator < 1) throw new ApiError(400, 'Badge QR is invalid.')
-  const publicId = encoded.slice(0, separator)
-  const secret = encoded.slice(separator + 1)
-  const credentialResult = await query(
-    `SELECT bc.*, m.display_name, m.badge_name, m.role, m.delegation_id
-     FROM badge_credentials bc
-     JOIN members m ON m.id = bc.member_id
-     WHERE bc.public_id = $1`,
-    [publicId],
-  )
-  if (!credentialResult.rowCount) throw new ApiError(404, 'Badge was not found.')
-  const credential = credentialResult.rows[0]
-  const suppliedHash = Buffer.from(hashToken(secret), 'hex')
-  const storedHash = Buffer.from(credential.secret_hash, 'hex')
-  const secretMatches = suppliedHash.length === storedHash.length && crypto.timingSafeEqual(suppliedHash, storedHash)
-  if (!secretMatches) throw new ApiError(400, 'Badge QR is invalid.')
+/** Person details that must be filled in before submission, by role. Mirrors the portal (src/registration/live.ts). */
+const requiredMemberColumns = {
+  all: [['badge_name', 'badge name'], ['official_name', 'official name'], ['passport_name', 'passport name'], ['passport_number', 'passport number'],
+    ['passport_nationality', 'passport nationality'], ['date_of_birth', 'date of birth'], ['gender_for_room_allocation', 'gender for room allocation'],
+    ['tshirt_size', 'T-shirt size'], ['polo_size', 'polo shirt size'], ['emergency_contact', 'emergency contact']],
+  contestant: [['team_id', 'team assignment'], ['exam_language', 'exam language']],
+  team_leader: [],
+  observer: [['observer_category', 'observer category'], ['email', 'email'], ['room_type_preference', 'room type preference']],
+}
 
-  const result = credential.status === 'active' ? 'accepted' : 'revoked'
-  const scanResult = await query(
-    `INSERT INTO check_in_events (badge_credential_id, member_id, scanned_by_account_id, checkpoint, result)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING *`,
-    [credential.id, credential.member_id, optionalString(req.body.scannedByAccountId), checkpoint, result],
-  )
-  res.status(result === 'accepted' ? 201 : 409).json({
-    accepted: result === 'accepted',
-    member: {
-      id: credential.member_id,
-      displayName: credential.display_name,
-      badgeName: credential.badge_name,
-      role: credential.role,
-    },
-    scan: camelizeRow(scanResult.rows[0]),
+/** Server-side check of what still blocks submission. */
+async function missingForSubmission(delegationId) {
+  const d = (await query('SELECT * FROM delegations WHERE id = $1', [delegationId])).rows[0]
+  const missing = []
+  for (const [step, label] of [['setup', 'Team and observers'], ['teams', 'Teams'], ['people', 'People'], ['welfare', 'Rooms and welfare'], ['travel', 'Travel']]) {
+    if (!d.completed_steps.includes(step)) missing.push(`Finish “${label}”`)
+  }
+  const paid = await query(`SELECT 1 FROM payments WHERE delegation_id = $1 AND status IN ('awaiting_review', 'approved')`, [delegationId])
+  if (!paid.rowCount) missing.push('Upload proof of payment')
+  if (!d.declared_arrival_date || !d.declared_departure_date) missing.push('Add your stay dates')
+  const teams = await query('SELECT name FROM teams WHERE delegation_id = $1 AND contest_language IS NULL ORDER BY code', [delegationId])
+  for (const team of teams.rows) missing.push(`${team.name}: working language missing`)
+  const members = await query('SELECT * FROM members WHERE delegation_id = $1 ORDER BY created_at', [delegationId])
+  for (const member of members.rows) {
+    const gaps = [...requiredMemberColumns.all, ...requiredMemberColumns[member.role]].filter(([column]) => member[column] === null || String(member[column]).trim() === '')
+    if (gaps.length) missing.push(`${member.display_name}: ${gaps.map(([, label]) => label).join(', ')}`)
+  }
+  return { delegation: d, missing }
+}
+
+app.post('/api/registration/delegations/:delegationId/submit', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
+  const { missing } = await missingForSubmission(req.params.delegationId)
+  if (missing.length) return res.status(409).json({ error: 'Finish the remaining steps first.', missing })
+  const submitted = await withTransaction(async (client) => {
+    const row = (await client.query(
+      `UPDATE delegations SET registration_status = 'submitted', submitted_at = now(), updated_at = now()
+       WHERE id = $1 AND registration_status = 'draft' RETURNING *`,
+      [req.params.delegationId],
+    )).rows[0]
+    if (!row) throw new HttpError(409, 'This registration has already been submitted.')
+    await insertAudit(client, { actorAccountId: req.user.id, delegationId: row.id, eventType: 'registration_submitted', entityType: 'delegation', entityId: row.id })
+    return row
   })
+  const { subject, html } = buildRegistrationSubmittedEmail({
+    countryTerritory: submitted.country_territory, fullName: submitted.primary_team_leader_name,
+    numberOfTeams: submitted.number_of_teams, numberOfObservers: submitted.number_of_observers, missingItems: [],
+  })
+  sendEmail({ pool: requireDb(), to: submitted.team_leader_email, subject, html, purpose: 'registration_submitted', delegationId: submitted.id }).catch((e) => console.error(e.message))
+  res.json({ delegation: camelizeRow(submitted) })
 }))
 
-app.get('/api/registration/admin/dashboard', asyncHandler(async (_req, res) => {
-  const [delegationCounts, paymentCounts, travelCounts] = await Promise.all([
-    query('SELECT registration_status, count(*)::int AS count FROM delegations GROUP BY registration_status ORDER BY registration_status'),
-    query('SELECT payment_status, count(*)::int AS count FROM delegations GROUP BY payment_status ORDER BY payment_status'),
-    query('SELECT travel_status, count(*)::int AS count FROM delegations GROUP BY travel_status ORDER BY travel_status'),
+/* ------------------------------------------------------------------ */
+/* Participant                                                         */
+/* ------------------------------------------------------------------ */
+
+app.get('/api/participant/me', ...signedIn, requireRole('participant'), asyncHandler(async (req, res) => {
+  if (!req.user.memberId) throw new HttpError(404, 'This account is not linked to a participant record yet.')
+  const member = (await query(
+    `SELECT m.*, d.country_territory, t.name AS team_name, bc.status AS badge_status
+     FROM members m JOIN delegations d ON d.id = m.delegation_id
+     LEFT JOIN teams t ON t.id = m.team_id LEFT JOIN badge_credentials bc ON bc.member_id = m.id
+     WHERE m.id = $1`,
+    [req.user.memberId],
+  )).rows[0]
+  if (!member) throw new HttpError(404, 'Participant record not found.')
+  res.json({ member: camelizeRow(member) })
+}))
+
+/* ------------------------------------------------------------------ */
+/* Staff                                                               */
+/* ------------------------------------------------------------------ */
+
+app.get('/api/admin/dashboard', ...signedIn, requireRole('registration_admin', 'finance_admin', 'viewer'), asyncHandler(async (_req, res) => {
+  const [registration, payment, travel, people, proofQueue] = await Promise.all([
+    query('SELECT registration_status AS status, count(*)::int AS count FROM delegations GROUP BY 1 ORDER BY 1'),
+    query('SELECT payment_status AS status, count(*)::int AS count FROM delegations GROUP BY 1 ORDER BY 1'),
+    query('SELECT travel_status AS status, count(*)::int AS count FROM delegations GROUP BY 1 ORDER BY 1'),
+    query('SELECT role AS status, count(*)::int AS count FROM members GROUP BY 1 ORDER BY 1'),
+    query(`SELECT count(*)::int AS count FROM payments WHERE status = 'awaiting_review'`),
   ])
   res.json({
-    delegations: camelizeRows(delegationCounts.rows),
-    payments: camelizeRows(paymentCounts.rows),
-    travel: camelizeRows(travelCounts.rows),
+    registration: registration.rows, payment: payment.rows, travel: travel.rows, people: people.rows,
+    proofsWaiting: proofQueue.rows[0].count,
   })
 }))
 
-// ── Finance admin endpoints ───────────────────────────────────────────────────
+app.get('/api/admin/delegations', ...signedIn, requireRole('registration_admin', 'finance_admin', 'welfare_staff'), asyncHandler(async (_req, res) => {
+  const result = await query(
+    `SELECT d.id, d.country_territory, d.primary_team_leader_name, d.team_leader_email, d.number_of_teams, d.number_of_observers,
+       d.registration_status, d.payment_status, d.travel_status, d.submitted_at,
+       (SELECT count(*)::int FROM members m WHERE m.delegation_id = d.id) AS people
+     FROM delegations d ORDER BY d.country_territory`,
+  )
+  res.json({ delegations: camelizeRows(result.rows) })
+}))
 
-app.post('/api/admin/payments/:paymentId/confirm', asyncHandler(async (req, res) => {
-  const confirmed = await withTransaction(async (client) => {
-    const paymentResult = await client.query(
-      `UPDATE payments
-       SET status = 'confirmed', reviewed_at = now(), reviewed_by_account_id = $2, updated_at = now()
-       WHERE id = $1 AND status = 'awaiting_review'
-       RETURNING *`,
-      [req.params.paymentId, optionalString(req.body.reviewedByAccountId)],
-    )
-    if (!paymentResult.rowCount) throw new ApiError(404, 'Payment not found or not in awaiting_review state.')
-    const payment = paymentResult.rows[0]
+app.get('/api/admin/payments', ...signedIn, requireRole('finance_admin', 'registration_admin'), asyncHandler(async (req, res) => {
+  const status = optionalString(req.query.status)
+  const result = await query(
+    `SELECT p.*, d.country_territory, d.primary_team_leader_name, a.original_filename AS proof_filename, r.full_name AS reviewed_by_name
+     FROM payments p JOIN delegations d ON d.id = p.delegation_id
+     LEFT JOIN attachments a ON a.id = p.proof_attachment_id LEFT JOIN accounts r ON r.id = p.reviewed_by_account_id
+     WHERE ($1::text IS NULL OR p.status = $1) ORDER BY p.updated_at DESC LIMIT 200`,
+    [status],
+  )
+  res.json({ payments: camelizeRows(result.rows) })
+}))
 
-    await client.query(
-      `UPDATE delegations
-       SET payment_status = 'confirmed', updated_at = now()
-       WHERE id = $1`,
-      [payment.delegation_id],
-    )
-    await insertAudit(client, {
-      actorAccountId: optionalString(req.body.reviewedByAccountId),
-      delegationId: payment.delegation_id,
-      eventType: 'payment_confirmed',
-      entityType: 'payment',
-      entityId: payment.id,
-      details: {},
-    })
+app.post('/api/admin/payments/:paymentId/approve', ...signedIn, requireRole('finance_admin'), asyncHandler(async (req, res) => {
+  const approved = await withTransaction(async (client) => {
+    const payment = (await client.query(
+      `UPDATE payments SET status = 'approved', reviewed_at = now(), reviewed_by_account_id = $2, review_note = $3, updated_at = now()
+       WHERE id = $1 AND status = 'awaiting_review' RETURNING *`,
+      [req.params.paymentId, req.user.id, optionalString(req.body.note)],
+    )).rows[0]
+    if (!payment) throw new HttpError(409, 'This payment is not waiting for review.')
+    await client.query(`UPDATE delegations SET payment_status = 'approved', updated_at = now() WHERE id = $1`, [payment.delegation_id])
+    await insertAudit(client, { actorAccountId: req.user.id, delegationId: payment.delegation_id, eventType: 'payment_approved', entityType: 'payment', entityId: payment.id })
     return payment
   })
-
-  // send confirmation email to TL
-  const delegationResult = await query(
-    `SELECT d.country_territory, d.team_leader_email, d.primary_team_leader_name
-     FROM delegations d WHERE d.id = $1`,
-    [confirmed.delegation_id],
-  )
-  if (delegationResult.rowCount) {
-    const d = delegationResult.rows[0]
-    const { subject, html } = buildPaymentConfirmedEmail({
-      countryTerritory: d.country_territory,
-      fullName: d.primary_team_leader_name,
-      paymentReference: confirmed.payment_reference,
-      amountPaid: confirmed.amount_due,
-      currency: confirmed.currency || 'USD',
-      receiptUrl: null,
-    })
-    sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_confirmed', delegationId: confirmed.delegation_id }).catch(console.error)
-  }
-
-  res.json({ payment: camelizeRow(confirmed) })
+  const d = (await query('SELECT country_territory, team_leader_email, primary_team_leader_name FROM delegations WHERE id = $1', [approved.delegation_id])).rows[0]
+  const { subject, html } = buildPaymentConfirmedEmail({
+    countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, paymentReference: approved.payment_reference,
+    amountPaid: approved.amount_due, currency: approved.currency || 'USD', receiptUrl: null,
+  })
+  sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_confirmed', delegationId: approved.delegation_id }).catch((e) => console.error(e.message))
+  res.json({ payment: camelizeRow(approved) })
 }))
 
-app.post('/api/admin/payments/:paymentId/reject', asyncHandler(async (req, res) => {
+app.post('/api/admin/payments/:paymentId/reject', ...signedIn, requireRole('finance_admin'), asyncHandler(async (req, res) => {
+  const note = requiredString(req.body.note, 'A reason for the Team Leader')
   const rejected = await withTransaction(async (client) => {
-    const paymentResult = await client.query(
-      `UPDATE payments
-       SET status = 'rejected', reviewed_at = now(), reviewed_by_account_id = $2,
-           review_note = $3, updated_at = now()
-       WHERE id = $1
-       RETURNING *`,
-      [req.params.paymentId, optionalString(req.body.reviewedByAccountId), optionalString(req.body.note)],
-    )
-    if (!paymentResult.rowCount) throw new ApiError(404, 'Payment not found.')
-    const payment = paymentResult.rows[0]
-    await client.query(
-      `UPDATE delegations SET payment_status = 'rejected', updated_at = now() WHERE id = $1`,
-      [payment.delegation_id],
-    )
-    await insertAudit(client, {
-      actorAccountId: optionalString(req.body.reviewedByAccountId),
-      delegationId: payment.delegation_id,
-      eventType: 'payment_rejected',
-      entityType: 'payment',
-      entityId: payment.id,
-      details: { note: req.body.note },
-    })
+    const payment = (await client.query(
+      `UPDATE payments SET status = 'rejected', reviewed_at = now(), reviewed_by_account_id = $2, review_note = $3, updated_at = now()
+       WHERE id = $1 AND status = 'awaiting_review' RETURNING *`,
+      [req.params.paymentId, req.user.id, note],
+    )).rows[0]
+    if (!payment) throw new HttpError(409, 'This payment is not waiting for review.')
+    await client.query(`UPDATE delegations SET payment_status = 'rejected', updated_at = now() WHERE id = $1`, [payment.delegation_id])
+    await insertAudit(client, { actorAccountId: req.user.id, delegationId: payment.delegation_id, eventType: 'payment_rejected', entityType: 'payment', entityId: payment.id, details: { note } })
     return payment
   })
   res.json({ payment: camelizeRow(rejected) })
 }))
 
-app.post('/api/registration/delegations/:delegationId/submit', asyncHandler(async (req, res) => {
-  const submitted = await withTransaction(async (client) => {
-    const delegationResult = await client.query(
-      `UPDATE delegations
-       SET registration_status = 'submitted', submitted_at = now(), updated_at = now()
-       WHERE id = $1 AND registration_status IN ('draft', 'in_progress')
-       RETURNING *`,
-      [req.params.delegationId],
-    )
-    if (!delegationResult.rowCount) throw new ApiError(404, 'Delegation not found or already submitted.')
-    const delegation = delegationResult.rows[0]
-    await insertAudit(client, {
-      actorAccountId: optionalString(req.body.accountId),
-      delegationId: delegation.id,
-      eventType: 'registration_submitted',
-      entityType: 'delegation',
-      entityId: delegation.id,
-      details: {},
-    })
-    return delegation
-  })
-
-  // send submission confirmation email
-  const { subject, html } = buildRegistrationSubmittedEmail({
-    countryTerritory: submitted.country_territory,
-    fullName: submitted.primary_team_leader_name,
-    numberOfTeams: submitted.number_of_teams,
-    numberOfObservers: submitted.number_of_observers,
-    missingItems: Array.isArray(req.body.missingItems) ? req.body.missingItems : [],
-  })
-  sendEmail({ pool: requireDb(), to: submitted.team_leader_email, subject, html, purpose: 'registration_submitted', delegationId: submitted.id }).catch(console.error)
-
-  res.json({ delegation: camelizeRow(submitted) })
+app.get('/api/admin/welfare', ...signedIn, requireRole('welfare_staff', 'registration_admin'), asyncHandler(async (req, res) => {
+  const result = await query(
+    `SELECT m.id, m.display_name, m.role, d.country_territory, m.gender_for_room_allocation, m.food_allergy_notes,
+       m.medical_accessibility_notes, m.emergency_contact, m.room_type_preference
+     FROM members m JOIN delegations d ON d.id = m.delegation_id ORDER BY d.country_territory, m.display_name`,
+  )
+  res.json({ people: camelizeRows(result.rows.map((m) => filterMember(m, req.user.role))) })
 }))
 
-// ── email delivery log ────────────────────────────────────────────────────────
+app.post('/api/registration/members/:memberId/badge', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
+  const member = (await query('SELECT id, delegation_id, display_name, badge_name, role FROM members WHERE id = $1', [req.params.memberId])).rows[0]
+  if (!member) throw new HttpError(404, 'Member not found.')
+  const publicId = crypto.randomUUID()
+  const secret = crypto.randomBytes(24).toString('base64url')
+  const credential = (await query(
+    `INSERT INTO badge_credentials (member_id, public_id, secret_hash, status) VALUES ($1, $2, $3, 'active')
+     ON CONFLICT (member_id) DO UPDATE SET public_id = EXCLUDED.public_id, secret_hash = EXCLUDED.secret_hash, status = 'active', issued_at = now(), revoked_at = NULL
+     RETURNING id, member_id, public_id, status, issued_at`,
+    [req.params.memberId, publicId, hashToken(secret)],
+  )).rows[0]
+  const qrDataUrl = await QRCode.toDataURL(`IOL2027:${publicId}.${secret}`, { errorCorrectionLevel: 'M', margin: 1, width: 480, color: { dark: '#160c1b', light: '#ffffff' } })
+  await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: member.delegation_id, eventType: 'badge_issued', entityType: 'member', entityId: member.id, details: { publicId } })
+  res.status(201).json({ badge: camelizeRow(credential), member: camelizeRow(member), qrDataUrl })
+}))
 
-app.get('/api/admin/email-deliveries', asyncHandler(async (_req, res) => {
-  const result = await query(
-    `SELECT * FROM email_deliveries ORDER BY created_at DESC LIMIT 200`,
-  )
+app.post('/api/registration/check-in/scan', ...signedIn, requireRole('checkin_staff', 'registration_admin'), asyncHandler(async (req, res) => {
+  const payload = requiredString(req.body.payload, 'QR payload')
+  const checkpoint = requiredString(req.body.checkpoint, 'checkpoint')
+  const encoded = payload.startsWith('IOL2027:') ? payload.slice('IOL2027:'.length) : payload
+  const separator = encoded.indexOf('.')
+  if (separator < 1) throw new HttpError(400, 'Badge QR is invalid.')
+  const publicId = encoded.slice(0, separator)
+  const secret = encoded.slice(separator + 1)
+  const credential = (await query(
+    `SELECT bc.*, m.display_name, m.badge_name, m.role, d.country_territory
+     FROM badge_credentials bc JOIN members m ON m.id = bc.member_id JOIN delegations d ON d.id = m.delegation_id
+     WHERE bc.public_id = $1`,
+    [publicId],
+  )).rows[0]
+  if (!credential) throw new HttpError(404, 'Badge was not found.')
+  const supplied = Buffer.from(hashToken(secret), 'hex')
+  const stored = Buffer.from(credential.secret_hash, 'hex')
+  if (!(supplied.length === stored.length && crypto.timingSafeEqual(supplied, stored))) throw new HttpError(400, 'Badge QR is invalid.')
+  const result = credential.status === 'active' ? 'accepted' : 'revoked'
+  const scan = (await query(
+    `INSERT INTO check_in_events (badge_credential_id, member_id, scanned_by_account_id, checkpoint, result) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [credential.id, credential.member_id, req.user.id, checkpoint, result],
+  )).rows[0]
+  res.status(result === 'accepted' ? 201 : 409).json({
+    accepted: result === 'accepted',
+    member: { id: credential.member_id, displayName: credential.display_name, badgeName: credential.badge_name, role: credential.role, country: credential.country_territory },
+    scan: camelizeRow(scan),
+  })
+}))
+
+app.get('/api/admin/email-deliveries', ...signedIn, requireRole('registration_admin'), asyncHandler(async (_req, res) => {
+  const result = await query('SELECT id, recipient_email, purpose, status, error_message, sent_at, created_at FROM email_deliveries ORDER BY created_at DESC LIMIT 200')
   res.json({ deliveries: camelizeRows(result.rows) })
 }))
 
+app.get('/api/admin/accounts', ...signedIn, requireRole('super_admin'), asyncHandler(async (_req, res) => {
+  const result = await query('SELECT id, email, full_name, role, email_verified_at, last_login_at, disabled_at, created_at FROM accounts ORDER BY role, email')
+  res.json({ accounts: camelizeRows(result.rows), roles: ROLES })
+}))
+
+app.patch('/api/admin/accounts/:accountId', ...signedIn, requireRole('super_admin'), asyncHandler(async (req, res) => {
+  const role = requiredString(req.body.role, 'Role')
+  if (!ROLES.includes(role)) throw new HttpError(400, 'Unknown role.')
+  if (req.params.accountId === req.user.id) throw new HttpError(400, 'You cannot change your own role.')
+  const result = await query('UPDATE accounts SET role = $1, updated_at = now() WHERE id = $2 RETURNING id, email, role', [role, req.params.accountId])
+  if (!result.rowCount) throw new HttpError(404, 'Account not found.')
+  await query('DELETE FROM sessions WHERE account_id = $1', [req.params.accountId])
+  await insertAudit(requireDb(), { actorAccountId: req.user.id, eventType: 'role_changed', entityType: 'account', entityId: req.params.accountId, details: { role } })
+  res.json({ account: camelizeRow(result.rows[0]) })
+}))
+
+/* ------------------------------------------------------------------ */
+
+app.use('/api', (_req, _res, next) => next(new HttpError(404, 'Not found.')))
+
 app.use((error, _req, res, _next) => {
-  const status = error.status || 500
+  const status = error.status || (error.code === 'LIMIT_FILE_SIZE' ? 400 : 500)
   if (status >= 500) console.error(error)
-  res.status(status).json({ error: error.message || 'Internal server error' })
+  const message = error.code === 'LIMIT_FILE_SIZE' ? 'The file is larger than 10 MB.' : status >= 500 ? 'Something went wrong on our side. Please try again.' : error.message
+  res.status(status).json({ error: message })
 })
 
 app.listen(port, () => {
-  console.log(`IOL 2027 registration API listening on http://localhost:${port}`)
+  console.log(`IOL 2027 registration API listening on port ${port}`)
 })
