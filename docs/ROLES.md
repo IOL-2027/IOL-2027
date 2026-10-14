@@ -32,11 +32,19 @@ The source requirements list Guest, Team Leader and Admin, and later Super Admin
 | Dashboard totals | | | ✅ | ✅ | | | ✅ | ✅ |
 | List all delegations | | | ✅ | ✅ | | ✅ | | ✅ |
 | Issue badges | | | ✅ | | | | | ✅ |
+| Invitation codes: create, send, revoke | | | ✅ | | | | | ✅ |
+| People status list (all countries) | | | ✅ with missing details | ✅ names and stage | ✅ names and stage | | | ✅ |
+| Open any country's registration and edit it | | | ✅ | | | | | ✅ |
+| Exports (CSV) | | | people, countries, payments, travel, check-ins, welfare | countries, payments | check-ins | welfare | | ✅ all |
+| Activity log | | | ✅ | | | | | ✅ |
+| Fees (settings) | | | read | ✅ edit | | | | ✅ |
+| Guardian consent policy | | | ✅ edit | | | | | ✅ |
 | Scan badges at check-in | | | ✅ | | ✅ | | | ✅ |
 | Email delivery log | | | ✅ | | | | | ✅ |
 | Passport numbers | own | own | ✅ | | | | | ✅ |
 | Food, medical, emergency contact | own | own | ✅ | | | ✅ | | ✅ |
-| Manage roles | | | | | | | | ✅ |
+| Manage roles; create and disable staff accounts | | | | | | | | ✅ |
+| Reset own password | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 The API enforces this matrix on every request (`server/auth.js`). Hiding a button in the UI is never the protection.
 
@@ -47,6 +55,9 @@ The API enforces this matrix on every request (`server/auth.js`). Hiding a butto
 - Changing requests (anything other than reading) must carry the `X-IOL-Request` header, which blocks cross-site form attacks.
 - Only a hash of the session token is stored in the database, so a database leak does not expose live sessions.
 - Five wrong passwords for the same email within 15 minutes blocks further attempts for 15 minutes.
+- **Forgot your password?** sends a 6-digit code (valid 30 minutes). Five wrong guesses retire the code. Setting a new password signs the account out everywhere else and counts as email verification.
+- **New staff accounts** are created by a super admin with a role and no usable password. The person receives a setup code (valid 7 days) and sets their own password through "Forgot your password?". Team Leaders never get accounts this way; they use an invitation code.
+- A super admin can **disable** an account; that signs the person out and blocks sign-in until it is enabled again.
 
 ## Test accounts
 

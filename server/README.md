@@ -59,7 +59,7 @@ gcloud run deploy iol2027-api --project iol2027 --region asia-southeast1 \
   --service-account iol2027-api@iol2027.iam.gserviceaccount.com \
   --add-cloudsql-instances research-trend-analysis:asia-southeast1:papertrend-pg \
   --set-secrets DATABASE_URL=iol2027-database-url:latest \
-  --set-env-vars NODE_ENV=production,UPLOAD_BUCKET=iol2027-registration-uploads,EXPOSE_DEV_CODES=true,DB_POOL_MAX=5 \
+  --set-env-vars NODE_ENV=production,UPLOAD_BUCKET=iol2027-registration-uploads,EXPOSE_DEV_CODES=true,DB_POOL_MAX=5,SITE_URL=https://iol2027-dev.web.app \
   --allow-unauthenticated --min-instances 0 --max-instances 2 --memory 512Mi
 ```
 
@@ -74,6 +74,7 @@ Public
 - `POST /api/registration/invite/verify`, `POST /api/registration/team-leader-account`
 - `GET /api/auth/me`, `POST /api/auth/login`, `POST /api/auth/logout`
 - `POST /api/auth/verify-email/request`, `POST /api/auth/verify-email` (signed in, unverified)
+- `POST /api/auth/password-reset/request` (always answers 202, so it cannot reveal accounts), `POST /api/auth/password-reset/confirm`
 
 Team Leader (own delegation; admins can open any)
 - `GET|PATCH /api/registration/delegations/:delegationId`
@@ -82,19 +83,25 @@ Team Leader (own delegation; admins can open any)
 - `POST …/members`, `PATCH|DELETE /api/registration/members/:memberId`, `POST …/guardian-consent`
 - `POST …/travel`, `PATCH /api/registration/travel/:travelRecordId`
 - `POST …/submit` (409 with a `missing` list until people, teams, payment and stay dates are complete)
-- `GET /api/registration/attachments/:attachmentId`
+- `GET /api/registration/attachments/:attachmentId` (`?inline=1` to preview in the page)
 
 Participant
 - `GET /api/participant/me`
 
-Staff
+Staff (routes in `admin.js`)
 - `GET /api/admin/dashboard`, `GET /api/admin/delegations`, `GET /api/admin/payments`
-- `POST /api/admin/payments/:paymentId/approve|reject` (Finance)
+- `POST /api/admin/payments/:paymentId/approve|reject` (Finance; approval issues the receipt number)
+- `GET /api/admin/people` (status of every person; missing details only for the registration team)
 - `GET /api/admin/welfare` (Welfare; no passport data)
-- `GET /api/admin/email-deliveries` (Registration admin)
-- `GET /api/admin/accounts`, `PATCH /api/admin/accounts/:accountId` (Super admin; a role change signs that person out)
+- `GET|POST /api/admin/invites`, `PATCH /api/admin/invites/:inviteId`, `POST /api/admin/invites/:inviteId/send` (Registration admin)
+- `GET /api/admin/exports`, `GET /api/admin/exports/:kind` (CSV; which kinds depends on the role)
+- `GET /api/admin/audit`, `GET /api/admin/email-deliveries` (Registration admin)
+- `GET /api/admin/settings`, `PUT /api/admin/settings/fees` (Finance), `PUT /api/admin/settings/guardian-consent` (Registration admin)
+- `GET|POST /api/admin/accounts`, `PATCH /api/admin/accounts/:accountId` (role, disabled), `POST /api/admin/accounts/:accountId/setup-code` (Super admin; changes sign that person out)
 - `POST /api/registration/members/:memberId/badge`, `POST /api/registration/check-in/scan`
 
-Country comes from the invitation and cannot be changed. Creating the account also creates the Team Leader's member record, so their identity is not entered twice. People can be saved with only a display name and completed in stages; completeness is checked on submission. Fees are calculated on the server (`fees.js`).
+Country comes from the invitation and cannot be changed. Creating the account also creates the Team Leader's member record, so their identity is not entered twice. People can be saved with only a display name and completed in stages; completeness (and guardian consent, when the policy is on) is checked on submission. Fees are calculated on the server from the `settings` table, with defaults in `fees.js`.
+
+Code layout: `index.js` (accounts, registration, badges), `admin.js` (back office), `lib.js` (database helpers), `codes.js` (emailed codes), `auth.js` (sessions and roles), `fees.js` (fees and organiser settings), `email.js` (templates and sending), `storage.js` (uploads).
 
 Badge issuance returns a QR image containing a random public ID and secret, never personal information. Scan events store the member, checkpoint, result, operator account and timestamp.

@@ -35,13 +35,13 @@ Owners follow the source document's §11: **Web/Dev** (อาม, ภีม์),
 
 ### Sprint plan to registration go-live
 
-| Sprint | Dates | Goal |
-| --- | --- | --- |
-| 1 | now → 7 Nov 2026 | Login with roles, portal saves to the database, API on Cloud Run (dev), emails switched on |
-| 2 | 8 Nov → 5 Dec 2026 | Admin back office (payment queue, people status, exports), password reset, audit log, guardian consent |
-| 3 | 6 Dec → 31 Dec 2026 | Full site content, PDPA page final, news admin, custom domain, UAT round 1 |
-| 4 | 1 Jan → 17 Jan 2027 | Cross-browser and mobile QA, load test, backup and restore test, production deploy, invite codes sent |
-| Go-live | 18 Jan 2027 | Registration opens |
+| Sprint | Dates | Goal | Status |
+| --- | --- | --- | --- |
+| 1 | now → 7 Nov 2026 | Login with roles, portal saves to the database, API on Cloud Run (dev), emails switched on | ✅ except emails (waiting for the Resend account) |
+| 2 | 8 Nov → 5 Dec 2026 | Admin back office (payment queue, people status, exports), password reset, audit log, guardian consent | ✅ built early, 15 Oct 2026, on the dev site; Google sign-in and admin 2FA moved to Sprint 3 |
+| 3 | 6 Dec → 31 Dec 2026 | Full site content, PDPA page final, news admin, custom domain, UAT round 1 | |
+| 4 | 1 Jan → 17 Jan 2027 | Cross-browser and mobile QA, load test, backup and restore test, production deploy, invite codes sent | |
+| Go-live | 18 Jan 2027 | Registration opens | |
 
 ---
 
@@ -87,8 +87,8 @@ Source §4. Role definitions and test accounts: [ROLES.md](ROLES.md).
 | Session-based login (HttpOnly cookie, idle timeout) | ✅ | `__session` cookie, 2-hour idle and 7-day absolute limit, tokens stored hashed |
 | Role-based permissions; Team Leaders see only their own delegation | ✅ | Checked on every API route; see [ROLES.md](ROLES.md) |
 | Test accounts for every role | ✅ | `npm run db:seed-test`; list in [ROLES.md](ROLES.md) |
-| Self-service password reset | ⬜ | Sprint 2. Source §13: a direct fix for regsy and Taiwan's weakness |
-| Sign in with Google | ⬜ | Sprint 2–3. Source §4 asks for both Google and email/password |
+| Self-service password reset | ✅ | 6-digit emailed code, five wrong guesses retire it, resets sign out everywhere. Source §13: a direct fix for regsy and Taiwan's weakness |
+| Sign in with Google | ⬜ | Sprint 3. Needs an OAuth consent screen set up in the Google Cloud console by the project owner account. Source §4 asks for both Google and email/password |
 | Password policy (length, breached-password check) | 🟡 | 12-character minimum on the server; breached-password check not built |
 | Admin 2FA | ⚠️ | Open question Q7 |
 | Login rate limiting and lockout | 🟡 | 5 failed sign-ins in 15 minutes locks the account; review in Sprint 4 |
@@ -139,17 +139,17 @@ Source §7.
 | --- | --- | --- | --- |
 | Currency USD; team fee USD 1,000 | Finance | ✅ | |
 | Room fee USD 220 per room, 2 rooms per team | Finance | ✅ | Confirmed by the user, 15 Oct 2026 |
-| Early bird and normal rates as configuration, not code | Web/Dev | 🟡 | On the server in `server/fees.js`; move to an admin-editable setting in Sprint 2 |
+| Early bird and normal rates as configuration, not code | Web/Dev | ✅ | Finance edits them in the back office (Fees); unpaid invoices follow changes |
 | Late-fee tier | Finance | ⚠️ | Q3 |
-| Observer fee | Finance | ⬜ | Rate not set |
+| Observer fee | Finance | ⬜ | Rate not set; Finance can now enter it under Fees |
 | Per-person fee for members added later | Finance | ⚠️ | Q1 |
 | Wire transfer only, OUR charges | Web/Dev | ✅ | Shown on the payment step and invoice |
 | SCB account name, number and SWIFT for สอวน | Finance | ⬜ | Q4; shown as "pending Finance approval" |
 | Invoice download | Web/Dev | ✅ | Printable invoice from the portal |
 | Proof upload (PDF, JPG, PNG, 10 MB) | Web/Dev | ✅ | Private Cloud Storage bucket |
 | Manual reconciliation with approve / reject | Web/Dev | ✅ | Finance back office; e-receipt PDF still to build |
-| Audit trail of who approved what and when | Web/Dev | 🟡 | `audit_events` table exists; needs the logged-in user recorded (Sprint 1) |
-| E-receipt PDF emailed after approval | Web/Dev | ⬜ | Sprint 2 |
+| Audit trail of who approved what and when | Web/Dev | ✅ | Activity log in the back office |
+| E-receipt PDF emailed after approval | Web/Dev | 🟡 | Numbered receipt (IOL2027-R-0001…) issued on approval, downloadable as PDF from the portal and the payment queue; the email links to it. Final wording and layout need Finance approval |
 | Refunds | Finance | ⚠️ | Q2 |
 
 ---
@@ -160,16 +160,16 @@ Source §6. Only the API pieces exist today.
 
 | Function | Status | Sprint |
 | --- | --- | --- |
-| Overview dashboard (countries, payment states, proof queue) | ✅ | Basic version; charts and drill-down in Sprint 2 |
-| Per-person status (registered → awaiting payment → paid → badge issued → checked in) | ⬜ | 2 |
-| Payment review queue with proof preview | 🟡 | Queue and download done; inline preview in Sprint 2 |
-| Invite-code management (create, send, revoke) | ⬜ | 2 |
-| Exports: participants, payments, check-in, by country / team / role (CSV, Excel) | ⬜ | 2 |
+| Overview dashboard (countries, payment states, proof queue) | ✅ | Includes people by stage and invitation codes |
+| Per-person status (registered → awaiting payment → paid → badge issued → checked in) | ✅ | People list with filters by country, role, stage and missing details |
+| Payment review queue with proof preview | ✅ | Inline preview, invoice details, search, return with a reason |
+| Invite-code management (create, send, revoke) | ✅ | One at a time or a pasted list; sending is recorded and goes out once emails are on |
+| Exports: participants, payments, check-in, by country / team / role (CSV, Excel) | ✅ | CSV that opens in Excel (Thai text kept); limited by role and logged. Native .xlsx not built |
 | News and Updates posting | ⬜ | 3 |
 | Gallery upload with captions | ⬜ | Before event |
 | Results entry with draft / publish and CSV import | ⬜ | Before event; ⚠️ see D7 |
 | Check-in reports by country | ⬜ | Before event |
-| User and role management | 🟡 | Super admin can change roles; creating staff accounts in Sprint 2 |
+| User and role management | ✅ | Create staff accounts (setup code by email), change roles, disable |
 
 ---
 
@@ -185,8 +185,8 @@ Source §2.3, §5.1 step 10, and the email questions in the source's question li
 | Proof received (Team Leader) and Finance alert | ✅ | |
 | Payment confirmed | ✅ | Receipt link missing until the e-receipt exists |
 | Registration submitted | ✅ | |
-| Invite code email | ⬜ | Sprint 2 |
-| Password reset email | ⬜ | Sprint 2 |
+| Invite code email | 🟡 | Template built; sends once emails are on |
+| Password reset email | 🟡 | Template built (also used for new staff setup); sends once emails are on |
 | E-receipt, QR badge and invitation letter emails | ⬜ | Sprint 2–3 |
 | Deadline reminders to unpaid countries | ⬜ | Source §12.1 |
 | Announcements to all participants (~500) | ⬜ | Batch sending; Resend free plan caps at 100 a day |
@@ -201,7 +201,7 @@ Source §8.
 | --- | --- | --- |
 | QR holds only a random reference, never personal data | ✅ | Signed badge credential |
 | Scan from phone camera or webcam, no app install | ✅ | `/registration/check-in` prototype |
-| Fallback search by name or passport | ⬜ | |
+| Fallback search by name or passport | 🟡 | Check-in staff can search People by name; marking someone checked in by hand is not built |
 | Offline or cached mode for weak venue Wi-Fi | ⬜ | Q8 with LOC |
 | Printed badges with QR from a vendor | ⬜ | Source §12.1; LOC procurement |
 | Rehearsal at the venue | ⬜ | Before event |
@@ -219,9 +219,9 @@ Source §9.1.
 | Session cookie HttpOnly, Secure, SameSite | ✅ | Plus a required request header on every write against cross-site requests |
 | Role-limited access to sensitive fields (health, food, passport, emergency contact) | ✅ | Delegation scoping and field-level redaction by role (e.g. Welfare never sees passports) |
 | Private storage for proofs and consent forms | ✅ | |
-| Guardian consent for minors | ⬜ | Policy pending the organisers |
+| Guardian consent for minors | 🟡 | Built and switched off: the registration team turns it on (age limit and date) once the policy is decided; then uploads are required before submission. Consent form template still needed |
 | Privacy / PDPA page with controller, lawful basis, retention, contact | 🟡 | Content owner needed |
-| Audit log of data changes | 🟡 | |
+| Audit log of data changes | ✅ | Every change to registrations, payments, codes, settings, accounts and exports |
 | Retention and deletion schedule | ⚠️ | Q9; post-event deletion planned (§12) |
 | Daily backups and a tested restore | 🟡 | Cloud SQL backups and point-in-time recovery on; restore never tested |
 
