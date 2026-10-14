@@ -51,7 +51,7 @@ try {
   // Remove previous test data. Delegations go first (members cascade), then accounts, then codes.
   await db.query(`DELETE FROM delegations WHERE account_id IN (SELECT id FROM accounts WHERE email LIKE '%@iol2027.test')`)
   await db.query(`DELETE FROM accounts WHERE email LIKE '%@iol2027.test'`)
-  await db.query(`DELETE FROM invite_codes WHERE code LIKE 'IOL2027-%-TEST' OR code LIKE 'IOL2027-TST-%'`)
+  await db.query(`DELETE FROM invite_codes WHERE code LIKE 'IOL2027-%-TEST' OR code LIKE 'IOL2027-TST-%' OR country_territory LIKE '%(TEST)'`)
 
   for (const [email, name, role] of staff) {
     await db.query(`INSERT INTO accounts (email, full_name, password_hash, role, email_verified_at) VALUES ($1, $2, $3, $4, now())`, [email, name, hash, role])
