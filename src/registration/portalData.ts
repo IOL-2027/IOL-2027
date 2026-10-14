@@ -83,7 +83,9 @@ export const selectOptions: Record<string, string[]> = {
   'Exam language': ['English', 'French', 'German', 'Russian', 'Spanish', 'Arabic', 'Chinese', 'Other'],
   'T-shirt size': ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'],
   'Polo shirt size': ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'],
-  'Room type preference': ['Twin room', 'Single if available', 'No preference'],
+  'Room type preference': ['Single room (ห้องเดี่ยว)', 'Twin/shared room (ห้องคู่)', 'No preference'],
+  'T-shirt style': ['Unisex (standard)', 'Ladies fit'],
+  'Umbrella preference': ['Yes — I would like one', 'No thank you'],
   'Observer category': ['Regular observer', 'Guest observer', 'Observer pending approval'],
   'Arrival point': ['Suvarnabhumi Airport (BKK)', 'Don Mueang Airport (DMK)', 'Bangkok railway station', 'Other'],
   'Departure point': ['Suvarnabhumi Airport (BKK)', 'Don Mueang Airport (DMK)', 'Bangkok railway station', 'Other'],
@@ -95,7 +97,7 @@ export const selectOptions: Record<string, string[]> = {
 export const personFieldGroups: { legend: string; note?: string; labels: string[] }[] = [
   { legend: 'Role and names', labels: ['Role', 'Team assignment', 'Observer category', 'Display name', 'Badge name', 'Official name', 'Email'] },
   { legend: 'Passport', note: 'Only used to match travel and hotel records.', labels: ['Passport name', 'Passport number', 'Passport nationality', 'Date of birth'] },
-  { legend: 'Contest and stay', labels: ['Exam language', 'Gender for room allocation', 'Room type preference', 'T-shirt size', 'Polo shirt size'] },
+  { legend: 'Contest and stay', labels: ['Exam language', 'Gender for room allocation', 'Room type preference', 'T-shirt size', 'Polo shirt size', 'T-shirt style', 'Umbrella preference'] },
   { legend: 'Welfare and safety', note: 'Seen only by the welfare, food and check-in teams.', labels: ['Food and allergy notes', 'Medical or accessibility notes', 'Emergency contact'] },
 ]
 
@@ -112,11 +114,12 @@ const people: Person[] = [
   { id: 'mali', name: 'Mali Phan', role: 'Contestant', team: 'Thailand A', badge: 'Mali', passportName: 'PHAN MALI', passport: 'AA7654321', dob: '', gender: 'Female', shirt: 'S', food: 'Vegetarian', medical: 'No special requirements', emergency: 'Nok Phan, +66 82 222 3344' },
   { id: 'kiet', name: 'Kiet Rattanakul', role: 'Contestant', team: 'Thailand A', badge: 'Kiet', passportName: 'RATTANAKUL KIET', passport: 'AA2468101', dob: '2009-06-03', gender: 'Male', shirt: 'M', food: 'No pork', medical: 'Carries an inhaler', emergency: 'Arun Rattanakul, +66 82 333 4455' },
   { id: 'arun', name: 'Arun Songsiri', role: 'Contestant', team: 'Thailand A', badge: 'Arun', passportName: 'SONGSIRI ARUN', passport: 'AA3579246', dob: '2008-11-18', gender: 'Male', shirt: 'L', food: 'No restrictions', medical: 'No special requirements', emergency: 'Malee Songsiri, +66 82 444 5566' },
-  { id: 'preecha', name: 'Prof. Preecha K.', role: 'Observer', team: '', badge: 'Prof. Preecha', passportName: 'KITTISAK PREECHA', passport: 'AB7659001', dob: '1975-04-09', gender: 'Male', shirt: 'L', food: 'No pork', medical: 'No special requirements', emergency: 'Maneerat K., +66 81 888 7766', observerCategory: 'Regular observer', email: 'preecha@national-olympiad.org', room: 'Single if available' },
+  { id: 'preecha', name: 'Prof. Preecha K.', role: 'Observer', team: '', badge: 'Prof. Preecha', passportName: 'KITTISAK PREECHA', passport: 'AB7659001', dob: '1975-04-09', gender: 'Male', shirt: 'L', food: 'No pork', medical: 'No special requirements', emergency: 'Maneerat K., +66 81 888 7766', observerCategory: 'Regular observer', email: 'preecha@national-olympiad.org', room: 'Single room (ห้องเดี่ยว)' },
 ]
 
 function personFields(p: Person): Field[] {
   const isObserver = p.role === 'Observer'
+  const isLeader = p.role === 'Team Leader'
   return [
     { label: 'Role', value: p.role, kind: 'select' },
     ...(isObserver
@@ -132,9 +135,11 @@ function personFields(p: Person): Field[] {
     { label: 'Date of birth', value: p.dob, kind: 'date', help: isObserver ? undefined : 'Confirms contestant eligibility and whether a guardian consent is needed.' },
     ...(isObserver ? [] : [{ label: 'Exam language', value: 'English', kind: 'select' as const, help: 'Language of the individual contest paper.' }]),
     { label: 'Gender for room allocation', value: p.gender, kind: 'select', help: 'Used only for rooming and safeguarding.' },
-    ...(isObserver ? [{ label: 'Room type preference', value: p.room ?? '', kind: 'select' as const, help: 'A single room may carry a supplement.' }] : []),
+    ...((isObserver || isLeader) ? [{ label: 'Room type preference', value: p.room ?? '', kind: 'select' as const, help: 'A single room may carry a supplement.' }] : []),
     { label: 'T-shirt size', value: p.shirt, kind: 'select', help: shirtHelp },
     { label: 'Polo shirt size', value: p.shirt, kind: 'select', help: shirtHelp },
+    { label: 'T-shirt style', value: '', kind: 'select', help: 'Choose the cut that fits best.' },
+    { label: 'Umbrella preference', value: '', kind: 'select', optional: true },
     { label: 'Food and allergy notes', value: p.food, kind: 'textarea', optional: true },
     { label: 'Medical or accessibility notes', value: p.medical, kind: 'textarea', optional: true },
     { label: 'Emergency contact', value: p.emergency, help: 'Name and phone number of someone we can reach during the event.' },
@@ -187,7 +192,7 @@ export const sections: Section[] = [
   },
   {
     id: 'payment', title: 'Payment', required: true,
-    intro: 'Check the amount, tell us how to invoice you, transfer, then upload the bank’s proof of transfer.',
+    intro: `Check the amount below, tell us how to invoice you, then transfer the full amount to สอวน (POSN) and upload the bank’s proof of transfer. The transfer must reach สอวน in full — do not deduct bank charges.`,
     fields: [
       { label: 'Invoice recipient name', value: delegation.organisation, help: 'The organisation named on the invoice.' },
       { label: 'Invoice recipient address', value: '', kind: 'textarea', optional: true, help: 'Only if your institution needs a postal address on the invoice.' },

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import QRCode from 'qrcode'
 import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, Info, Lock, MailCheck, ShieldCheck, Upload, UserPlus } from 'lucide-react'
 import {
   delegation, feeLines, feeTotal, fees, personFieldGroups, programmeWindow, sections, selectOptions,
@@ -80,6 +81,31 @@ function Facts({ items, compact }: { items: { label: string; value: string; help
         </div>
       ))}
     </dl>
+  )
+}
+
+function BadgeCard({ record }: { record: PortalRecord }) {
+  const [qrUrl, setQrUrl] = useState('')
+  const ref = `IOL2027-BADGE-${record.id.toUpperCase()}`
+  const badgeName = record.fields.find((f) => f.label === 'Badge name')?.value || record.label
+
+  useEffect(() => {
+    QRCode.toDataURL(ref, { width: 280, margin: 2, color: { dark: '#1a1a2e', light: '#ffffff' } })
+      .then(setQrUrl).catch(() => undefined)
+  }, [ref])
+
+  return (
+    <div className="reg-badge-card">
+      {qrUrl
+        ? <img src={qrUrl} alt={`QR badge for ${badgeName}`} width={140} height={140} />
+        : <div style={{ width: 140, height: 140, background: 'var(--reg-border)', borderRadius: 4 }} />}
+      <div className="reg-badge-card-info">
+        <strong>{badgeName}</strong>
+        <span>{record.meta}</span>
+        <span className="reg-badge-ref">{ref}</span>
+      </div>
+      {qrUrl && <a href={qrUrl} download={`badge-${record.id}.png`} className="reg-btn reg-btn-quiet">Download</a>}
+    </div>
   )
 }
 
@@ -685,6 +711,14 @@ function Workspace({ onRestart }: { onRestart: () => void }) {
 
           {activeId === 'badges' && <>
             <Facts items={section.facts ?? []} />
+            {(records.people ?? []).length > 0 && (
+              <>
+                <h4 className="reg-subhead">Badges</h4>
+                <div className="reg-badge-grid">
+                  {(records.people ?? []).map((p) => <BadgeCard key={p.id} record={p} />)}
+                </div>
+              </>
+            )}
             <p className="reg-aside"><Info size={18} aria-hidden="true" />Staff use the <a href="/registration/check-in">badge scanner</a> during event week.</p>
           </>}
         </section>
