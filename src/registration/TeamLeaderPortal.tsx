@@ -984,7 +984,7 @@ export default function TeamLeaderPortal() {
       const result = await api<{ user: User | null }>('/api/auth/me')
       setState({ status: 'ready', user: result.user })
     } catch (e) {
-      setState({ status: 'unavailable', message: messageOf(e) })
+      setState({ status: 'unavailable', message: e instanceof ApiError && e.status === 503 ? '' : messageOf(e) })
     }
   }, [])
   useEffect(() => { loadMe() }, [loadMe])
@@ -1031,7 +1031,7 @@ export default function TeamLeaderPortal() {
             <h2>Registration opens on 18 January 2027</h2>
             <p className="reg-lede">Team Leader accounts are created with the invitation code each country receives by email. Until then, you can read how registration works.</p>
             <div className="reg-account-actions"><a className="reg-btn reg-btn-primary" href="/registration/how-to-register">How to register <ArrowRight size={18} aria-hidden="true" /></a></div>
-            <p className="reg-hint">{state.message}</p>
+            {state.message && <p className="reg-hint">{state.message}</p>}
           </div></div>
         )}
 

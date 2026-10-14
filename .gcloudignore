@@ -1,0 +1,7 @@
+# Cloud Build only needs the API: see server/cloudbuild.yaml.
+/*
+!/package.json
+!/package-lock.json
+!/server/
+/server/uploads/
+/server/test/

@@ -27,7 +27,7 @@ Owners follow the source document's §11: **Web/Dev** (อาม, ภีม์),
 | Coming Soon page | July 2026 | ✅ | Superseded by the full public site |
 | Limited site | September 2026 | ✅ | Live at https://iol2027.web.app |
 | Registration data fields designed | Before October 2026 | 🟡 | Schema exists (`server/schema.sql`); needs Finance and LOC sign-off on fields |
-| Registration concept done | October 2026 | 🟡 | Portal redesign in PR #3; login and database wiring under way |
+| Registration concept done | October 2026 | ✅ | Working prototype on https://iol2027-dev.web.app: login, roles, portal saving to the database |
 | Full site (all pages) | December 2026 | ⬜ | See §2 |
 | Registration live | January 2027 | ⬜ | Fee release and early bird open **18 January 2027** |
 | Event | 21–28 July 2027 | ⬜ | |
@@ -84,14 +84,14 @@ Source §4. Role definitions and test accounts: [ROLES.md](ROLES.md).
 | Invite code gate (one code per country) | ✅ | API: `POST /api/registration/invite/verify` |
 | Create Team Leader account with email and password | ✅ | |
 | Email verification with a 6-digit code | ✅ | Code stored hashed, 30-minute expiry |
-| Session-based login (HttpOnly cookie, idle timeout) | 🟡 | Sprint 1 |
-| Role-based permissions; Team Leaders see only their own delegation | 🟡 | Sprint 1 |
-| Test accounts for every role | 🟡 | Sprint 1 |
+| Session-based login (HttpOnly cookie, idle timeout) | ✅ | `__session` cookie, 2-hour idle and 7-day absolute limit, tokens stored hashed |
+| Role-based permissions; Team Leaders see only their own delegation | ✅ | Checked on every API route; see [ROLES.md](ROLES.md) |
+| Test accounts for every role | ✅ | `npm run db:seed-test`; list in [ROLES.md](ROLES.md) |
 | Self-service password reset | ⬜ | Sprint 2. Source §13: a direct fix for regsy and Taiwan's weakness |
 | Sign in with Google | ⬜ | Sprint 2–3. Source §4 asks for both Google and email/password |
-| Password policy (length, breached-password check) | 🟡 | 12-character minimum in the UI; enforce on the server |
+| Password policy (length, breached-password check) | 🟡 | 12-character minimum on the server; breached-password check not built |
 | Admin 2FA | ⚠️ | Open question Q7 |
-| Login rate limiting and lockout | ⬜ | Sprint 1 (basic), Sprint 4 (review) |
+| Login rate limiting and lockout | 🟡 | 5 failed sign-ins in 15 minutes locks the account; review in Sprint 4 |
 
 ---
 
@@ -104,14 +104,14 @@ Source §5. Front end: `src/registration/`. API: `server/index.js`.
 | # | Source step | Status | Notes |
 | --- | --- | --- | --- |
 | 1 | Organisers email each country's invite code | ⬜ | Needs the invite-code admin and an email template (§6, §7) |
-| 2 | Team Leader enters the code and creates an account | 🟡 | UI done; wiring to API in Sprint 1 |
-| 3 | Email verification before first use | 🟡 | API done; wiring in Sprint 1 |
-| 4 | Login lands on the team dashboard | 🟡 | Sprint 1 |
+| 2 | Team Leader enters the code and creates an account | ✅ | |
+| 3 | Email verification before first use | ✅ | Code is shown on screen on the dev site until emails are switched on |
+| 4 | Login lands on the team dashboard | ✅ | Opens at the first unfinished step; staff land on their back office |
 | 5 | Enter team and member details | 🟡 | ⚠️ Order changed: payment comes before member details (D2) |
-| 6 | Submit; fee calculated from the submission date (early bird / normal) | 🟡 | Fee shown from configuration; tier-by-date logic not built |
-| 7 | Team Leader transfers outside the system, then uploads proof | 🟡 | Upload API done (Cloud Storage); UI wiring in Sprint 1 |
-| 8 | Admin sees the proof in a review queue | ⬜ | Sprint 2 |
-| 9 | Staff check the proof against สอวน's statement, then approve or reject | 🟡 | API exists but approval is currently broken (status value bug), fixed in Sprint 1 |
+| 6 | Submit; fee calculated from the submission date (early bird / normal) | 🟡 | Server calculates fees and the tier (early bird to 12 Mar 2027; the normal rate is not set, so both are USD 1,000 for now); submission blocked until people, teams, payment and stay dates are complete |
+| 7 | Team Leader transfers outside the system, then uploads proof | ✅ | Invoice details saved first, then proof upload unlocks People |
+| 8 | Admin sees the proof in a review queue | 🟡 | Basic queue with proof download for Finance; preview and filters in Sprint 2 |
+| 9 | Staff check the proof against สอวน's statement, then approve or reject | ✅ | Approval bug fixed; returning a proof needs a reason, which the Team Leader sees |
 | 10 | On approval, email (a) e-receipt PDF, (b) ID badge with QR, (c) invitation letter | 🟡 | Confirmation email exists; receipt PDF, badge PDF and letters not built (Sprint 2–3) |
 | 11 | Add members later; pay only for the added people | ⬜ | ⚠️ Per-person price formula is open question Q1 |
 
@@ -120,7 +120,7 @@ Source §5. Front end: `src/registration/`. API: `server/index.js`.
 | Task | Status | Notes |
 | --- | --- | --- |
 | Add, remove and edit members at any time | 🟡 | Removal after payment depends on refund policy (Q2) |
-| See payment and review status | 🟡 | |
+| See payment and review status | ✅ | |
 | Download invitation letter and QR badge | ⬜ | Sprint 3 |
 | Update arrival and departure details | 🟡 | Stay dates required at submission; flights later |
 | Change-request channel for locked fields | ⬜ | PRD requirement |
@@ -139,7 +139,7 @@ Source §7.
 | --- | --- | --- | --- |
 | Currency USD; team fee USD 1,000 | Finance | ✅ | |
 | Room fee USD 220 per room, 2 rooms per team | Finance | ✅ | Confirmed by the user, 15 Oct 2026 |
-| Early bird and normal rates as configuration, not code | Web/Dev | 🟡 | Values in `portalData.ts`; move to server config in Sprint 1–2 |
+| Early bird and normal rates as configuration, not code | Web/Dev | 🟡 | On the server in `server/fees.js`; move to an admin-editable setting in Sprint 2 |
 | Late-fee tier | Finance | ⚠️ | Q3 |
 | Observer fee | Finance | ⬜ | Rate not set |
 | Per-person fee for members added later | Finance | ⚠️ | Q1 |
@@ -147,7 +147,7 @@ Source §7.
 | SCB account name, number and SWIFT for สอวน | Finance | ⬜ | Q4; shown as "pending Finance approval" |
 | Invoice download | Web/Dev | ✅ | Printable invoice from the portal |
 | Proof upload (PDF, JPG, PNG, 10 MB) | Web/Dev | ✅ | Private Cloud Storage bucket |
-| Manual reconciliation with approve / reject | Web/Dev | 🟡 | Sprint 1 fix, Sprint 2 admin UI |
+| Manual reconciliation with approve / reject | Web/Dev | ✅ | Finance back office; e-receipt PDF still to build |
 | Audit trail of who approved what and when | Web/Dev | 🟡 | `audit_events` table exists; needs the logged-in user recorded (Sprint 1) |
 | E-receipt PDF emailed after approval | Web/Dev | ⬜ | Sprint 2 |
 | Refunds | Finance | ⚠️ | Q2 |
@@ -160,16 +160,16 @@ Source §6. Only the API pieces exist today.
 
 | Function | Status | Sprint |
 | --- | --- | --- |
-| Overview dashboard (countries, payment states, proof queue) | 🟡 | API counts exist; UI in Sprint 2 |
+| Overview dashboard (countries, payment states, proof queue) | ✅ | Basic version; charts and drill-down in Sprint 2 |
 | Per-person status (registered → awaiting payment → paid → badge issued → checked in) | ⬜ | 2 |
-| Payment review queue with proof preview | ⬜ | 2 |
+| Payment review queue with proof preview | 🟡 | Queue and download done; inline preview in Sprint 2 |
 | Invite-code management (create, send, revoke) | ⬜ | 2 |
 | Exports: participants, payments, check-in, by country / team / role (CSV, Excel) | ⬜ | 2 |
 | News and Updates posting | ⬜ | 3 |
 | Gallery upload with captions | ⬜ | Before event |
 | Results entry with draft / publish and CSV import | ⬜ | Before event; ⚠️ see D7 |
 | Check-in reports by country | ⬜ | Before event |
-| User and role management | ⬜ | 2 |
+| User and role management | 🟡 | Super admin can change roles; creating staff accounts in Sprint 2 |
 
 ---
 
@@ -216,8 +216,8 @@ Source §9.1.
 | --- | --- | --- |
 | HTTPS everywhere | ✅ | Firebase and Cloud Run |
 | Passwords hashed (scrypt), codes hashed | ✅ | |
-| Session cookie HttpOnly, Secure, SameSite | 🟡 | Sprint 1 |
-| Role-limited access to sensitive fields (health, food, passport, emergency contact) | 🟡 | Sprint 1 (delegation scoping), Sprint 2 (field-level for staff roles) |
+| Session cookie HttpOnly, Secure, SameSite | ✅ | Plus a required request header on every write against cross-site requests |
+| Role-limited access to sensitive fields (health, food, passport, emergency contact) | ✅ | Delegation scoping and field-level redaction by role (e.g. Welfare never sees passports) |
 | Private storage for proofs and consent forms | ✅ | |
 | Guardian consent for minors | ⬜ | Policy pending the organisers |
 | Privacy / PDPA page with controller, lawful basis, retention, contact | 🟡 | Content owner needed |
@@ -232,7 +232,7 @@ Source §9.1.
 | Task | Status | Notes |
 | --- | --- | --- |
 | Static site on Firebase Hosting (prod + dev targets) | ✅ | |
-| API container on Cloud Run (dev) | 🟡 | Sprint 1 |
+| API container on Cloud Run (dev) | ✅ | Service `iol2027-api`, asia-southeast1, max 2 instances; reached via `/api/**` on the dev site only |
 | Database: `iol2027` on Cloud SQL `papertrend-pg` | ✅ | Shared instance (Architecture.md §12) |
 | Secrets in Secret Manager | ✅ | |
 | Budget alert (THB 350 / month) | ✅ | |
