@@ -80,5 +80,5 @@ Unused codes for trying the full sign-up flow from scratch:
 
 | Code | Country |
 | --- | --- |
-| `IOL2027-TST-0001` | Testland A (TEST) |
-| `IOL2027-TST-0002` | Testland B (TEST) |
+| `IOL2027-TST-0001` | Testland (TEST) |
+| `IOL2027-TST-0002` | Sampleland (TEST) |

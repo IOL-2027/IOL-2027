@@ -249,7 +249,8 @@ export async function sendEmail({ pool, to, subject, html, purpose, accountId = 
     const response = await fetch(RESEND_API, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from, to: [to], subject, html }),
+      // Replies go to the central mailbox (EMAIL_REPLY_TO), not the no-reply sending address.
+      body: JSON.stringify({ from, to: [to], subject, html, ...(process.env.EMAIL_REPLY_TO ? { reply_to: process.env.EMAIL_REPLY_TO } : {}) }),
     })
     const payload = await response.json()
     if (!response.ok) throw new Error(payload.message || 'Resend rejected the request.')

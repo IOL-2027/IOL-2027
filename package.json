@@ -10,7 +10,10 @@
     "db:schema": "psql \"$DATABASE_URL\" -f server/schema.sql",
     "db:seed": "psql \"$DATABASE_URL\" -f server/seed.sql",
     "build": "tsc -b && vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "db:migrate": "node server/migrate.js",
+    "db:seed-test": "node server/seed-test.js",
+    "test:api": "node server/test/api-e2e.mjs"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.22.0",
