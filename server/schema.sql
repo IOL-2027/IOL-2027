@@ -152,6 +152,8 @@ CREATE TABLE IF NOT EXISTS members (
 );
 
 ALTER TABLE members ADD COLUMN IF NOT EXISTS badge_name text;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS tshirt_style text;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS wants_umbrella boolean;
 ALTER TABLE members ADD COLUMN IF NOT EXISTS exam_language text;
 
 DO $$

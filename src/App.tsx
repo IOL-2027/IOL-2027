@@ -346,8 +346,9 @@ function RegistrationHow() {
 }
 
 const TSHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']
+const TSHIRT_STYLES = ['Unisex (standard)', 'Ladies fit']
 const EXAM_LANGUAGES = ['English', 'French', 'German', 'Russian', 'Spanish', 'Arabic', 'Chinese', 'Other']
-const ROOM_TYPES = ['Twin room', 'Single if available', 'No preference']
+const ROOM_TYPES = [{ value: 'single', label: 'Single room (ห้องเดี่ยว)' }, { value: 'twin', label: 'Twin/shared room (ห้องคู่)' }, { value: 'no_preference', label: 'No preference' }]
 const GENDERS = ['Male', 'Female', 'Non-binary', 'Prefer not to say']
 const ROOM_PREFS = ['single', 'shared', 'no_preference']
 const ROLES = ['contestant', 'team_leader', 'observer']
@@ -379,8 +380,10 @@ function MemberForm({ delegationId, member, teams, onSave, onCancel, onDelete }:
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [role, setRole] = useState(member?.role || 'contestant')
   const formRef = useRef<HTMLFormElement>(null)
   const tshirtHelp = 'XS ≈ 80 cm · S ≈ 85 cm · M ≈ 90 cm · L ≈ 95 cm · XL ≈ 100 cm · 2XL ≈ 106 cm · 3XL ≈ 112 cm'
+  const isAdult = role === 'team_leader' || role === 'observer'
 
   const handleSave = async () => {
     if (!formRef.current) return
@@ -397,6 +400,9 @@ function MemberForm({ delegationId, member, teams, onSave, onCancel, onDelete }:
         genderForRoomAllocation: String(fd.get('genderForRoomAllocation') || '') || undefined,
         examLanguage: String(fd.get('examLanguage') || '') || undefined,
         tshirtSize: String(fd.get('tshirtSize') || '') || undefined,
+        tshirtStyle: String(fd.get('tshirtStyle') || '') || undefined,
+        wantsUmbrella: fd.get('wantsUmbrella') === 'yes' ? true : fd.get('wantsUmbrella') === 'no' ? false : undefined,
+        roomTypePreference: String(fd.get('roomTypePreference') || '') || undefined,
         passportName: String(fd.get('passportName') || '') || undefined,
         passportNumber: String(fd.get('passportNumber') || '') || undefined,
         passportNationality: String(fd.get('passportNationality') || '') || undefined,
@@ -438,7 +444,7 @@ function MemberForm({ delegationId, member, teams, onSave, onCancel, onDelete }:
     <form ref={formRef} className="reg-member-form" onSubmit={(e) => { e.preventDefault(); void handleSave() }}>
       {err && <p className="reg-api-error">{err}</p>}
       <div className="reg-fields">
-        <label className="reg-field"><span className="reg-field-label">Role</span><select className="reg-input" name="role" defaultValue={v('role') || 'contestant'}><option value="">Select…</option>{ROLES.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}</select></label>
+        <label className="reg-field"><span className="reg-field-label">Role</span><select className="reg-input" name="role" value={role} onChange={e => setRole(e.target.value)}><option value="">Select…</option>{ROLES.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}</select></label>
         <label className="reg-field"><span className="reg-field-label">Team</span><select className="reg-input" name="teamId" defaultValue={v('teamId') || ''}><option value="">No team assigned</option>{teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
         <label className="reg-field"><span className="reg-field-label">Display name *</span><input className="reg-input" name="displayName" defaultValue={v('displayName')} placeholder="Full name as displayed" /><small className="reg-field-help">Used on badges, slides and lists.</small></label>
         <label className="reg-field"><span className="reg-field-label">Badge name</span><input className="reg-input" name="badgeName" defaultValue={v('badgeName')} placeholder="Short name for badge" /><small className="reg-field-help">First or preferred name on the lanyard.</small></label>
@@ -447,11 +453,14 @@ function MemberForm({ delegationId, member, teams, onSave, onCancel, onDelete }:
         <label className="reg-field"><span className="reg-field-label">Passport number</span><input className="reg-input" name="passportNumber" defaultValue={v('passportNumber')} /></label>
         <label className="reg-field"><span className="reg-field-label">Passport nationality</span><input className="reg-input" name="passportNationality" defaultValue={v('passportNationality')} /></label>
         <label className="reg-field"><span className="reg-field-label">Date of birth</span><input className="reg-input" type="date" name="dateOfBirth" defaultValue={v('dateOfBirth')} /></label>
-        <label className="reg-field"><span className="reg-field-label">Gender for room allocation</span><select className="reg-input" name="genderForRoomAllocation" defaultValue={v('genderForRoomAllocation') || ''}><option value="">Select…</option>{GENDERS.map(g => <option key={g} value={g}>{g}</option>)}</select></label>
+        <label className="reg-field"><span className="reg-field-label">{isAdult ? 'Gender' : 'Gender (for room allocation)'}</span><select className="reg-input" name="genderForRoomAllocation" defaultValue={v('genderForRoomAllocation') || ''}><option value="">Select…</option>{GENDERS.map(g => <option key={g} value={g}>{g}</option>)}</select></label>
+        {isAdult && <label className="reg-field"><span className="reg-field-label">Room type preference</span><select className="reg-input" name="roomTypePreference" defaultValue={v('roomTypePreference') || ''}><option value="">Select…</option>{ROOM_TYPES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}</select><small className="reg-field-help">Team Leaders and Observers receive their own room by default.</small></label>}
         <label className="reg-field"><span className="reg-field-label">Exam language</span><select className="reg-input" name="examLanguage" defaultValue={v('examLanguage') || ''}><option value="">Select…</option>{EXAM_LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}</select></label>
         <label className="reg-field"><span className="reg-field-label">T-shirt size</span><select className="reg-input" name="tshirtSize" defaultValue={v('tshirtSize') || ''}><option value="">Select…</option>{TSHIRT_SIZES.map(s => <option key={s} value={s}>{s}</option>)}</select><small className="reg-field-help">{tshirtHelp}</small></label>
-        <label className="reg-field reg-field-wide"><span className="reg-field-label">Food and allergy notes</span><textarea className="reg-input" name="foodAllergyNotes" defaultValue={v('foodAllergyNotes')} /></label>
-        <label className="reg-field reg-field-wide"><span className="reg-field-label">Medical or accessibility notes</span><textarea className="reg-input" name="medicalAccessibilityNotes" defaultValue={v('medicalAccessibilityNotes')} /></label>
+        <label className="reg-field"><span className="reg-field-label">T-shirt style</span><select className="reg-input" name="tshirtStyle" defaultValue={v('tshirtStyle') || ''}><option value="">Select…</option>{TSHIRT_STYLES.map(s => <option key={s} value={s}>{s}</option>)}</select><small className="reg-field-help">Two styles available — choose what fits best.</small></label>
+        <label className="reg-field"><span className="reg-field-label">Umbrella (given on arrival)</span><select className="reg-input" name="wantsUmbrella" defaultValue={member?.wantsUmbrella === true ? 'yes' : member?.wantsUmbrella === false ? 'no' : ''}><option value="">Select…</option><option value="yes">Yes — I would like one</option><option value="no">No thank you</option></select><small className="reg-field-help">Each participant may receive an IOL 2027 umbrella.</small></label>
+        <label className="reg-field reg-field-wide"><span className="reg-field-label">Food allergies and dietary restrictions</span><textarea className="reg-input" name="foodAllergyNotes" defaultValue={v('foodAllergyNotes')} placeholder="e.g. vegetarian, nut allergy, halal, no pork…" /></label>
+        <label className="reg-field reg-field-wide"><span className="reg-field-label">Medical conditions and accessibility needs</span><textarea className="reg-input" name="medicalAccessibilityNotes" defaultValue={v('medicalAccessibilityNotes')} placeholder="e.g. diabetes, wheelchair access, hearing aid…" /></label>
         <label className="reg-field reg-field-wide"><span className="reg-field-label">Emergency contact</span><input className="reg-input" name="emergencyContact" defaultValue={v('emergencyContact')} placeholder="Name, +country phone" /></label>
         <label className="reg-field"><span className="reg-field-label">Email</span><input className="reg-input" type="email" name="email" defaultValue={v('email')} /></label>
       </div>
@@ -682,7 +691,7 @@ function TeamLeaderAccount() {
       notes: [
         { label: '① Reserve your place', value: 'Team count and observer count only', help: 'Two fields unlock the fee calculation.' },
         { label: '② Pay and upload proof', value: 'Review calculated fees, fill invoice details, transfer, then upload proof', help: 'Member details are locked until payment proof is submitted.' },
-        { label: '③ Complete people and teams', value: 'Names, badges, passports, exam languages, shirts and welfare', help: 'Unlocked after payment proof is uploaded.' },
+        { label: '③ Complete people and teams', value: 'Names, badges, passports, exam languages, t-shirt size & style, umbrella, food allergies and medical notes', help: 'Unlocked after payment proof is uploaded.' },
         { label: '④ Travel — fill later', value: 'Add arrival and departure details after flights are booked', help: 'Travel remains editable after the initial submission.' },
         { label: 'Event week', value: 'Bring every QR badge for staff scanning', help: 'The QR contains a random reference, never visible personal information.' },
       ],
@@ -714,7 +723,7 @@ function TeamLeaderAccount() {
     },
     {
       title: 'People', status: proofUploaded ? 'Editable' : 'Locked',
-      body: 'Add names, badges, passports, exam languages, shirt sizes and welfare notes for each person.',
+      body: 'Add names, passports, exam languages, t-shirt size and style, umbrella preference, food allergies and medical notes for each person.',
       fields: [],
       records: members.map(m => ({
         label: m.displayName,
@@ -731,11 +740,12 @@ function TeamLeaderAccount() {
     },
     {
       title: 'Payment & invoice', status: proofUploaded ? 'Proof uploaded' : 'Awaiting proof',
-      body: 'Review the calculated fees, then upload the transfer proof. Member details are locked until proof is submitted.',
+      body: 'Download your invoice, transfer the full amount to สอวน (POSN), then upload the transfer receipt here. Member details unlock once proof is received.',
       notes: [
+        { label: 'Recipient', value: 'สอวน (POSN) — full amount, no deductions', help: 'Transfer must arrive in full. Any bank charges or conversion losses are the sender\'s responsibility.' },
         { label: 'Payment method', value: 'Bank transfer only — outside this website', help: 'No card or online payment gateway. Transfer to the approved account, then upload proof here.' },
-        { label: 'Transfer fees', value: 'Choose OUR — sender pays all bank charges', help: 'Select OUR when initiating the wire.' },
-        { label: 'Currency conversion', value: "Sender's responsibility", help: 'All conversion costs and exchange-rate differences are the sender\'s responsibility.' },
+        { label: 'Transfer fee code', value: 'Choose OUR when initiating the wire', help: 'OUR means all intermediary charges are borne by the sender. POSN must receive the full declared amount.' },
+        { label: 'After uploading', value: 'Confirmation email sent to your registered address', help: 'Finance will review and confirm within 3–5 business days.' },
       ],
       fields: [
         { label: 'Teams registered', value: String(del?.numberOfTeams ?? 0), help: 'From Team Leader setup.', kind: 'readonly' },
@@ -771,7 +781,7 @@ function TeamLeaderAccount() {
     ] },
   ]
 
-  const areaOrder = ['Before you begin', 'Team Leader setup', 'Payment & invoice', 'People', 'Teams', 'Review & submit', 'Badges & check-in', 'Travel']
+  const areaOrder = ['Before you begin', 'Team Leader setup', 'Payment & invoice', 'People', 'Teams', 'Review & submit', 'Travel', 'Badges & check-in']
   const areas = [...areasSource].sort((a, b) => areaOrder.indexOf(a.title) - areaOrder.indexOf(b.title))
   const area = areas[activeArea]
   const activeRecord = activeRecordByArea[area.title] || 0

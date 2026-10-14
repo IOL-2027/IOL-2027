@@ -533,6 +533,8 @@ app.post('/api/registration/delegations/:delegationId/members', asyncHandler(asy
       gender_for_room_allocation,
       exam_language,
       tshirt_size,
+      tshirt_style,
+      wants_umbrella,
       food_allergy_notes,
       medical_accessibility_notes,
       emergency_contact,
@@ -540,7 +542,7 @@ app.post('/api/registration/delegations/:delegationId/members', asyncHandler(asy
       email,
       mobile_whatsapp
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
     RETURNING *`,
     [
       req.params.delegationId,
@@ -557,6 +559,8 @@ app.post('/api/registration/delegations/:delegationId/members', asyncHandler(asy
       optionalString(req.body.genderForRoomAllocation),
       optionalString(req.body.examLanguage),
       optionalString(req.body.tshirtSize),
+      optionalString(req.body.tshirtStyle),
+      req.body.wantsUmbrella === true || req.body.wantsUmbrella === 'yes' ? true : req.body.wantsUmbrella === false || req.body.wantsUmbrella === 'no' ? false : null,
       optionalString(req.body.foodAllergyNotes),
       optionalString(req.body.medicalAccessibilityNotes),
       optionalString(req.body.emergencyContact),
@@ -586,6 +590,8 @@ app.patch('/api/registration/members/:memberId', asyncHandler(async (req, res) =
     genderForRoomAllocation: 'gender_for_room_allocation',
     examLanguage: 'exam_language',
     tshirtSize: 'tshirt_size',
+    tshirtStyle: 'tshirt_style',
+    wantsUmbrella: 'wants_umbrella',
     foodAllergyNotes: 'food_allergy_notes',
     medicalAccessibilityNotes: 'medical_accessibility_notes',
     emergencyContact: 'emergency_contact',
