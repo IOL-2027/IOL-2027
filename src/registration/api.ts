@@ -27,6 +27,8 @@ export type Member = {
   genderForRoomAllocation: string | null; examLanguage: string | null; tshirtSize: string | null; poloSize: string | null
   foodAllergyNotes?: string | null; medicalAccessibilityNotes?: string | null; emergencyContact?: string | null
   roomTypePreference: string | null; email: string | null
+  /** Set by the server from the guardian consent policy and the date of birth. */
+  needsGuardianConsent?: boolean
 }
 export type TravelRecord = {
   id: string; direction: 'arrival' | 'departure'; travelPoint: string | null; flightServiceNumber: string | null
@@ -36,7 +38,8 @@ export type Payment = {
   id: string; status: 'awaiting_proof' | 'awaiting_review' | 'approved' | 'rejected' | 'refunded'
   paymentReference: string; amountDue: string; invoiceCount: number; invoiceSplitNote: string | null
   invoiceRecipientName: string | null; invoiceRecipientAddress: string | null; reviewNote: string | null
-  proofAttachmentId: string | null; feeTier: string
+  proofAttachmentId: string | null; feeTier: string; currency: string
+  receiptNumber: string | null; reviewedAt: string | null
 }
 export type Delegation = {
   id: string; countryTerritory: string; accreditedOrganisation: string | null; primaryTeamLeaderName: string
@@ -44,10 +47,15 @@ export type Delegation = {
   paymentStatus: string; declaredArrivalDate: string | null; declaredDepartureDate: string | null
   stayWindowNote: string | null; welfareNote: string | null; completedSteps: string[]; submittedAt: string | null
 }
-export type Attachment = { id: string; kind: string; originalFilename: string; createdAt: string }
+export type Attachment = { id: string; memberId: string | null; kind: string; originalFilename: string; mimeType: string; createdAt: string }
+export type GuardianConsentPolicy = { required: boolean; ageThreshold: number; referenceDate: string }
+export type FeeSettings = {
+  currency: string; earlyBirdEnds: string; teamFee: { early_bird: number; normal: number }
+  roomsPerTeam: number; roomRate: number; observerFee: number | null
+}
 export type DelegationData = {
   delegation: Delegation; fees: Fees; teams: Team[]; members: Member[]; travelRecords: TravelRecord[]
-  payments: Payment[]; attachments: Attachment[]
+  payments: Payment[]; attachments: Attachment[]; guardianConsent: GuardianConsentPolicy
 }
 
 export class ApiError extends Error {
