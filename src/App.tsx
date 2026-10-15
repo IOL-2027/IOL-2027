@@ -337,8 +337,8 @@ function BadgeCheckIn() {
       const reader = new Html5Qrcode('iol-badge-reader')
       scanner = reader
       return reader.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 230, height: 230 } },
+        { facingMode: { ideal: 'environment' } },
+        { fps: 24, qrbox: { width: 280, height: 280 } },
         (decodedText) => { if (active) void submitScan(decodedText) },
         () => undefined,
       ).then(() => { if (active) setCameraState('ready') })
