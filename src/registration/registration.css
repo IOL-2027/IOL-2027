@@ -311,3 +311,45 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
   .reg-stepper-label { display: none; }
   .reg-stepper li.is-current .reg-stepper-label { display: inline; }
 }
+
+/* ---------- Check-in scanner ---------- */
+.poc-notice { background: #fffbe6; border: 1px solid #f0d080; border-radius: var(--reg-radius); padding: 18px 22px; margin: 0 0 32px; display: flex; flex-direction: column; gap: 6px; }
+.poc-notice strong { font-size: 14px; }
+.poc-notice p { margin: 0; font-size: 14px; color: var(--reg-muted); }
+.poc-notice code { background: rgba(0,0,0,.06); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+
+.checkin-shell { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+.checkin-controls { display: flex; flex-direction: column; gap: 22px; }
+.checkin-label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600; color: var(--reg-muted); }
+
+.checkin-result { display: flex; align-items: center; gap: 14px; padding: 18px; border-radius: var(--reg-radius); border: 1px solid var(--reg-border); background: var(--reg-surface); }
+.checkin-result span { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0; background: var(--reg-border); color: var(--reg-muted); }
+.checkin-result div { display: flex; flex-direction: column; gap: 3px; }
+.checkin-result strong { font-size: 16px; }
+.checkin-result p { margin: 0; font-size: 13px; color: var(--reg-muted); }
+.checkin-result-idle { }
+.checkin-result-working { border-color: #b8a8d0; background: #f7f4fb; }
+.checkin-result-working span { background: #e8e0f4; color: #6b3fa0; }
+.checkin-result-accepted { border-color: #7cc89a; background: #f0faf4; }
+.checkin-result-accepted span { background: #d2f0de; color: #207a4a; }
+.checkin-result-rejected { border-color: #e8a0a0; background: #fdf4f4; }
+.checkin-result-rejected span { background: #fad8d8; color: #c02020; }
+
+.checkin-camera { display: flex; flex-direction: column; border: 1px solid var(--reg-border); border-radius: var(--reg-radius-lg); overflow: hidden; background: var(--reg-surface); }
+.checkin-camera-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--reg-border); font-size: 14px; }
+.checkin-camera-head span { margin-left: auto; font-size: 12px; color: var(--reg-muted); background: var(--reg-bg); padding: 3px 10px; border-radius: 20px; }
+.checkin-reader { width: 100%; aspect-ratio: 1; background: #111; }
+.checkin-reader video { width: 100% !important; height: auto !important; }
+/* html5-qrcode injects a QR region box that we want to look clean */
+#iol-badge-reader { overflow: hidden; }
+#iol-badge-reader img[alt="Info icon"] { display: none; }
+#iol-badge-reader span { display: none !important; }
+
+.checkin-manual { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; border-top: 1px solid var(--reg-border); }
+.checkin-manual > span { font-size: 12px; color: var(--reg-muted); }
+.checkin-manual > div { display: flex; gap: 8px; }
+.checkin-manual input { flex: 1; min-width: 0; }
+
+@media (max-width: 860px) {
+  .checkin-shell { grid-template-columns: 1fr; }
+}
