@@ -19,3 +19,7 @@ firebase-debug.log
 *.log
 
 .firebase/
+server/uploads/
+
+# Python bytecode from scripts/
+__pycache__/

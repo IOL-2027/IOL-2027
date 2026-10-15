@@ -34,7 +34,7 @@ Home; News and Updates; About (About IOL, Host Thailand/Bangkok, Thai language/s
 
 The recommended spine is the shared IOL `regsy` system, not a custom registration app, unless the committee explicitly decides otherwise. The public site should link to it rather than duplicate its database.
 
-Flow: central invite code -> team leader account (Google or email/password) -> email verification -> country/delegation -> teams -> transport -> participants -> configured fee -> wire transfer -> PDF/JPG/PNG proof upload -> manual Finance reconciliation -> approval/rejection -> e-receipt, QR badge information, invitation letter -> later member additions and incremental review.
+Flow: central invite code -> team leader account (Google or email/password) -> email verification -> country and team records -> transport -> participants -> configured fee -> wire transfer -> PDF/JPG/PNG proof upload -> manual Finance reconciliation -> approval/rejection -> e-receipt, QR badge information, invitation letter -> later member additions and incremental review.
 
 Known baseline: USD 1,000 for one five-person team package. Early-bird and normal tiers are required; exact dates and account/SWIFT details are Finance-owned. Base payment is wire transfer to the SCB account supplied by Finance. Online card payment and late-fee tier are open decisions.
 
@@ -49,6 +49,8 @@ Roles: public; Team Leader; Registration Admin; Finance Admin; Check-in Staff; W
 - Vite + React + TypeScript SPA.
 - `src/App.tsx`: pages and pathname routing.
 - `src/siteData.ts`: event facts, schedule, working venues.
+- `src/committeeData.ts`: the official Thai committee and subcommittee roster published on `/people/committee`.
+- `src/siteData.ts` also carries each venue's address, map query and optional photo, used by the home page venue strip and the programme-page venue maps.
 - `src/index.css`: visual system and responsive layout.
 - `public/assets/`: logo and sponsor assets.
 - `public/fonts/`: local Manrope, IBM Plex Mono, Noto Sans Thai files.

@@ -3,6 +3,17 @@
     "default": "iol2027",
     "production": "iol2027"
   },
-  "targets": {},
+  "targets": {
+    "iol2027": {
+      "hosting": {
+        "prod": [
+          "iol2027"
+        ],
+        "dev": [
+          "iol2027-dev"
+        ]
+      }
+    }
+  },
   "etags": {}
 }

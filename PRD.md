@@ -5,7 +5,7 @@
 **Event dates:** 21-28 July 2027  
 **Host city:** Bangkok, Thailand  
 **Primary domain:** `iol2027.ioling.org`  
-**Audience:** International delegations, contestants, team leaders, teachers, volunteers, staff, media, partners, and the public  
+**Audience:** International teams, contestants, team leaders, teachers, volunteers, staff, media, partners, and the public
 **Last distilled:** 2026-08-17
 
 ## 1. Purpose and product direction
@@ -41,7 +41,7 @@ The website and operational system must be maintainable for at least five years 
 | Coming Soon | July 2026 | Logo, event name/year, dates, countdown, central email, short launch message | Static page deploys cleanly and domain resolves over HTTPS |
 | Limited site | September 2026 | Home, News, About, Host Thailand, Registration guidance, programme/dates, contact, PDPA, initial sponsors | Content owners approve copy; responsive/browser checks pass |
 | Full site | December 2026 | Full sitemap, logistics, Explore, People, visa guidance, audience portals, guidebook placeholder or final PDF, press assets | Operational owners approve each information area |
-| Registration live | January 2027 | Invite-code/account flow, delegation data, payment instructions, proof upload, review status | End-to-end UAT with test delegations and staff |
+| Registration live | January 2027 | Invite-code/account flow, team and participant data, payment instructions, proof upload, review status | End-to-end UAT with test teams, team leaders, and staff |
 | Event operations | 21-28 July 2027 | Check-in, live status, scores/results, news, gallery, support/on-call | Venue rehearsal, offline fallback, backup QR/list verified |
 | Post-event / handover | After event; minimum hosting horizon five years | Final results/gallery, archive, backups, runbook, lessons learned, transfer package | Faculty/successor host can deploy, restore, and operate the system |
 
@@ -114,7 +114,7 @@ The public guide must explain:
 1. A central team sends an invite code to each country's official contact.
 2. The team leader creates an account with Google sign-in or email/password.
 3. Email verification and/or OTP is required before use.
-4. The leader registers country/delegation, teams, working languages, transport, and people.
+4. The team leader registers the country, teams, working languages, transport, and participants.
 5. The system calculates the configured fee tier and displays wire-transfer instructions.
 6. The leader uploads PDF/JPG/PNG proof of payment.
 7. Staff manually reconcile the proof with the SCB statement and approve or reject it.
@@ -147,7 +147,7 @@ Before the event, Results must clearly state that no official scores exist yet. 
 | Role | Required access |
 | --- | --- |
 | Guest/public | Read all published public pages; no login |
-| Team Leader | One account per country; manage delegation, teams, people, logistics, payment proof, status, and downloads |
+| Team Leader | One account per country; manage teams, participants, logistics, payment proof, status, and downloads |
 | Admin / event staff | Back office for registration review, payment reconciliation, participant status, check-in, scores, gallery, news, and exports |
 | Finance staff | Payment queue, statement reconciliation, audit trail, receipt status |
 | Check-in staff | QR scan/search and check-in status; limited sensitive-data visibility |
@@ -166,7 +166,7 @@ Before the event, Results must clearly state that no official scores exist yet. 
 
 ### Team Leader portal
 
-- Country/delegation record.
+- Country and team records.
 - Teams, observers, working languages, transport records, accommodation and dietary data.
 - Per-person identity/passport, role, room preference, dietary, medical/accessibility, guardian consent and emergency contact for minors, transport assignment, and T-shirt size.
 - Add/remove/edit policy with explicit post-payment rules.
