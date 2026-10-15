@@ -442,6 +442,16 @@ function Workspace({ onRestart }: { onRestart: () => void }) {
 
   const stepNumber = (s: Section) => main.indexOf(s) + 1
 
+  const withLiveOptions = (f: Field): Field => {
+    if (f.label === 'People on this trip') {
+      const names = (records.people ?? [])
+        .map((p) => (p.fields.find((f2) => f2.label === 'Display name')?.value || p.label).trim())
+        .filter(Boolean)
+      return { ...f, options: names.length ? names : f.options }
+    }
+    return f
+  }
+
   return (
     <div className="reg-workspace">
       <header className="reg-ws-head">
@@ -663,10 +673,10 @@ function Workspace({ onRestart }: { onRestart: () => void }) {
                     <fieldset className="reg-fieldset" key={group.legend}>
                       <legend>{group.legend}</legend>
                       {group.note && <p className="reg-hint">{group.note}</p>}
-                      <div className="reg-grid">{group.fields.map((f) => <FieldControl key={f.label} field={f} idPrefix={`${activeId}-${currentRecord.id}`} error={fieldErrors[f.label]} />)}</div>
+                      <div className="reg-grid">{group.fields.map((f) => <FieldControl key={f.label} field={withLiveOptions(f)} idPrefix={`${activeId}-${currentRecord.id}`} error={fieldErrors[f.label]} />)}</div>
                     </fieldset>
                   ) : (
-                    <div className="reg-grid" key="fields">{group.fields.map((f) => <FieldControl key={f.label} field={f} idPrefix={`${activeId}-${currentRecord.id}`} error={fieldErrors[f.label]} />)}</div>
+                    <div className="reg-grid" key="fields">{group.fields.map((f) => <FieldControl key={f.label} field={withLiveOptions(f)} idPrefix={`${activeId}-${currentRecord.id}`} error={fieldErrors[f.label]} />)}</div>
                   ))}
                   <div className="reg-editor-actions">
                     <button type="submit" className="reg-btn reg-btn-secondary">Save {section.records.noun}</button>
@@ -709,18 +719,27 @@ function Workspace({ onRestart }: { onRestart: () => void }) {
             </div>
           </>)}
 
-          {activeId === 'badges' && <>
-            <Facts items={section.facts ?? []} />
-            {(records.people ?? []).length > 0 && (
-              <>
-                <h4 className="reg-subhead">Badges</h4>
-                <div className="reg-badge-grid">
-                  {(records.people ?? []).map((p) => <BadgeCard key={p.id} record={p} />)}
-                </div>
-              </>
-            )}
-            <p className="reg-aside"><Info size={18} aria-hidden="true" />Staff use the <a href="/registration/check-in">badge scanner</a> during event week.</p>
-          </>}
+          {activeId === 'badges' && (() => {
+            const badgePeople = records.people ?? []
+            const withBadge = badgePeople.filter((p) => (p.fields.find((f) => f.label === 'Badge name')?.value ?? '').trim())
+            const badgeFacts = (section.facts ?? []).map((f) =>
+              f.label === 'Ready now'
+                ? { ...f, value: `${withBadge.length} of ${badgePeople.length} badge names` }
+                : f
+            )
+            return <>
+              <Facts items={badgeFacts} />
+              {badgePeople.length > 0 && (
+                <>
+                  <h4 className="reg-subhead">Badges</h4>
+                  <div className="reg-badge-grid">
+                    {badgePeople.map((p) => <BadgeCard key={p.id} record={p} />)}
+                  </div>
+                </>
+              )}
+              <p className="reg-aside"><Info size={18} aria-hidden="true" />Staff use the <a href="/registration/check-in">badge scanner</a> during event week.</p>
+            </>
+          })()}
         </section>
       </div>
     </div>

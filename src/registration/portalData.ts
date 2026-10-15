@@ -110,6 +110,7 @@ type Person = {
 }
 
 const people: Person[] = [
+  { id: 'ananya', name: 'Dr. Ananya Somchai', role: 'Team Leader', team: '', badge: 'Ananya', passportName: 'SOMCHAI ANANYA', passport: 'AA9876543', dob: '1985-03-15', gender: 'Female', shirt: 'S', food: 'No restrictions', medical: 'No special requirements', emergency: 'Office of National Olympiad, +66 2 111 0000', email: 'leader@national-olympiad.org', room: 'Single room (ห้องเดี่ยว)' },
   { id: 'narin', name: 'Narin Chaiwat', role: 'Contestant', team: 'Thailand A', badge: 'Narin', passportName: 'CHAIWAT NARIN', passport: 'AA1234567', dob: '2009-02-12', gender: 'Male', shirt: 'M', food: 'No shellfish', medical: 'No special requirements', emergency: 'Somchai Chaiwat, +66 82 111 2233' },
   { id: 'mali', name: 'Mali Phan', role: 'Contestant', team: 'Thailand A', badge: 'Mali', passportName: 'PHAN MALI', passport: 'AA7654321', dob: '', gender: 'Female', shirt: 'S', food: 'Vegetarian', medical: 'No special requirements', emergency: 'Nok Phan, +66 82 222 3344' },
   { id: 'kiet', name: 'Kiet Rattanakul', role: 'Contestant', team: 'Thailand A', badge: 'Kiet', passportName: 'RATTANAKUL KIET', passport: 'AA2468101', dob: '2009-06-03', gender: 'Male', shirt: 'M', food: 'No pork', medical: 'Carries an inhaler', emergency: 'Arun Rattanakul, +66 82 333 4455' },
@@ -125,15 +126,17 @@ function personFields(p: Person): Field[] {
     ...(isObserver
       ? [{ label: 'Observer category', value: p.observerCategory ?? '', kind: 'select' as const, help: 'Used by Finance to apply the observer rate.' },
         { label: 'Email', value: p.email ?? '', kind: 'email' as const, help: 'Receives their own invitation letter and badge notices.' }]
-      : [{ label: 'Team assignment', value: p.team, kind: 'select' as const }]),
+      : isLeader
+        ? [{ label: 'Email', value: p.email ?? '', kind: 'email' as const, help: 'Team Leader email — from your account.' }]
+        : [{ label: 'Team assignment', value: p.team, kind: 'select' as const }]),
     { label: 'Display name', value: p.name, help: 'Shown on programme lists.' },
     { label: 'Badge name', value: p.badge, help: 'Printed large on the lanyard badge. Usually a first or preferred name.' },
     { label: 'Official name', value: p.name, help: 'As it should appear on certificates.' },
     { label: 'Passport name', value: p.passportName, help: 'Exactly as printed in the passport.' },
     { label: 'Passport number', value: p.passport },
     { label: 'Passport nationality', value: 'Thai' },
-    { label: 'Date of birth', value: p.dob, kind: 'date', help: isObserver ? undefined : 'Confirms contestant eligibility and whether a guardian consent is needed.' },
-    ...(isObserver ? [] : [{ label: 'Exam language', value: 'English', kind: 'select' as const, help: 'Language of the individual contest paper.' }]),
+    { label: 'Date of birth', value: p.dob, kind: 'date', help: isObserver || isLeader ? undefined : 'Confirms contestant eligibility and whether a guardian consent is needed.' },
+    ...(!isObserver && !isLeader ? [{ label: 'Exam language', value: 'English', kind: 'select' as const, help: 'Language of the individual contest paper.' }] : []),
     { label: 'Gender for room allocation', value: p.gender, kind: 'select', help: 'Used only for rooming and safeguarding.' },
     ...((isObserver || isLeader) ? [{ label: 'Room type preference', value: p.room ?? '', kind: 'select' as const, help: 'A single room may carry a supplement.' }] : []),
     { label: 'T-shirt size', value: p.shirt, kind: 'select', help: shirtHelp },
@@ -149,7 +152,7 @@ function personFields(p: Person): Field[] {
 export const peopleRecords: PortalRecord[] = people.map((p) => ({
   id: p.id,
   label: p.name,
-  meta: p.role === 'Observer' ? 'Observer' : `Contestant · ${p.team}`,
+  meta: p.role === 'Observer' ? 'Observer' : p.role === 'Team Leader' ? 'Team Leader' : `Contestant · ${p.team}`,
   status: p.dob ? 'complete' : 'attention',
   issue: p.dob ? undefined : 'Date of birth missing',
   fields: personFields(p),
