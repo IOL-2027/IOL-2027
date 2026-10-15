@@ -21,6 +21,8 @@ const C = {
   muted:  '#706774',
 }
 
+const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+
 // ── shared layout ─────────────────────────────────────────────────────────────
 function layout(previewText, bodyHtml) {
   return `<!DOCTYPE html>
@@ -82,11 +84,11 @@ function p(text, style = '') {
   return `<p style="margin:0 0 16px;font-size:16px;line-height:1.72;color:${C.muted};${style}">${text}</p>`
 }
 
-function codeBlock(code) {
+function codeBlock(code, expiry = 'Expires in 30 minutes') {
   return `<div style="margin:24px 0;background:${C.night};border-radius:12px;padding:28px;text-align:center">
     <p style="margin:0 0 8px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(243,238,212,.42)">VERIFICATION CODE</p>
     <p style="margin:0;font-size:36px;font-weight:700;letter-spacing:.3em;color:${C.orange};font-family:'Courier New',Courier,monospace">${code}</p>
-    <p style="margin:10px 0 0;font-size:12px;color:rgba(243,238,212,.4)">Expires in 30 minutes</p>
+    <p style="margin:10px 0 0;font-size:12px;color:rgba(243,238,212,.4)">${expiry}</p>
   </div>`
 }
 
@@ -94,7 +96,7 @@ function infoTable(rows) {
   const cells = rows.map(([label, value]) => `
     <tr>
       <td style="padding:11px 16px;border-bottom:1px solid ${C.line};font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#b0a8b4;white-space:nowrap;width:40%">${label}</td>
-      <td style="padding:11px 16px;border-bottom:1px solid ${C.line};font-size:14px;font-weight:600;color:${C.night}">${value}</td>
+      <td style="padding:11px 16px;border-bottom:1px solid ${C.line};font-size:14px;font-weight:600;color:${C.night}">${esc(value)}</td>
     </tr>`).join('')
   return `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border:1px solid ${C.line};border-radius:12px;overflow:hidden;margin:24px 0">
     <tbody>${cells}</tbody>
@@ -122,8 +124,8 @@ export function buildVerificationEmail({ countryTerritory, fullName, code }) {
   const preview = `Your verification code is ${code} — expires in 30 minutes.`
   const body = `
     ${h1('Verify your email')}
-    ${p(`Hi ${fullName},`)}
-    ${p(`You're creating a Team Leader account for <strong style="color:${C.night}">${countryTerritory}</strong> at IOL 2027.
+    ${p(`Hi ${esc(fullName)},`)}
+    ${p(`You're creating a Team Leader account for <strong style="color:${C.night}">${esc(countryTerritory)}</strong> at IOL 2027.
          Enter the code below to verify your email address and continue.`)}
     ${codeBlock(code)}
     ${p(`If you did not request this code, please ignore this email.`, 'font-size:13px;color:#b0a8b4')}
@@ -136,8 +138,8 @@ export function buildProofReceivedEmail({ countryTerritory, fullName, paymentRef
   const preview = `We received your payment proof for ${countryTerritory}. Finance will review it within 5 business days.`
   const body = `
     ${h1('Payment proof received')}
-    ${p(`Hi ${fullName},`)}
-    ${p(`We have received your proof of payment for the IOL 2027 registration of <strong style="color:${C.night}">${countryTerritory}</strong>.
+    ${p(`Hi ${esc(fullName)},`)}
+    ${p(`We have received your proof of payment for the IOL 2027 registration of <strong style="color:${C.night}">${esc(countryTerritory)}</strong>.
          Finance will review the transfer and update your registration status within 5 business days.`)}
     ${infoTable([
       ['Delegation', countryTerritory],
@@ -175,8 +177,8 @@ export function buildPaymentConfirmedEmail({ countryTerritory, fullName, payment
   const preview = `Your payment for ${countryTerritory} has been confirmed. Your registration is now active.`
   const body = `
     ${h1('Payment confirmed')}
-    ${p(`Hi ${fullName},`)}
-    ${p(`Great news — Finance has confirmed your payment for <strong style="color:${C.night}">${countryTerritory}</strong>.
+    ${p(`Hi ${esc(fullName)},`)}
+    ${p(`Great news — Finance has confirmed your payment for <strong style="color:${C.night}">${esc(countryTerritory)}</strong>.
          Your IOL 2027 registration is now active.`)}
     ${infoTable([
       ['Delegation', countryTerritory],
@@ -199,18 +201,49 @@ export function buildRegistrationSubmittedEmail({ countryTerritory, fullName, nu
     : ''
   const body = `
     ${h1('Registration submitted')}
-    ${p(`Hi ${fullName},`)}
-    ${p(`Your initial registration for <strong style="color:${C.night}">${countryTerritory}</strong> at IOL 2027 has been submitted successfully.`)}
+    ${p(`Hi ${esc(fullName)},`)}
+    ${p(`Your initial registration for <strong style="color:${C.night}">${esc(countryTerritory)}</strong> at IOL 2027 has been submitted successfully.`)}
     ${infoTable([
       ['Delegation', countryTerritory],
       ['Teams', String(numberOfTeams || 1)],
       ['Observers', String(numberOfObservers || 0)],
-      ['Status', 'Submitted — awaiting payment proof'],
+      ['Status', 'Submitted'],
     ])}
     ${missingItems?.length ? `
       ${notice(`<strong>Still needed before final submission:</strong>${missing}`, C.orange)}
     ` : notice('Your registration is complete for now. You can return to add travel details after flights are booked.')}
     ${p(`You will receive a separate email once Finance confirms your payment.`, 'font-size:13px;color:#b0a8b4')}
+  `
+  return { subject, html: layout(preview, body) }
+}
+
+export function buildPasswordCodeEmail({ fullName, code, setup }) {
+  const subject = setup ? 'Set up your IOL 2027 staff account' : 'Reset your IOL 2027 password'
+  const expiry = setup ? 'Expires in 7 days' : 'Expires in 30 minutes'
+  const preview = `Your code is ${code}. ${expiry}.`
+  const body = `
+    ${h1(setup ? 'Set your password' : 'Reset your password')}
+    ${p(`Hi ${esc(fullName)},`)}
+    ${p(setup
+      ? 'An IOL 2027 organiser created a staff account for you. Open the registration page, choose “Forgot your password?”, and enter this code with your email address to set a password.'
+      : 'Someone asked to reset the password for your IOL 2027 account. Enter this code on the sign-in page to choose a new password.')}
+    ${codeBlock(code, expiry)}
+    ${p('If you did not ask for this, you can ignore this email. Your password stays the same.', 'font-size:13px;color:#b0a8b4')}
+  `
+  return { subject, html: layout(preview, body) }
+}
+
+export function buildInviteEmail({ countryTerritory, organisation, code, siteUrl }) {
+  const subject = `Your IOL 2027 registration invitation — ${countryTerritory}`
+  const preview = `Your invitation code for ${countryTerritory} is ${code}.`
+  const body = `
+    ${h1('Register your team for IOL 2027')}
+    ${p(`You are receiving this as the official contact for <strong style="color:${C.night}">${esc(countryTerritory)}</strong>${organisation ? ` (${esc(organisation)})` : ''}. The 24th International Linguistics Olympiad takes place in Bangkok, Thailand, from 21 to 28 July 2027.`)}
+    ${p('Use this code once to create the Team Leader account. It links the account to your country and its team allowance.')}
+    ${infoTable([['Country or territory', countryTerritory], ['Invitation code', code]])}
+    ${button('Create the Team Leader account', `${siteUrl}/registration/team-leader`)}
+    ${notice('Registration happens in stages: team numbers and payment first, then people, then travel once flights are booked.')}
+    ${p('Please do not forward this code outside your national organisation. If you are not the right contact, reply to this email.', 'font-size:13px;color:#b0a8b4')}
   `
   return { subject, html: layout(preview, body) }
 }
@@ -249,7 +282,8 @@ export async function sendEmail({ pool, to, subject, html, purpose, accountId = 
     const response = await fetch(RESEND_API, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from, to: [to], subject, html }),
+      // Replies go to the central mailbox (EMAIL_REPLY_TO), not the no-reply sending address.
+      body: JSON.stringify({ from, to: [to], subject, html, ...(process.env.EMAIL_REPLY_TO ? { reply_to: process.env.EMAIL_REPLY_TO } : {}) }),
     })
     const payload = await response.json()
     if (!response.ok) throw new Error(payload.message || 'Resend rejected the request.')
