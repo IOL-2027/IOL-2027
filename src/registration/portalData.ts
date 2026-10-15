@@ -83,7 +83,7 @@ export const selectOptions: Record<string, string[]> = {
   'Exam language': ['English', 'French', 'German', 'Russian', 'Spanish', 'Arabic', 'Chinese', 'Other'],
   'T-shirt size': ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'],
   'Polo shirt size': ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'],
-  'Room type preference': ['Single room (ห้องเดี่ยว)', 'Twin/shared room (ห้องคู่)', 'No preference'],
+  'Room type preference': ['Twin/shared room (ห้องคู่)', 'Single room (ห้องเดี่ยว)', 'No preference'],
   'T-shirt style': ['Unisex (standard)', 'Ladies fit'],
   'Umbrella preference': ['Yes — I would like one', 'No thank you'],
   'Observer category': ['Regular observer', 'Guest observer', 'Observer pending approval'],
@@ -114,7 +114,7 @@ const people: Person[] = [
   { id: 'mali', name: 'Mali Phan', role: 'Contestant', team: 'Thailand A', badge: 'Mali', passportName: 'PHAN MALI', passport: 'AA7654321', dob: '', gender: 'Female', shirt: 'S', food: 'Vegetarian', medical: 'No special requirements', emergency: 'Nok Phan, +66 82 222 3344' },
   { id: 'kiet', name: 'Kiet Rattanakul', role: 'Contestant', team: 'Thailand A', badge: 'Kiet', passportName: 'RATTANAKUL KIET', passport: 'AA2468101', dob: '2009-06-03', gender: 'Male', shirt: 'M', food: 'No pork', medical: 'Carries an inhaler', emergency: 'Arun Rattanakul, +66 82 333 4455' },
   { id: 'arun', name: 'Arun Songsiri', role: 'Contestant', team: 'Thailand A', badge: 'Arun', passportName: 'SONGSIRI ARUN', passport: 'AA3579246', dob: '2008-11-18', gender: 'Male', shirt: 'L', food: 'No restrictions', medical: 'No special requirements', emergency: 'Malee Songsiri, +66 82 444 5566' },
-  { id: 'preecha', name: 'Prof. Preecha K.', role: 'Observer', team: '', badge: 'Prof. Preecha', passportName: 'KITTISAK PREECHA', passport: 'AB7659001', dob: '1975-04-09', gender: 'Male', shirt: 'L', food: 'No pork', medical: 'No special requirements', emergency: 'Maneerat K., +66 81 888 7766', observerCategory: 'Regular observer', email: 'preecha@national-olympiad.org', room: 'Single room (ห้องเดี่ยว)' },
+  { id: 'preecha', name: 'Prof. Preecha K.', role: 'Observer', team: '', badge: 'Prof. Preecha', passportName: 'KITTISAK PREECHA', passport: 'AB7659001', dob: '1975-04-09', gender: 'Male', shirt: 'L', food: 'No pork', medical: 'No special requirements', emergency: 'Maneerat K., +66 81 888 7766', observerCategory: 'Regular observer', email: 'preecha@national-olympiad.org', room: 'Twin/shared room (ห้องคู่)' },
 ]
 
 function personFields(p: Person): Field[] {
@@ -159,12 +159,14 @@ function welfareFacts(): Fact[] {
   const contestants = people.filter((p) => p.role === 'Contestant')
   const male = contestants.filter((p) => p.gender === 'Male').length
   const female = contestants.filter((p) => p.gender === 'Female').length
-  const singles = people.filter((p) => p.room === 'Single if available').map((p) => p.name)
+  const singles = people.filter((p) => p.room === 'Single room (ห้องเดี่ยว)').map((p) => p.name)
+  const twins = people.filter((p) => p.room === 'Twin/shared room (ห้องคู่)').map((p) => p.name)
   const diets = people.map((p) => p.food).filter((f) => f && !/no restrictions/i.test(f))
   const medical = people.map((p) => p.medical).filter((m) => m && !/no special requirements/i.test(m))
   return [
-    { label: 'Rooming', value: `${male} male and ${female} female contestants`, help: 'Contestants share same-gender rooms. Team Leaders and observers get single rooms.' },
+    { label: 'Rooming', value: `${male} male and ${female} female contestants`, help: 'Contestants share same-gender rooms. Team Leaders and observers choose their own room type on their person record.' },
     { label: 'Single-room requests', value: singles.join(', ') || 'None' },
+    { label: 'Twin-room requests', value: twins.join(', ') || 'None' },
     { label: 'Food', value: diets.length ? diets.join(' · ') : 'No restrictions reported', help: 'Taken from each person’s food and allergy notes.' },
     { label: 'Medical and accessibility', value: medical.length ? medical.join(' · ') : 'Nothing reported' },
     { label: 'Guardian consent', value: 'Policy awaiting organiser decision', help: 'No upload is needed until the organisers confirm the policy.' },
@@ -183,7 +185,7 @@ export const sections: Section[] = [
     facts: [
       { label: 'Team Leader', value: `${delegation.leaderName} · ${delegation.leaderEmail}`, help: 'From your verified account.' },
       { label: 'Country', value: `${delegation.country} · set by your invitation code` },
-      { label: 'Rooms', value: 'Assigned by the organisers', help: 'Team Leaders and observers get single rooms; contestants share same-gender rooms.' },
+      { label: 'Rooms', value: 'Set on each person\'s record', help: 'Team Leaders and observers choose twin or single room. Contestants share same-gender rooms.' },
     ],
     fields: [
       { label: 'Number of teams', value: '2', kind: 'select', help: 'Up to two teams per country or territory.' },
