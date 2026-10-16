@@ -1,154 +1,71 @@
-# Email setup (Resend)
+# Email setup
 
-The registration system sends its emails (verification codes, proof received, payment confirmed and so on) through **Resend**, an email-sending service. The code is already written. Until Resend is set up, every email is recorded in the database's delivery log but not actually sent. "Switching emails on" means finishing the steps below so they really go out.
+The registration system sends its emails (verification codes, password reset codes, invitations, proof received, payment confirmed and so on) from the central mailbox **iol2027.th@gmail.com**, through Gmail. The code is written; it only needs a Gmail **app password** to start sending.
 
-**Status (16 October 2026):** Stage A is done. The dev API sends through Resend in test mode, so only iol2027.th@gmail.com receives mail. Stage B (a verified sending domain) is next.
+**Decision (16 October 2026):** IOL 2027 has no domain of its own (no `@iol2027.org` or similar), so all email goes out from the Gmail address. That rules out services such as Resend for real sending, because they can only send from a domain whose DNS you control.
 
-There are two stages:
-
-- **Stage A, test mode (about 10 minutes).** No domain needed. Emails can only go to the Resend account's own address. Good for testing the whole flow now.
-- **Stage B, real sending (needs DNS access).** Emails go to any Team Leader, from an official IOL 2027 address.
+**Status:** waiting for the app password (step 1 below). Until then the dev server sends through Resend in test mode, which only reaches iol2027.th@gmail.com itself; everyone else is shown their code on screen.
 
 ---
 
-## Stage A: test mode
+## 1. Create the app password (owner of iol2027.th@gmail.com, about 5 minutes)
 
-### A1. Create the Resend account
+An app password is a separate 16-letter password that lets one program send mail as the account. It cannot be used to sign in to Gmail on the web, and it can be revoked at any time without changing the real password.
 
-1. Open https://resend.com and click **Get started** (top right).
-2. Sign up with **iol2027.th@gmail.com**, the central mailbox, not a personal address, so the account can be handed over later.
-3. Open the confirmation email from Resend and click the link.
-4. If Resend asks about your use case, choose **Transactional emails**.
+1. Sign in to Google as **iol2027.th@gmail.com**.
+2. **2-Step Verification must be on.** Open https://myaccount.google.com/signinoptions/two-step-verification. If it is off, turn it on (this is the step that needs the phone that holds the account's second factor).
+3. Open https://myaccount.google.com/apppasswords.
+4. App name: `IOL 2027 registration`. Click **Create**.
+5. Google shows a 16-letter password in four groups, like `abcd efgh ijkl mnop`. **Copy it now**; Google shows it only once.
 
-### A2. Create a test API key
+## 2. Store it
 
-1. In the left sidebar, click **API Keys**.
-2. Click **Create API Key**.
-3. Name: `iol2027-test`. Permission: **Sending access**. Domain: **All domains** (there is only Resend's test domain for now).
-4. Click **Add**. The key starts with `re_`. **Copy it now**: Resend only shows it once.
-
-### A3. Hand the key over
-
-Do **not** paste the key into chat, email or a commit. Store it in Google Secret Manager from your own terminal:
+From a terminal signed in to the `iol2027` Google Cloud project:
 
 ```bash
-gcloud secrets create iol2027-resend-api-key --project=iol2027 --replication-policy=user-managed --locations=asia-southeast1 --data-file=-
+gcloud secrets create iol2027-gmail-app-password --project=iol2027 --replication-policy=user-managed --locations=asia-southeast1 --data-file=-
 ```
 
-Paste the key, press **Enter**, then **Ctrl+Z** and **Enter** (Windows) or **Ctrl+D** (Mac/Linux) to finish. Then tell the developer it is stored. The API on Cloud Run reads it from there.
+Paste the password, press **Enter**, then **Ctrl+Z** and **Enter** (Windows) or **Ctrl+D** (Mac/Linux). Then tell the developer it is stored. (Spaces are fine; the server removes them.)
 
-For local testing only, you can instead put it in the project's `.env` file (gitignored):
-
-```
-RESEND_API_KEY=re_...
-EMAIL_FROM=IOL 2027 Registration <onboarding@resend.dev>
-EMAIL_REPLY_TO=iol2027.th@gmail.com
-```
-
-### A4. Test it
-
-1. On the development site, start a Team Leader sign-up with a test invite code (see ROLES.md), using **iol2027.th@gmail.com** as the email.
-2. The 6-digit code should arrive within a minute. Check the spam folder too.
-3. In Resend, **Emails** in the sidebar lists every send and whether it was delivered.
-
-In test mode Resend refuses to send to any address other than the account owner's. That is expected.
-
----
-
-## Stage B: real sending from an official address
-
-### B1. Choose the sending domain
-
-Resend must prove you control the domain the email comes from, by checking DNS records you add. That rules out `@gmail.com`. Options, best first:
-
-| Option | Example From address | Who adds the DNS records |
-| --- | --- | --- |
-| **Subdomain of the official site** (recommended) | `registration@mail.iol2027.ioling.org` | Whoever manages `ioling.org` (IOL central team) |
-| A Chulalongkorn subdomain | `iol2027@...chula.ac.th` | Chula IT |
-| A new domain the team owns | `registration@iol2027.org` | You, but it must be bought (procurement; the source document asks to avoid this) |
-
-Use a **subdomain** such as `mail.` rather than the main domain. It keeps the sending reputation separate and Resend recommends it.
-
-### B2. Add the domain in Resend
-
-1. Sidebar → **Domains** → **Add Domain**.
-2. Name: `mail.iol2027.ioling.org` (or your choice from B1).
-3. Region: **Tokyo (ap-northeast-1)**, the nearest to Thailand.
-4. Click **Add**. Resend shows a table of DNS records, usually:
-
-| Type | Name | Purpose |
-| --- | --- | --- |
-| MX | `send.mail.iol2027…` | Handles bounces |
-| TXT | `send.mail.iol2027…` | SPF: says Resend may send for you |
-| TXT | `resend._domainkey.mail.iol2027…` | DKIM: signs each email so it can't be forged |
-
-Also add a **DMARC** record, which Gmail and Outlook increasingly require:
-
-| Type | Name | Value |
-| --- | --- | --- |
-| TXT | `_dmarc.mail.iol2027.ioling.org` | `v=DMARC1; p=none; rua=mailto:iol2027.th@gmail.com` |
-
-### B3. Ask the DNS owner to add the records
-
-Copy the exact values from Resend's screen; they are unique to your account. A message you can send:
-
-> Subject: DNS records for IOL 2027 registration emails
->
-> Hello,
->
-> The IOL 2027 registration system needs to send emails (account verification, payment confirmations) from `registration@mail.iol2027.ioling.org`. Could you please add these DNS records to the `ioling.org` zone?
->
-> [paste the table from Resend, plus the DMARC record]
->
-> They only cover the `mail.iol2027` subdomain and do not affect any other ioling.org email or website. Thank you!
-
-### B4. Verify
-
-1. Once the records are added, go back to **Domains** in Resend and click **Verify DNS Records**.
-2. It can take from a few minutes to a few hours. Status changes to **Verified** when done.
-3. If it stays **Pending** after 24 hours, check that the names were entered without the domain repeated (a common mistake: `send.mail.iol2027.ioling.org.ioling.org`).
-
-### B5. Create the production key
-
-1. **API Keys** → **Create API Key**.
-2. Name: `iol2027-api`. Permission: **Sending access**. Domain: **mail.iol2027.ioling.org** only.
-3. Copy it and replace the stored secret with the new one:
-
-```bash
-gcloud secrets versions add iol2027-resend-api-key --project=iol2027 --data-file=-
-```
-
-4. Delete the old `iol2027-test` key in Resend.
-
-### B6. Settings the developer applies
+## 3. Settings the developer applies
 
 | Setting | Value |
 | --- | --- |
-| `EMAIL_FROM` | `IOL 2027 Registration <registration@mail.iol2027.ioling.org>` |
-| `EMAIL_REPLY_TO` | `iol2027.th@gmail.com` (replies reach the central mailbox) |
-| `FINANCE_EMAIL` | The Finance team's address, which gets an alert for every proof upload |
+| `GMAIL_USER` | `iol2027.th@gmail.com` |
+| `GMAIL_APP_PASSWORD` | from the secret `iol2027-gmail-app-password` |
+| `EMAIL_FROM` | optional; defaults to `IOL 2027 Registration <iol2027.th@gmail.com>` |
+| `FINANCE_EMAIL` | optional; an address that gets an alert for every proof upload |
 
-### B7. Final check
+When `GMAIL_USER` and `GMAIL_APP_PASSWORD` are set, Gmail is used even if a Resend key is also present.
 
-1. Sign up with a test invite code using a personal Gmail address.
-2. In Gmail open the email → **⋮** → **Show original**. **SPF**, **DKIM** and **DMARC** should all say **PASS**.
+## 4. Test it
+
+1. On the development site, open **Forgot your password?** for an account whose email is a real inbox you can read, or ask the registration team to send an invitation code to that address (Back office → Invitation codes).
+2. The email should arrive within a minute, from **IOL 2027 Registration &lt;iol2027.th@gmail.com&gt;**. Check spam the first time.
+3. A copy of everything sent appears in the **Sent** folder of iol2027.th@gmail.com, and in **Back office → Email log**.
+
+Addresses ending in `.test` (the test accounts) are never really sent; the email log shows them as **Skipped**, and the dev site shows the code on screen instead.
 
 ---
 
-## Limits and costs
+## Limits
 
-| Plan | Emails | Notes |
-| --- | --- | --- |
-| Free | 3,000 a month, **100 a day** | Enough for normal registration traffic |
-| Pro (USD 20/month) | 50,000 a month, no daily cap | Needed for announcements to all ~500 participants, or busy deadline days |
-
-Resend keeps its own log for 30 days. The system's `email_deliveries` table keeps every send permanently.
-
-## Troubleshooting
-
-| Symptom | Likely cause |
+| | |
 | --- | --- |
-| Emails logged with status `queued`, nothing sent | `RESEND_API_KEY` or `EMAIL_FROM` not set on the server |
-| Status `failed`: "You can only send testing emails to your own email address" | Still in test mode (Stage A) |
-| Status `failed`: "domain is not verified" | Stage B4 not finished, or `EMAIL_FROM` uses a different domain |
-| Emails land in spam | DMARC missing, or the From domain doesn't match the verified domain |
+| Daily limit | About **500 recipients a day** for a normal Gmail account. Plenty for registration (about 60 countries, a few emails each). |
+| Announcements to everyone (~500 people) | Would use a whole day's allowance. Send them over two days, or as one email with the recipients in BCC from Gmail directly. |
+| If the limit is hit | Gmail refuses further sends for about 24 hours; the email log shows them as **Failed** with Google's reason. |
+
+## Things that stop email working
+
+| Symptom in the email log | Cause and fix |
+| --- | --- |
+| **Failed**: "Invalid login" or "Username and Password not accepted" | The app password was revoked, or the account password was changed (which revokes all app passwords). Create a new app password (step 1) and add it as a new secret version: `gcloud secrets versions add iol2027-gmail-app-password --project=iol2027 --data-file=-`, then ask the developer to redeploy. |
+| **Failed**: "Daily user sending limit exceeded" | The 500-a-day limit; wait 24 hours. |
+| **Queued** | Email is switched off on that server (no Gmail or Resend settings). |
+| **Skipped** | A `.test` address; expected for test accounts. |
+
+## Resend (set up, now only for testing)
+
+A Resend account exists (owner iol2027.th@gmail.com) and its key is in the secret `iol2027-resend-api-key`. Without a domain, Resend can only deliver to iol2027.th@gmail.com, so it is only a stand-in until the Gmail app password exists. Once Gmail is working, delete the `iol2027-test` key in Resend (it was shared in a chat) and remove `RESEND_API_KEY` from the server.

@@ -100,7 +100,7 @@ type EmailRow = { id: string; recipientEmail: string; purpose: string; status: s
 export function EmailLog() {
   const { data, error } = useLoad<{ deliveries: EmailRow[] }>('/api/admin/email-deliveries')
   return (
-    <Panel id="email" title="Email log" intro="Every email the system tried to send. “Queued” means no email provider is switched on yet, so it was recorded but not sent.">
+    <Panel id="email" title="Email log" intro="Every email the system tried to send. “Skipped” is a test address (ending in .test), which is never really sent. “Queued” means email is switched off on this server. “Failed” shows the reason.">
       <Problem message={error} />
       {data && <TableWrap label="Email log">
         <thead><tr><th scope="col">When</th><th scope="col">To</th><th scope="col">Purpose</th><th scope="col">Status</th></tr></thead>

@@ -1,11 +1,13 @@
 /**
- * IOL 2027 — transactional email module (Resend)
+ * IOL 2027 transactional email.
  *
- * Every outbound email goes through sendEmail(). Caller provides purpose,
- * delegationId and accountId for the audit row; the function handles
- * delivery tracking in email_deliveries and retries nothing — upstream
- * should re-call if needed.
+ * Every outbound email goes through sendEmail(), which records it in email_deliveries and sends it with:
+ *   - Gmail (the organisers' own mailbox, iol2027.th@gmail.com) when GMAIL_USER and GMAIL_APP_PASSWORD are set, or
+ *   - Resend when RESEND_API_KEY and EMAIL_FROM are set (needs a verified domain to reach anyone but the account owner), or
+ *   - nothing: the email is only recorded ("queued").
+ * Nothing is retried; callers send again if they need to. See docs/EMAIL_SETUP.md.
  */
+import nodemailer from 'nodemailer'
 
 const RESEND_API = 'https://api.resend.com/emails'
 
@@ -250,8 +252,51 @@ export function buildInviteEmail({ countryTerritory, organisation, code, siteUrl
 
 // ── delivery ──────────────────────────────────────────────────────────────────
 
+/** Which service sends email right now. Gmail wins when both are configured. */
+export function emailProvider() {
+  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) return 'gmail'
+  if (process.env.RESEND_API_KEY && process.env.EMAIL_FROM) return 'resend'
+  return null
+}
+
+// Reserved by RFC 2606 for testing: such addresses can never receive mail. Sending to them would only
+// bounce back into the organisers' inbox, so they are recorded and skipped (the test accounts use .test).
+const isTestAddress = (address) => /\.(test|example|invalid|localhost)$/i.test(address.trim())
+
+let gmailTransport
+function gmail() {
+  gmailTransport ??= nodemailer.createTransport({
+    host: 'smtp.gmail.com', port: 465, secure: true,
+    // Google shows app passwords in groups of four; the spaces are not part of it.
+    auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD.replace(/\s+/g, '') },
+    connectionTimeout: 15_000, greetingTimeout: 10_000, socketTimeout: 20_000,
+  })
+  return gmailTransport
+}
+
+async function sendWithGmail({ to, subject, html }) {
+  const user = process.env.GMAIL_USER
+  // Gmail only sends as the signed-in mailbox, so the From address is always that account.
+  const from = process.env.EMAIL_FROM?.includes(user) ? process.env.EMAIL_FROM : `IOL 2027 Registration <${user}>`
+  const replyTo = process.env.EMAIL_REPLY_TO && process.env.EMAIL_REPLY_TO !== user ? process.env.EMAIL_REPLY_TO : undefined
+  const info = await gmail().sendMail({ from, to, subject, html, replyTo })
+  return info.messageId
+}
+
+async function sendWithResend({ to, subject, html }) {
+  const response = await fetch(RESEND_API, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    // Replies go to the central mailbox (EMAIL_REPLY_TO), not the no-reply sending address.
+    body: JSON.stringify({ from: process.env.EMAIL_FROM, to: [to], subject, html, ...(process.env.EMAIL_REPLY_TO ? { reply_to: process.env.EMAIL_REPLY_TO } : {}) }),
+  })
+  const payload = await response.json()
+  if (!response.ok) throw new Error(payload.message || 'Resend rejected the request.')
+  return payload.id
+}
+
 /**
- * Send one email via Resend and record the delivery.
+ * Send one email and record the delivery.
  *
  * @param {object} opts
  * @param {pg.Pool} opts.pool
@@ -261,46 +306,28 @@ export function buildInviteEmail({ countryTerritory, organisation, code, siteUrl
  * @param {string}  opts.purpose      - stored in email_deliveries
  * @param {string}  [opts.accountId]
  * @param {string}  [opts.delegationId]
- * @returns {{ delivery: object, configured: boolean }}
+ * @returns {{ delivery: object, configured: boolean }} configured is true only when the email really went out.
  */
 export async function sendEmail({ pool, to, subject, html, purpose, accountId = null, delegationId = null }) {
-  const deliveryResult = await pool.query(
-    `INSERT INTO email_deliveries (account_id, delegation_id, recipient_email, purpose, status)
-     VALUES ($1, $2, $3, $4, 'queued')
+  const provider = emailProvider()
+  const skip = provider && isTestAddress(to)
+  const delivery = (await pool.query(
+    `INSERT INTO email_deliveries (account_id, delegation_id, recipient_email, purpose, provider, status, error_message)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [accountId, delegationId, to, purpose],
-  )
-  const delivery = deliveryResult.rows[0]
-
-  const apiKey = process.env.RESEND_API_KEY
-  const from   = process.env.EMAIL_FROM
-  if (!apiKey || !from) {
-    return { delivery, configured: false }
-  }
+    [accountId, delegationId, to, purpose, provider ?? 'none', skip ? 'skipped' : 'queued', skip ? 'Test address: not sent.' : null],
+  )).rows[0]
+  if (!provider || skip) return { delivery, configured: false }
 
   try {
-    const response = await fetch(RESEND_API, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      // Replies go to the central mailbox (EMAIL_REPLY_TO), not the no-reply sending address.
-      body: JSON.stringify({ from, to: [to], subject, html, ...(process.env.EMAIL_REPLY_TO ? { reply_to: process.env.EMAIL_REPLY_TO } : {}) }),
-    })
-    const payload = await response.json()
-    if (!response.ok) throw new Error(payload.message || 'Resend rejected the request.')
-
+    const messageId = provider === 'gmail' ? await sendWithGmail({ to, subject, html }) : await sendWithResend({ to, subject, html })
     const sent = await pool.query(
-      `UPDATE email_deliveries
-       SET status = 'sent', provider_message_id = $1, sent_at = now()
-       WHERE id = $2
-       RETURNING *`,
-      [payload.id, delivery.id],
+      `UPDATE email_deliveries SET status = 'sent', provider_message_id = $1, sent_at = now() WHERE id = $2 RETURNING *`,
+      [messageId, delivery.id],
     )
     return { delivery: sent.rows[0], configured: true }
   } catch (error) {
-    await pool.query(
-      `UPDATE email_deliveries SET status = 'failed', error_message = $1 WHERE id = $2`,
-      [error.message, delivery.id],
-    )
+    await pool.query(`UPDATE email_deliveries SET status = 'failed', error_message = $1 WHERE id = $2`, [error.message, delivery.id])
     throw error
   }
 }

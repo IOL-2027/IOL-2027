@@ -58,12 +58,12 @@ gcloud run deploy iol2027-api --project iol2027 --region asia-southeast1 \
   --image asia-southeast1-docker.pkg.dev/iol2027/registration/api:<tag> \
   --service-account iol2027-api@iol2027.iam.gserviceaccount.com \
   --add-cloudsql-instances research-trend-analysis:asia-southeast1:papertrend-pg \
-  --set-secrets DATABASE_URL=iol2027-database-url:latest,RESEND_API_KEY=iol2027-resend-api-key:latest \
-  --set-env-vars NODE_ENV=production,UPLOAD_BUCKET=iol2027-registration-uploads,EXPOSE_DEV_CODES=true,DB_POOL_MAX=5,SITE_URL=https://iol2027-dev.web.app \
+  --set-secrets DATABASE_URL=iol2027-database-url:latest,GMAIL_APP_PASSWORD=iol2027-gmail-app-password:latest \
+  --set-env-vars NODE_ENV=production,UPLOAD_BUCKET=iol2027-registration-uploads,EXPOSE_DEV_CODES=true,DB_POOL_MAX=5,SITE_URL=https://iol2027-dev.web.app,GMAIL_USER=iol2027.th@gmail.com \
   --allow-unauthenticated --min-instances 0 --max-instances 2 --memory 512Mi
 ```
 
-Run `npm run db:migrate` (through the proxy) before deploying code that needs a new migration. Email is on: `RESEND_API_KEY` comes from the secret `iol2027-resend-api-key`, with `EMAIL_FROM="IOL 2027 Registration <onboarding@resend.dev>"` and `EMAIL_REPLY_TO=iol2027.th@gmail.com` (set once with `gcloud run services update … --update-env-vars`; later deploys keep them). In Resend's test mode only iol2027.th@gmail.com receives mail; when a sending domain is verified, change `EMAIL_FROM` and set `FINANCE_EMAIL` (see [docs/EMAIL_SETUP.md](../docs/EMAIL_SETUP.md) Stage B).
+Run `npm run db:migrate` (through the proxy) before deploying code that needs a new migration. Email goes out from iol2027.th@gmail.com through Gmail when `GMAIL_USER` and `GMAIL_APP_PASSWORD` (secret `iol2027-gmail-app-password`) are set; until then the dev server uses Resend test mode (`RESEND_API_KEY` from `iol2027-resend-api-key`, `EMAIL_FROM="IOL 2027 Registration <onboarding@resend.dev>"`), which only reaches iol2027.th@gmail.com. Addresses ending in `.test` are never sent. Environment and secrets set with `gcloud run services update` stay on later deploys. See [docs/EMAIL_SETUP.md](../docs/EMAIL_SETUP.md).
 
 ## Endpoints
 

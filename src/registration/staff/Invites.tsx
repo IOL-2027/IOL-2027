@@ -62,7 +62,7 @@ export default function Invites() {
   }
   const send = (invite: Invite) => act(invite, async () => {
     const result = await api<{ emailSent: boolean }>(`/api/admin/invites/${invite.id}/send`, { method: 'POST' })
-    return result.emailSent ? `Invitation emailed to ${invite.contactEmail}.` : `Recorded, but not sent: email is switched off on this server. Send ${invite.code} to ${invite.contactEmail} yourself, or send again once email is on.`
+    return result.emailSent ? `Invitation emailed to ${invite.contactEmail}.` : `Recorded, but not sent: ${invite.contactEmail} is a test address, or email is switched off on this server. Give them ${invite.code} yourself if needed.`
   })
   const setStatus = (invite: Invite, status: 'active' | 'revoked') => act(invite, async () => {
     await api(`/api/admin/invites/${invite.id}`, { method: 'PATCH', body: { status } })

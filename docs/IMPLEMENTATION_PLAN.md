@@ -37,7 +37,7 @@ Owners follow the source document's §11: **Web/Dev** (อาม, ภีม์),
 
 | Sprint | Dates | Goal | Status |
 | --- | --- | --- | --- |
-| 1 | now → 7 Nov 2026 | Login with roles, portal saves to the database, API on Cloud Run (dev), emails switched on | ✅ (emails in Resend test mode since 16 Oct 2026; real sending needs Stage B) |
+| 1 | now → 7 Nov 2026 | Login with roles, portal saves to the database, API on Cloud Run (dev), emails switched on | ✅ (emails: Gmail sending built; waiting for the iol2027.th@gmail.com app password, see EMAIL_SETUP.md) |
 | 2 | 8 Nov → 5 Dec 2026 | Admin back office (payment queue, people status, exports), password reset, audit log, guardian consent | ✅ built early, 15 Oct 2026, on the dev site; Google sign-in and admin 2FA moved to Sprint 3 |
 | 3 | 6 Dec → 31 Dec 2026 | Full site content, PDPA page final, news admin, custom domain, UAT round 1 | |
 | 4 | 1 Jan → 17 Jan 2027 | Cross-browser and mobile QA, load test, backup and restore test, production deploy, invite codes sent | |
@@ -179,8 +179,8 @@ Source §2.3, §5.1 step 10, and the email questions in the source's question li
 
 | Task | Status | Notes |
 | --- | --- | --- |
-| Transactional sending through Resend, logged in `email_deliveries` | ✅ | On since 16 Oct 2026 in test mode: only iol2027.th@gmail.com receives mail until a sending domain is verified (EMAIL_SETUP.md Stage B). Other recipients are logged as failed, and the dev site shows codes on screen instead |
-| Sending domain verified, From and Reply-To set | ⬜ | ⚠️ D5. Needs DNS access for the chosen domain |
+| Transactional sending, logged in `email_deliveries` | 🟡 | Sends from iol2027.th@gmail.com through Gmail once its app password is stored (EMAIL_SETUP.md). Until then the dev server uses Resend test mode, which only reaches iol2027.th@gmail.com. `.test` addresses are never sent |
+| From address | ✅ | IOL 2027 Registration &lt;iol2027.th@gmail.com&gt;. No domain will be used (decided 16 Oct 2026, D5) |
 | Account verification code | ✅ | |
 | Proof received (Team Leader) and Finance alert | ✅ | |
 | Payment confirmed | ✅ | Receipt link missing until the e-receipt exists |
@@ -189,7 +189,7 @@ Source §2.3, §5.1 step 10, and the email questions in the source's question li
 | Password reset email | 🟡 | Template built (also used for new staff setup); sends once emails are on |
 | E-receipt, QR badge and invitation letter emails | ⬜ | Sprint 2–3 |
 | Deadline reminders to unpaid countries | ⬜ | Source §12.1 |
-| Announcements to all participants (~500) | ⬜ | Batch sending; Resend free plan caps at 100 a day |
+| Announcements to all participants (~500) | ⬜ | Gmail allows about 500 recipients a day, so spread over two days or send by BCC from Gmail |
 
 ---
 
@@ -281,7 +281,7 @@ Source §9.2 and the question list's testing section.
 | D2 | Enter members, submit, then pay | Pay before entering members; proof upload unlocks People | Thanawat's flow after the board meeting. Confirm it with the board. |
 | D3 | Host for at least five years, then hand over to the faculty | After the event the site becomes a static archive; the database and API are deleted | Decided 9 Oct 2026 |
 | D4 | Give the IOL central team our server IP for DNS | Firebase Hosting provides DNS records (A and TXT), not a single server IP | Technical correction |
-| D5 | Central email such as contact@iol2027.ioling.org as the From address | Central mailbox today is iol2027.th@gmail.com, which cannot be a verified sending domain | Needs a sending domain (EMAIL_SETUP.md) |
+| D5 | Central email such as contact@iol2027.ioling.org as the From address | Emails come from iol2027.th@gmail.com, sent through Gmail | Confirmed 16 Oct 2026: there is no IOL 2027 domain; Gmail only |
 | D6 | Team = 5 people for USD 1,000 | Team fee USD 1,000 plus USD 220 per room, 2 rooms per team | Board meeting and fee sheet |
 | D7 | Results entered in the admin with draft and publish | Results currently link to the IOL central archive | Decide before the event whether we host live results |
 | D8 | Roles: Guest, Team Leader, Admin (later list adds Super Admin, Registration, Finance, Check-in, Viewer) | Nine roles, see ROLES.md | Least-privilege for PDPA |
@@ -304,6 +304,6 @@ From the source document's §14, plus later ones. Each needs an owner before the
 | Q7 | Separate "Individual Observer" role; mandatory admin 2FA? | Committee | Roles, Sprint 2 |
 | Q8 | Venue Wi-Fi reliability for check-in | LOC | Offline mode |
 | Q9 | Data retention periods and the named data controller | Committee | PDPA page |
-| Q10 | Email sending domain and who manages its DNS | Email team, IOL central | Emails |
+| Q10 | ~~Email sending domain and who manages its DNS~~ Answered 16 Oct 2026: no domain, send from iol2027.th@gmail.com | Email team | Resolved |
 | Q11 | Working-language list and request deadline | Academic committee | Teams step |
 | Q12 | Visa matrix and invitation-letter template | LOC | Visas page, letters |
