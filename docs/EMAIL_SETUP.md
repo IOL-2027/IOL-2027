@@ -2,6 +2,8 @@
 
 The registration system sends its emails (verification codes, proof received, payment confirmed and so on) through **Resend**, an email-sending service. The code is already written. Until Resend is set up, every email is recorded in the database's delivery log but not actually sent. "Switching emails on" means finishing the steps below so they really go out.
 
+**Status (16 October 2026):** Stage A is done. The dev API sends through Resend in test mode, so only iol2027.th@gmail.com receives mail. Stage B (a verified sending domain) is next.
+
 There are two stages:
 
 - **Stage A, test mode (about 10 minutes).** No domain needed. Emails can only go to the Resend account's own address. Good for testing the whole flow now.
