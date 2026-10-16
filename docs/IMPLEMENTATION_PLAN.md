@@ -37,7 +37,7 @@ Owners follow the source document's §11: **Web/Dev** (อาม, ภีม์),
 
 | Sprint | Dates | Goal | Status |
 | --- | --- | --- | --- |
-| 1 | now → 7 Nov 2026 | Login with roles, portal saves to the database, API on Cloud Run (dev), emails switched on | ✅ except emails (waiting for the Resend account) |
+| 1 | now → 7 Nov 2026 | Login with roles, portal saves to the database, API on Cloud Run (dev), emails switched on | ✅ (emails in Resend test mode since 16 Oct 2026; real sending needs Stage B) |
 | 2 | 8 Nov → 5 Dec 2026 | Admin back office (payment queue, people status, exports), password reset, audit log, guardian consent | ✅ built early, 15 Oct 2026, on the dev site; Google sign-in and admin 2FA moved to Sprint 3 |
 | 3 | 6 Dec → 31 Dec 2026 | Full site content, PDPA page final, news admin, custom domain, UAT round 1 | |
 | 4 | 1 Jan → 17 Jan 2027 | Cross-browser and mobile QA, load test, backup and restore test, production deploy, invite codes sent | |
@@ -179,7 +179,7 @@ Source §2.3, §5.1 step 10, and the email questions in the source's question li
 
 | Task | Status | Notes |
 | --- | --- | --- |
-| Transactional sending through Resend, logged in `email_deliveries` | ✅ | Code done; switched off until an API key exists |
+| Transactional sending through Resend, logged in `email_deliveries` | ✅ | On since 16 Oct 2026 in test mode: only iol2027.th@gmail.com receives mail until a sending domain is verified (EMAIL_SETUP.md Stage B). Other recipients are logged as failed, and the dev site shows codes on screen instead |
 | Sending domain verified, From and Reply-To set | ⬜ | ⚠️ D5. Needs DNS access for the chosen domain |
 | Account verification code | ✅ | |
 | Proof received (Team Leader) and Finance alert | ✅ | |
