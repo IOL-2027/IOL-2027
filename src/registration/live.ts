@@ -177,7 +177,7 @@ export function welfareFacts(members: Member[], policy: GuardianConsentPolicy, a
   const contestants = members.filter((m) => m.role === 'contestant')
   const male = contestants.filter((m) => m.genderForRoomAllocation === 'Male').length
   const female = contestants.filter((m) => m.genderForRoomAllocation === 'Female').length
-  const singles = members.filter((m) => m.roomTypePreference === 'Single if available').map((m) => m.displayName)
+  const singles = members.filter((m) => /single/i.test(m.roomTypePreference ?? '')).map((m) => m.displayName)
   const diets = members.map((m) => m.foodAllergyNotes).filter((f): f is string => Boolean(f && !/no restrictions/i.test(f)))
   const medical = members.map((m) => m.medicalAccessibilityNotes).filter((m): m is string => Boolean(m && !/no special requirements/i.test(m)))
   return [
