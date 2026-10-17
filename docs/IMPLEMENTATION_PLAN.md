@@ -1,6 +1,6 @@
 # IOL 2027 implementation plan
 
-**Status as of:** 15 October 2026
+**Status as of:** 18 October 2026
 **Event:** 21–28 July 2027, Bangkok · **Registration opens:** 18 January 2027
 
 ## How to read this plan
@@ -103,16 +103,16 @@ Source §5. Front end: `src/registration/`. API: `server/index.js`.
 
 | # | Source step | Status | Notes |
 | --- | --- | --- | --- |
-| 1 | Organisers email each country's invite code | ⬜ | Needs the invite-code admin and an email template (§6, §7) |
+| 1 | Organisers email each country's invite code | 🟡 | Invitation-code admin and email template built; real sending waits for the Gmail app password |
 | 2 | Team Leader enters the code and creates an account | ✅ | |
 | 3 | Email verification before first use | ✅ | Code is shown on screen on the dev site until emails are switched on |
 | 4 | Login lands on the team dashboard | ✅ | Opens at the first unfinished step; staff land on their back office |
 | 5 | Enter team and member details | 🟡 | ⚠️ Order changed: payment comes before member details (D2) |
 | 6 | Submit; fee calculated from the submission date (early bird / normal) | 🟡 | Server calculates fees and the tier (early bird to 12 Mar 2027; the normal rate is not set, so both are USD 1,000 for now); submission blocked until people, teams, payment and stay dates are complete |
 | 7 | Team Leader transfers outside the system, then uploads proof | ✅ | Invoice details saved first, then proof upload unlocks People |
-| 8 | Admin sees the proof in a review queue | 🟡 | Basic queue with proof download for Finance; preview and filters in Sprint 2 |
+| 8 | Admin sees the proof in a review queue | ✅ | Payment queue with inline preview, filters and search |
 | 9 | Staff check the proof against สอวน's statement, then approve or reject | ✅ | Approval bug fixed; returning a proof needs a reason, which the Team Leader sees |
-| 10 | On approval, email (a) e-receipt PDF, (b) ID badge with QR, (c) invitation letter | 🟡 | Confirmation email exists; receipt PDF, badge PDF and letters not built (Sprint 2–3) |
+| 10 | On approval, email (a) e-receipt PDF, (b) ID badge with QR, (c) invitation letter | 🟡 | (a) done: the confirmation email links to the e-receipt. (b) badge PDF and (c) letters in Sprint 3; the letter needs its template (Q12) |
 | 11 | Add members later; pay only for the added people | ⬜ | ⚠️ Per-person price formula is open question Q1 |
 
 ### 4.2 After registration, before the event (source §5.2)
@@ -179,7 +179,7 @@ Source §2.3, §5.1 step 10, and the email questions in the source's question li
 
 | Task | Status | Notes |
 | --- | --- | --- |
-| Transactional sending, logged in `email_deliveries` | 🟡 | Sends from iol2027.th@gmail.com through Gmail once its app password is stored (EMAIL_SETUP.md). Until then the dev server uses Resend test mode, which only reaches iol2027.th@gmail.com. `.test` addresses are never sent |
+| Transactional sending, logged in `email_deliveries` | 🟡 | Sends from iol2027.th@gmail.com through Gmail once its app password is stored (EMAIL_SETUP.md). Postponed: the account is in Google’s 7-day hold after an authenticator was added (18 Oct 2026); revisit from 25 Oct. Until then the dev server uses Resend test mode, which only reaches iol2027.th@gmail.com. `.test` addresses are never sent |
 | From address | ✅ | IOL 2027 Registration &lt;iol2027.th@gmail.com&gt;. No domain will be used (decided 16 Oct 2026, D5) |
 | Account verification code | ✅ | |
 | Proof received (Team Leader) and Finance alert | ✅ | |
@@ -187,7 +187,7 @@ Source §2.3, §5.1 step 10, and the email questions in the source's question li
 | Registration submitted | ✅ | |
 | Invite code email | 🟡 | Template built; sends once emails are on |
 | Password reset email | 🟡 | Template built (also used for new staff setup); sends once emails are on |
-| E-receipt, QR badge and invitation letter emails | ⬜ | Sprint 2–3 |
+| E-receipt, QR badge and invitation letter emails | 🟡 | E-receipt link in the payment-confirmed email; badge and letter emails in Sprint 3 |
 | Deadline reminders to unpaid countries | ⬜ | Source §12.1 |
 | Announcements to all participants (~500) | ⬜ | Gmail allows about 500 recipients a day, so spread over two days or send by BCC from Gmail |
 
