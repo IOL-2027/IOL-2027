@@ -35,7 +35,7 @@ Database: database `iol2027` on Cloud SQL instance `research-trend-analysis:asia
 
 3. Start the API with `npm run dev:api` and the site with `npm run dev`.
 
-Without `RESEND_API_KEY`, emails are recorded as "queued" and not sent. Set `EXPOSE_DEV_CODES=true` to have the API return email verification codes so the sign-up flow can be tested. Never set it on the public deployment.
+Without `GMAIL_USER` and `GMAIL_APP_PASSWORD` (or a Resend key), emails are recorded as "queued" and not sent. Set `EXPOSE_DEV_CODES=true` to have the API return email verification codes so the sign-up flow can be tested. Never set it on the public deployment.
 
 ## Tests
 
@@ -63,7 +63,7 @@ gcloud run deploy iol2027-api --project iol2027 --region asia-southeast1 \
   --allow-unauthenticated --min-instances 0 --max-instances 2 --memory 512Mi
 ```
 
-Run `npm run db:migrate` (through the proxy) before deploying code that needs a new migration. Email goes out from iol2027.th@gmail.com through Gmail when `GMAIL_USER` and `GMAIL_APP_PASSWORD` (secret `iol2027-gmail-app-password`) are set; until then the dev server uses Resend test mode (`RESEND_API_KEY` from `iol2027-resend-api-key`, `EMAIL_FROM="IOL 2027 Registration <onboarding@resend.dev>"`), which only reaches iol2027.th@gmail.com. Addresses ending in `.test` are never sent. Environment and secrets set with `gcloud run services update` stay on later deploys. See [docs/EMAIL_SETUP.md](../docs/EMAIL_SETUP.md).
+Run `npm run db:migrate` (through the proxy) before deploying code that needs a new migration. Email goes out from iol2027.th@gmail.com through Gmail when `GMAIL_USER` and `GMAIL_APP_PASSWORD` (secret `iol2027-gmail-app-password`) are set, as they are on the dev server. Addresses ending in `.test` are never sent. Environment and secrets set with `gcloud run services update` stay on later deploys. See [docs/EMAIL_SETUP.md](../docs/EMAIL_SETUP.md).
 
 ## Endpoints
 

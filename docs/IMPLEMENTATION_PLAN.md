@@ -1,6 +1,6 @@
 # IOL 2027 implementation plan
 
-**Status as of:** 18 October 2026
+**Status as of:** 21 October 2026
 **Event:** 21–28 July 2027, Bangkok · **Registration opens:** 18 January 2027
 
 ## How to read this plan
@@ -37,7 +37,7 @@ Owners follow the source document's §11: **Web/Dev** (อาม, ภีม์),
 
 | Sprint | Dates | Goal | Status |
 | --- | --- | --- | --- |
-| 1 | now → 7 Nov 2026 | Login with roles, portal saves to the database, API on Cloud Run (dev), emails switched on | ✅ (emails: Gmail sending built; waiting for the iol2027.th@gmail.com app password, see EMAIL_SETUP.md) |
+| 1 | now → 7 Nov 2026 | Login with roles, portal saves to the database, API on Cloud Run (dev), emails switched on | ✅ (emails sent through Gmail since 21 Oct 2026) |
 | 2 | 8 Nov → 5 Dec 2026 | Admin back office (payment queue, people status, exports), password reset, audit log, guardian consent | ✅ built early, 15 Oct 2026, on the dev site; Google sign-in and admin 2FA moved to Sprint 3 |
 | 3 | 6 Dec → 31 Dec 2026 | Full site content, PDPA page final, news admin, custom domain, UAT round 1 | |
 | 4 | 1 Jan → 17 Jan 2027 | Cross-browser and mobile QA, load test, backup and restore test, production deploy, invite codes sent | |
@@ -103,9 +103,9 @@ Source §5. Front end: `src/registration/`. API: `server/index.js`.
 
 | # | Source step | Status | Notes |
 | --- | --- | --- | --- |
-| 1 | Organisers email each country's invite code | 🟡 | Invitation-code admin and email template built; real sending waits for the Gmail app password |
+| 1 | Organisers email each country's invite code | ✅ | Invitation codes are created and emailed from the back office; real codes go out in Sprint 4 |
 | 2 | Team Leader enters the code and creates an account | ✅ | |
-| 3 | Email verification before first use | ✅ | Code is shown on screen on the dev site until emails are switched on |
+| 3 | Email verification before first use | ✅ | Code is emailed; the dev site also shows it on screen (never on production) |
 | 4 | Login lands on the team dashboard | ✅ | Opens at the first unfinished step; staff land on their back office |
 | 5 | Enter team and member details | 🟡 | ⚠️ Order changed: payment comes before member details (D2) |
 | 6 | Submit; fee calculated from the submission date (early bird / normal) | 🟡 | Server calculates fees and the tier (early bird to 12 Mar 2027; the normal rate is not set, so both are USD 1,000 for now); submission blocked until people, teams, payment and stay dates are complete |
@@ -163,7 +163,7 @@ Source §6. Only the API pieces exist today.
 | Overview dashboard (countries, payment states, proof queue) | ✅ | Includes people by stage and invitation codes |
 | Per-person status (registered → awaiting payment → paid → badge issued → checked in) | ✅ | People list with filters by country, role, stage and missing details |
 | Payment review queue with proof preview | ✅ | Inline preview, invoice details, search, return with a reason |
-| Invite-code management (create, send, revoke) | ✅ | One at a time or a pasted list; sending is recorded and goes out once emails are on |
+| Invite-code management (create, send, revoke) | ✅ | One at a time or a pasted list; every send is recorded in the email log |
 | Exports: participants, payments, check-in, by country / team / role (CSV, Excel) | ✅ | CSV that opens in Excel (Thai text kept); limited by role and logged. Native .xlsx not built |
 | News and Updates posting | ⬜ | 3 |
 | Gallery upload with captions | ⬜ | Before event |
@@ -179,14 +179,14 @@ Source §2.3, §5.1 step 10, and the email questions in the source's question li
 
 | Task | Status | Notes |
 | --- | --- | --- |
-| Transactional sending, logged in `email_deliveries` | 🟡 | Sends from iol2027.th@gmail.com through Gmail once its app password is stored (EMAIL_SETUP.md). Postponed: the account is in Google’s 7-day hold after an authenticator was added (18 Oct 2026); revisit from 25 Oct. Until then the dev server uses Resend test mode, which only reaches iol2027.th@gmail.com. `.test` addresses are never sent |
+| Transactional sending, logged in `email_deliveries` | ✅ | Sends from iol2027.th@gmail.com through Gmail since 21 Oct 2026; a test invitation reached a real inbox (EMAIL_SETUP.md). `.test` addresses are never sent |
 | From address | ✅ | IOL 2027 Registration &lt;iol2027.th@gmail.com&gt;. No domain will be used (decided 16 Oct 2026, D5) |
 | Account verification code | ✅ | |
 | Proof received (Team Leader) and Finance alert | ✅ | |
-| Payment confirmed | ✅ | Receipt link missing until the e-receipt exists |
+| Payment confirmed | ✅ | Links to the e-receipt |
 | Registration submitted | ✅ | |
-| Invite code email | 🟡 | Template built; sends once emails are on |
-| Password reset email | 🟡 | Template built (also used for new staff setup); sends once emails are on |
+| Invite code email | ✅ | |
+| Password reset email | ✅ | Also used for new staff setup |
 | E-receipt, QR badge and invitation letter emails | 🟡 | E-receipt link in the payment-confirmed email; badge and letter emails in Sprint 3 |
 | Deadline reminders to unpaid countries | ⬜ | Source §12.1 |
 | Announcements to all participants (~500) | ⬜ | Gmail allows about 500 recipients a day, so spread over two days or send by BCC from Gmail |
