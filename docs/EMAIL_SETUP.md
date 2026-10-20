@@ -1,10 +1,10 @@
 # Email setup
 
-The registration system sends its emails (verification codes, password reset codes, invitations, proof received, payment confirmed and so on) from the central mailbox **iol2027.th@gmail.com**, through Gmail. The code is written; it only needs a Gmail **app password** to start sending.
+The registration system sends its emails (verification codes, password reset codes, invitations, proof received, payment confirmed and so on) from the central mailbox **iol2027.th@gmail.com**, through Gmail, using a Gmail **app password**.
 
 **Decision (16 October 2026):** IOL 2027 has no domain of its own (no `@iol2027.org` or similar), so all email goes out from the Gmail address. That rules out services such as Resend for real sending, because they can only send from a domain whose DNS you control.
 
-**Status:** waiting for the app password (step 1 below). Until then the dev server sends through Resend in test mode, which only reaches iol2027.th@gmail.com itself; everyone else is shown their code on screen.
+**Status:** working on the dev server since 21 October 2026. The app password is stored in the secret `iol2027-gmail-app-password`, and a test invitation reached a real Gmail inbox. Steps 1 and 2 below are done; repeat them only to replace the password.
 
 ---
 
@@ -66,6 +66,6 @@ Addresses ending in `.test` (the test accounts) are never really sent; the email
 | **Queued** | Email is switched off on that server (no Gmail or Resend settings). |
 | **Skipped** | A `.test` address; expected for test accounts. |
 
-## Resend (set up, now only for testing)
+## Resend (no longer used)
 
-A Resend account exists (owner iol2027.th@gmail.com) and its key is in the secret `iol2027-resend-api-key`. Without a domain, Resend can only deliver to iol2027.th@gmail.com, so it is only a stand-in until the Gmail app password exists. Once Gmail is working, delete the `iol2027-test` key in Resend (it was shared in a chat) and remove `RESEND_API_KEY` from the server.
+A Resend account exists (owner iol2027.th@gmail.com). Without a domain it can only deliver to iol2027.th@gmail.com, so it was a stand-in until the Gmail app password existed. Its key was taken off the server on 21 October 2026; the secret `iol2027-resend-api-key` is kept but unused. Still to do: delete the `iol2027-test` key in the Resend dashboard, because it was shared in a chat. The code can still send through Resend (`RESEND_API_KEY` and `EMAIL_FROM`) if a domain is ever added.
