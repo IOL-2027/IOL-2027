@@ -11,17 +11,18 @@ import nodemailer from 'nodemailer'
 
 const RESEND_API = 'https://api.resend.com/emails'
 
-// ── base colours (match site CSS variables) ──────────────────────────────────
+// ── colours (site palette) ─────────────────────────────────────────────────────
+// White page, near-black text, no dark blocks: mail apps that force dark mode invert a plain white email cleanly.
 const C = {
-  night:  '#160c1b',
-  cream:  '#f3eed4',
+  ink:    '#160c1b',
+  text:   '#2b2230',
+  muted:  '#574e5c',
+  line:   '#ddd6cb',
   orange: '#eda363',
   jade:   '#719a79',
-  paper:  '#faf8f5',
-  line:   '#e0d9cc',
-  ink:    '#160c1b',
-  muted:  '#706774',
 }
+
+const SMALL = `font-size:14px;color:${C.muted}`
 
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 
@@ -33,39 +34,36 @@ function layout(previewText, bodyHtml) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="x-apple-disable-message-reformatting">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light only">
 <title>IOL 2027 Thailand</title>
+<style>:root{color-scheme:light only;supported-color-schemes:light only}</style>
 <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
 </head>
-<body style="margin:0;padding:0;background:${C.paper};font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
+<body style="margin:0;padding:0;background:#ffffff;color:${C.text};font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
 <span style="display:none;max-height:0;overflow:hidden">${previewText}&nbsp;</span>
-<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:${C.paper};padding:32px 16px 56px">
-  <tr><td align="center">
-    <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;width:100%">
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" bgcolor="#ffffff" style="background:#ffffff">
+  <tr><td align="center" style="padding:32px 20px 40px">
+    <table width="600" cellpadding="0" cellspacing="0" role="presentation" bgcolor="#ffffff" style="max-width:600px;width:100%;background:#ffffff">
 
       <!-- header -->
-      <tr><td style="background:${C.night};border-radius:16px 16px 0 0;padding:28px 40px 24px">
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-          <tr>
-            <td>
-              <p style="margin:0;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${C.orange}">IOL 2027</p>
-              <p style="margin:6px 0 0;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:rgba(243,238,212,.42)">INTERNATIONAL OLYMPIAD IN LINGUISTICS · BANGKOK</p>
-            </td>
-          </tr>
-        </table>
+      <tr><td style="padding:0 0 16px;border-bottom:3px solid ${C.orange}">
+        <p style="margin:0;font-size:20px;font-weight:700;line-height:1.2;color:${C.ink}">IOL 2027</p>
+        <p style="margin:4px 0 0;font-size:14px;line-height:1.4;color:${C.muted}">International Olympiad in Linguistics · Bangkok, Thailand</p>
       </td></tr>
 
       <!-- body -->
-      <tr><td style="background:#ffffff;padding:40px 40px 36px;border-left:1px solid ${C.line};border-right:1px solid ${C.line}">
+      <tr><td style="padding:32px 0 12px">
         ${bodyHtml}
       </td></tr>
 
       <!-- footer -->
-      <tr><td style="background:${C.paper};border:1px solid ${C.line};border-top:none;border-radius:0 0 16px 16px;padding:24px 40px">
-        <p style="margin:0;font-size:12px;color:${C.muted};line-height:1.6">
+      <tr><td style="padding:20px 0 0;border-top:1px solid ${C.line}">
+        <p style="margin:0;font-size:14px;color:${C.muted};line-height:1.6">
           IOL 2027 Organising Committee · Bangkok, Thailand<br>
-          <a href="mailto:iol2027.th@gmail.com" style="color:${C.muted}">iol2027.th@gmail.com</a>
+          <a href="mailto:iol2027.th@gmail.com" style="color:${C.ink}">iol2027.th@gmail.com</a>
         </p>
-        <p style="margin:14px 0 0;font-size:11px;color:#b0a8b4;line-height:1.5">
+        <p style="margin:12px 0 0;font-size:13px;color:${C.muted};line-height:1.5">
           This message was sent to you because you are registered or registering as a Team Leader for IOL 2027.
           Do not share this email with unauthorised parties.
         </p>
@@ -79,44 +77,50 @@ function layout(previewText, bodyHtml) {
 }
 
 function h1(text) {
-  return `<h1 style="margin:0 0 20px;font-size:32px;font-weight:800;letter-spacing:-.04em;line-height:1.05;color:${C.night}">${text}</h1>`
+  return `<h1 style="margin:0 0 20px;font-size:26px;font-weight:700;line-height:1.25;color:${C.ink}">${text}</h1>`
 }
 
 function p(text, style = '') {
-  return `<p style="margin:0 0 16px;font-size:16px;line-height:1.72;color:${C.muted};${style}">${text}</p>`
+  return `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:${C.text};${style}">${text}</p>`
 }
 
 function codeBlock(code, expiry = 'Expires in 30 minutes') {
-  return `<div style="margin:24px 0;background:${C.night};border-radius:12px;padding:28px;text-align:center">
-    <p style="margin:0 0 8px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(243,238,212,.42)">VERIFICATION CODE</p>
-    <p style="margin:0;font-size:36px;font-weight:700;letter-spacing:.3em;color:${C.orange};font-family:'Courier New',Courier,monospace">${code}</p>
-    <p style="margin:10px 0 0;font-size:12px;color:rgba(243,238,212,.4)">${expiry}</p>
-  </div>`
+  return `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:24px 0">
+    <tr><td align="center" style="border:2px solid ${C.ink};border-radius:10px;padding:20px 16px">
+      <p style="margin:0 0 6px;font-size:14px;color:${C.muted}">Your code</p>
+      <p style="margin:0;padding-left:.25em;font-size:34px;font-weight:700;letter-spacing:.25em;color:${C.ink};font-family:'Courier New',Courier,monospace">${code}</p>
+      <p style="margin:8px 0 0;font-size:14px;color:${C.muted}">${expiry}</p>
+    </td></tr>
+  </table>`
 }
 
 function infoTable(rows) {
-  const cells = rows.map(([label, value]) => `
+  const cells = rows.map(([label, value], index) => {
+    const rule = index < rows.length - 1 ? `border-bottom:1px solid ${C.line};` : ''
+    return `
     <tr>
-      <td style="padding:11px 16px;border-bottom:1px solid ${C.line};font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#b0a8b4;white-space:nowrap;width:40%">${label}</td>
-      <td style="padding:11px 16px;border-bottom:1px solid ${C.line};font-size:14px;font-weight:600;color:${C.night}">${esc(value)}</td>
-    </tr>`).join('')
-  return `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border:1px solid ${C.line};border-radius:12px;overflow:hidden;margin:24px 0">
+      <td style="padding:12px 16px;${rule}font-size:14px;line-height:1.4;color:${C.muted};width:40%;vertical-align:top">${label}</td>
+      <td style="padding:12px 16px;${rule}font-size:16px;line-height:1.4;font-weight:600;color:${C.ink};word-break:break-word">${esc(value)}</td>
+    </tr>`
+  }).join('')
+  return `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border:1px solid ${C.line};border-radius:8px;border-collapse:separate;margin:24px 0">
     <tbody>${cells}</tbody>
   </table>`
 }
 
 function button(label, href) {
   return `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:28px 0 8px">
-    <tr><td style="background:${C.orange};border-radius:99px">
-      <a href="${href}" style="display:inline-block;padding:14px 28px;font-size:14px;font-weight:700;letter-spacing:-.01em;color:${C.night};text-decoration:none">${label} →</a>
+    <tr><td bgcolor="${C.orange}" style="background:${C.orange};border-radius:8px">
+      <a href="${href}" style="display:inline-block;padding:14px 24px;font-size:16px;font-weight:700;color:${C.ink};text-decoration:none">${label} →</a>
     </td></tr>
   </table>`
 }
 
 function notice(text, color = C.jade) {
-  return `<div style="border-left:3px solid ${color};background:rgba(113,154,121,.08);padding:14px 18px;border-radius:0 8px 8px 0;margin:20px 0">
-    <p style="margin:0;font-size:14px;line-height:1.6;color:${C.night}">${text}</p>
-  </div>`
+  const tint = color === C.orange ? '#fdf4ea' : '#f0f6f1'
+  return `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:20px 0">
+    <tr><td bgcolor="${tint}" style="border-left:4px solid ${color};background:${tint};padding:14px 18px;border-radius:0 8px 8px 0;font-size:15px;line-height:1.6;color:${C.ink}">${text}</td></tr>
+  </table>`
 }
 
 // ── email builders ────────────────────────────────────────────────────────────
@@ -127,10 +131,10 @@ export function buildVerificationEmail({ countryTerritory, fullName, code }) {
   const body = `
     ${h1('Verify your email')}
     ${p(`Hi ${esc(fullName)},`)}
-    ${p(`You're creating a Team Leader account for <strong style="color:${C.night}">${esc(countryTerritory)}</strong> at IOL 2027.
+    ${p(`You're creating a Team Leader account for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> at IOL 2027.
          Enter the code below to verify your email address and continue.`)}
     ${codeBlock(code)}
-    ${p(`If you did not request this code, please ignore this email.`, 'font-size:13px;color:#b0a8b4')}
+    ${p(`If you did not request this code, please ignore this email.`, SMALL)}
   `
   return { subject, html: layout(preview, body) }
 }
@@ -141,7 +145,7 @@ export function buildProofReceivedEmail({ countryTerritory, fullName, paymentRef
   const body = `
     ${h1('Payment proof received')}
     ${p(`Hi ${esc(fullName)},`)}
-    ${p(`We have received your proof of payment for the IOL 2027 registration of <strong style="color:${C.night}">${esc(countryTerritory)}</strong>.
+    ${p(`We have received your proof of payment for the IOL 2027 registration of <strong style="color:${C.ink}">${esc(countryTerritory)}</strong>.
          Finance will review the transfer and update your registration status within 5 business days.`)}
     ${infoTable([
       ['Delegation', countryTerritory],
@@ -151,7 +155,7 @@ export function buildProofReceivedEmail({ countryTerritory, fullName, paymentRef
       ['Review status', 'Awaiting Finance review'],
     ])}
     ${notice('No further action is needed at this stage. We will email you once the payment has been confirmed.')}
-    ${p(`If you have questions about your payment, reply to this email with your payment reference.`, 'font-size:13px;color:#b0a8b4')}
+    ${p(`If you have questions about your payment, reply to this email with your payment reference.`, SMALL)}
   `
   return { subject, html: layout(preview, body) }
 }
@@ -180,7 +184,7 @@ export function buildPaymentConfirmedEmail({ countryTerritory, fullName, payment
   const body = `
     ${h1('Payment confirmed')}
     ${p(`Hi ${esc(fullName)},`)}
-    ${p(`Great news — Finance has confirmed your payment for <strong style="color:${C.night}">${esc(countryTerritory)}</strong>.
+    ${p(`Great news — Finance has confirmed your payment for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong>.
          Your IOL 2027 registration is now active.`)}
     ${infoTable([
       ['Delegation', countryTerritory],
@@ -190,7 +194,7 @@ export function buildPaymentConfirmedEmail({ countryTerritory, fullName, payment
     ])}
     ${notice('<strong>Next steps:</strong> Log in to complete member details, teams and travel information. Invitation letters will be sent to registered email addresses.')}
     ${receiptUrl ? button('Download receipt', receiptUrl) : ''}
-    ${p(`QR badges will be issued once participant names are finalised. You will receive a separate email when they are ready.`, 'font-size:13px;color:#b0a8b4')}
+    ${p(`QR badges will be issued once participant names are finalised. You will receive a separate email when they are ready.`, SMALL)}
   `
   return { subject, html: layout(preview, body) }
 }
@@ -199,12 +203,12 @@ export function buildRegistrationSubmittedEmail({ countryTerritory, fullName, nu
   const subject = 'Registration submitted — IOL 2027'
   const preview = `Your initial registration for ${countryTerritory} has been submitted.`
   const missing = missingItems?.length
-    ? `<ul style="margin:8px 0 0;padding-left:20px">${missingItems.map((item) => `<li style="margin:4px 0;font-size:14px;color:${C.muted}">${item}</li>`).join('')}</ul>`
+    ? `<ul style="margin:8px 0 0;padding-left:20px">${missingItems.map((item) => `<li style="margin:4px 0;font-size:15px;color:${C.ink}">${item}</li>`).join('')}</ul>`
     : ''
   const body = `
     ${h1('Registration submitted')}
     ${p(`Hi ${esc(fullName)},`)}
-    ${p(`Your initial registration for <strong style="color:${C.night}">${esc(countryTerritory)}</strong> at IOL 2027 has been submitted successfully.`)}
+    ${p(`Your initial registration for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> at IOL 2027 has been submitted successfully.`)}
     ${infoTable([
       ['Delegation', countryTerritory],
       ['Teams', String(numberOfTeams || 1)],
@@ -214,7 +218,7 @@ export function buildRegistrationSubmittedEmail({ countryTerritory, fullName, nu
     ${missingItems?.length ? `
       ${notice(`<strong>Still needed before final submission:</strong>${missing}`, C.orange)}
     ` : notice('Your registration is complete for now. You can return to add travel details after flights are booked.')}
-    ${p(`You will receive a separate email once Finance confirms your payment.`, 'font-size:13px;color:#b0a8b4')}
+    ${p(`You will receive a separate email once Finance confirms your payment.`, SMALL)}
   `
   return { subject, html: layout(preview, body) }
 }
@@ -230,7 +234,7 @@ export function buildPasswordCodeEmail({ fullName, code, setup }) {
       ? 'An IOL 2027 organiser created a staff account for you. Open the registration page, choose “Forgot your password?”, and enter this code with your email address to set a password.'
       : 'Someone asked to reset the password for your IOL 2027 account. Enter this code on the sign-in page to choose a new password.')}
     ${codeBlock(code, expiry)}
-    ${p('If you did not ask for this, you can ignore this email. Your password stays the same.', 'font-size:13px;color:#b0a8b4')}
+    ${p('If you did not ask for this, you can ignore this email. Your password stays the same.', SMALL)}
   `
   return { subject, html: layout(preview, body) }
 }
@@ -240,12 +244,12 @@ export function buildInviteEmail({ countryTerritory, organisation, code, siteUrl
   const preview = `Your invitation code for ${countryTerritory} is ${code}.`
   const body = `
     ${h1('Register your team for IOL 2027')}
-    ${p(`You are receiving this as the official contact for <strong style="color:${C.night}">${esc(countryTerritory)}</strong>${organisation ? ` (${esc(organisation)})` : ''}. The 24th International Linguistics Olympiad takes place in Bangkok, Thailand, from 21 to 28 July 2027.`)}
+    ${p(`You are receiving this as the official contact for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong>${organisation ? ` (${esc(organisation)})` : ''}. The 24th International Linguistics Olympiad takes place in Bangkok, Thailand, from 21 to 28 July 2027.`)}
     ${p('Use this code once to create the Team Leader account. It links the account to your country and its team allowance.')}
     ${infoTable([['Country or territory', countryTerritory], ['Invitation code', code]])}
     ${button('Create the Team Leader account', `${siteUrl}/registration/team-leader`)}
     ${notice('Registration happens in stages: team numbers and payment first, then people, then travel once flights are booked.')}
-    ${p('Please do not forward this code outside your national organisation. If you are not the right contact, reply to this email.', 'font-size:13px;color:#b0a8b4')}
+    ${p('Please do not forward this code outside your national organisation. If you are not the right contact, reply to this email.', SMALL)}
   `
   return { subject, html: layout(preview, body) }
 }
