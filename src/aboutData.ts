@@ -53,7 +53,6 @@ export const workingLanguages: { name: string; native: string; lang: string; dir
 
 // Photos from Wikimedia Commons, CC BY 4.0, resized for the web.
 export const aboutPhotos = {
-  ceremony: { src: '/assets/about/iol-2024-opening-ceremony.jpg', alt: 'Hundreds of contestants and team leaders with their national flags in an auditorium under an IOL Brasília 2024 banner', caption: 'Opening ceremony of IOL 2024 in Brasília: 206 contestants from 38 countries.', credit: "Photo: L'Astorina, CC BY 4.0", source: 'https://commons.wikimedia.org/wiki/File:IOL_2024_Opening_ceremony.jpg' },
   team: { src: '/assets/about/iol-2019-team-yongin.jpg', alt: 'A national team holding the Brazilian flag in front of an IOL Yongin 2019 backdrop', caption: 'The Brazilian team at IOL 2019 in Yongin, Republic of Korea.', credit: "Photo: L'Astorina, CC BY 4.0", source: 'https://commons.wikimedia.org/wiki/File:Time_brasileiro_na_IOL_2019.jpg' },
 }
 

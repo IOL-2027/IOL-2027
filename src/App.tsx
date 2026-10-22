@@ -203,9 +203,8 @@ function PhotoCredit({ photo }: { photo: { caption: string; credit: string; sour
 }
 
 function About() {
-  const { ceremony, team } = aboutPhotos
-  return <><PageIntro eyebrow="About the Olympiad" title="Data holds the pattern, deduction holds the key." body="IOL is one of the International Science Olympiads: a yearly meeting of young problem-solvers who decode the structures hidden inside human language." />
-    <figure className="about-banner wrap"><img src={ceremony.src} alt={ceremony.alt} /><PhotoCredit photo={ceremony} /></figure>
+  const { team } = aboutPhotos
+  return <div className="about-page"><PageIntro eyebrow="About the Olympiad" title="Data holds the pattern, deduction holds the key." body="IOL is one of the International Science Olympiads: a yearly meeting of young problem-solvers who decode the structures hidden inside human language." />
     <section className="two-col wrap"><div><p className="eyebrow">What happens</p><h2>Reasoning through pattern, verified by rigor.</h2></div><div className="prose"><p>Problems may draw on any language in the world. Contestants discover patterns, test hypotheses and explain systems they have never seen before. No knowledge of particular languages or of linguistic theory is assumed.</p><p>Each accredited country or territory may send up to two teams. A contest team has no more than four contestants and one team leader. Contestants take part in both an individual round and a collaborative team round.</p><p>Careful observation, hypothesis testing and a clear explanation matter more than memorised vocabulary.</p></div></section>
 
     <section className="about-block wrap">
@@ -282,7 +281,7 @@ function About() {
         <div className="social-row"><span>Follow the IOL</span>{socialLinks.map((social) => <a key={social.label} className="social-link" href={social.href} target="_blank" rel="noreferrer" aria-label={`IOL on ${social.label}`}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={social.path} /></svg></a>)}</div>
       </div>
     </section>
-    <SectionLinks links={[{ href: '/about/thailand', label: 'Host: Thailand', detail: 'Meet Bangkok and the host programme.' }, { href: '/about/thai-language', label: 'Useful Thai', detail: 'Useful phrases for travelling in Thailand.' }, { href: '/about/important-dates', label: 'Important dates', detail: 'Registration periods and the event week.' }]} /></>
+    <SectionLinks links={[{ href: '/about/thailand', label: 'Host: Thailand', detail: 'Meet Bangkok and the host programme.' }, { href: '/about/thai-language', label: 'Useful Thai', detail: 'Useful phrases for travelling in Thailand.' }, { href: '/about/important-dates', label: 'Important dates', detail: 'Registration periods and the event week.' }]} /></div>
 }
 
 function Thailand() {
