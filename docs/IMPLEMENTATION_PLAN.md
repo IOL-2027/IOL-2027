@@ -47,7 +47,7 @@ Owners follow the source document's §11: **Web/Dev** (อาม, ภีม์),
 
 ## 2. Public website
 
-Source §3. Hosted on Firebase Hosting (`main` → https://iol2027.web.app, `development` → https://iol2027-dev.web.app). Until registration opens, `main` is fed from the `prelaunch` branch, which hides the registration portal (README → Hosting).
+Source §3. Hosted on Firebase Hosting (`main` → https://iol2027.web.app, `development` → https://iol2027-dev.web.app). Until registration opens, the public site is built with `VITE_REGISTRATION_OPEN=false`, which hides the registration portal; changes reach `main` through the `prelaunch` branch (README → Hosting).
 
 | Page | Source phase | Status | Next action |
 | --- | --- | --- | --- |
