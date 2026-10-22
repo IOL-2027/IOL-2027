@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, ArrowUpRight, Camera, Car, CheckCircle, ChevronLeft, ChevronRight, ExternalLink, Footprints, MapPin, Menu, ShieldCheck, Volume2, X } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Building2, Camera, Car, CheckCircle, ChevronLeft, ChevronRight, ExternalLink, Flag, Footprints, Globe, GraduationCap, Heart, Landmark, Languages, MapPin, Menu, PenTool, Scale, ShieldCheck, Trophy, User, Users, Volume2, X } from 'lucide-react'
 import { event, homeBaseRoute, schedule, venues } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
 import thaiPhrases from './thaiPhrases.json'
 import TeamLeaderPortal from './registration/TeamLeaderPortal'
 import { registrationOpen } from './launch'
+import { aboutPhotos, olympiads, socialLinks, workingLanguages } from './aboutData'
+import { GrowthChart, HostMap, MedalDots, ThaiFlag } from './AboutVisuals'
 
 type NavItem = { label: string; href: string; external?: boolean; children?: { label: string; href: string }[] }
 const badgeScannerMode = import.meta.env.VITE_BADGE_SCANNER_MODE === 'live' ? 'live' : 'demo'
@@ -192,29 +194,94 @@ function Home() {
   </>
 }
 
-// Every IOL so far, from https://ioling.org/history/ (no olympiad was held in 2020).
-const pastOlympiads = [
-  ['2003', 'Borovets', 'Bulgaria'], ['2004', 'Moscow', 'Russia'], ['2005', 'Leiden', 'Netherlands'], ['2006', 'Tartu', 'Estonia'],
-  ['2007', 'St Petersburg', 'Russia'], ['2008', 'Slanchev Bryag', 'Bulgaria'], ['2009', 'Wrocław', 'Poland'], ['2010', 'Stockholm', 'Sweden'],
-  ['2011', 'Pittsburgh', 'United States'], ['2012', 'Ljubljana', 'Slovenia'], ['2013', 'Manchester', 'United Kingdom'], ['2014', 'Beijing', 'China'],
-  ['2015', 'Blagoevgrad', 'Bulgaria'], ['2016', 'Mysore', 'India'], ['2017', 'Dublin', 'Ireland'], ['2018', 'Prague', 'Czechia'],
-  ['2019', 'Yongin', 'Republic of Korea'], ['2021', 'Ventspils', 'Latvia'], ['2022', 'Castletown', 'Isle of Man'], ['2023', 'Bansko', 'Bulgaria'],
-  ['2024', 'Brasília', 'Brazil'], ['2025', 'Taipei', 'Taiwan'], ['2026', 'Bucharest', 'Romania'], ['2027', 'Bangkok', 'Thailand'],
-]
-
 function OutLink({ href, children }: { href: string; children: React.ReactNode }) {
   return <a className="text-link" href={href} target="_blank" rel="noreferrer">{children} <ExternalLink size={14} /></a>
 }
 
+function PhotoCredit({ photo }: { photo: { caption: string; credit: string; source: string } }) {
+  return <figcaption><span>{photo.caption}</span><a href={photo.source} target="_blank" rel="noreferrer">{photo.credit}</a></figcaption>
+}
+
 function About() {
-  return <><PageIntro eyebrow="About the Olympiad" title="Data holds the pattern, deduction holds the key." body="IOL is one of the International Science Olympiads: a yearly meeting of young problem-solvers who decode the structures hidden inside human language." /><section className="two-col wrap"><div><p className="eyebrow">What happens</p><h2>Reasoning through pattern, verified by rigor.</h2></div><div className="prose"><p>Problems may draw on any language in the world. Contestants discover patterns, test hypotheses and explain systems they have never seen before. No knowledge of particular languages or of linguistic theory is assumed.</p><p>Each accredited country or territory may send up to two teams. A contest team has no more than four contestants and one team leader. Contestants take part in both an individual round and a collaborative team round.</p><p>Careful observation, hypothesis testing and a clear explanation matter more than memorised vocabulary.</p></div></section><section className="number-grid wrap"><article><strong>5</strong><span>individual problems</span></article><article><strong>6h</strong><span>individual contest</span></article><article><strong>4</strong><span>students per team</span></article><article><strong>8</strong><span>days together</span></article></section>
-    <section className="two-col about-detail wrap"><div><p className="eyebrow">The contests</p><h2>Two contests in one week.</h2></div><div className="prose"><p>The individual contest comes first: five problems in six hours, with no break. Problems can come from any branch of linguistics, from sound systems and word structure to syntax, meaning, language history and computational linguistics. Each one is self-contained, so everything needed to solve it is on the page.</p><p>Later in the week, each team of up to four works on a single problem set for three to four hours and hands in one joint solution.</p><p>Every contestant reads the problems and writes the answers in a language of their choice. IOL 2026 offered 29 working languages, Thai among them.</p><div className="about-links"><OutLink href="https://ioling.org/problems/samples/">Sample problems for beginners</OutLink><OutLink href="https://ioling.org/problems/by_year/">Every past problem, with solutions</OutLink></div></div></section>
-    <section className="two-col about-detail wrap"><div><p className="eyebrow">Awards</p><h2>Medals, mentions and prizes.</h2></div><div className="prose"><ul><li>Gold, silver and bronze medals go to between a quarter and a third of all contestants, in a ratio of roughly 1:2:3.</li><li>Contestants who score at or above the median but do not win a medal receive an honourable mention.</li><li>In the team contest, the Jury awards up to one gold, two silver and three bronze medals.</li><li>Further prizes go to the best solutions of each individual problem and to the country with the best average score. Contestants also vote for their favourite problem, and its author receives the Solvers' Choice Award.</li></ul><div className="about-links"><OutLink href="https://ioling.org/results/">Results of every IOL</OutLink></div></div></section>
-    <section className="two-col about-detail wrap"><div><p className="eyebrow">Who takes part</p><h2>Qualify at home, compete together.</h2></div><div className="prose"><p>Contestants must be pre-university students under 20 on the first day of the competition. Students cannot enter on their own: they qualify through their country's national linguistics olympiad, run by an organisation accredited by the IOL.</p><p>In Thailand, the national round is the <a className="inline-link" href="http://www.arts.chula.ac.th/ling/lot/" target="_blank" rel="noreferrer">Thailand Linguistics Olympiad (LOT)</a>, held every year with support from POSN to select the students who represent Thailand at the IOL.</p><p>Organisations that want their country to take part can apply to the IOL Board for accreditation at <a className="inline-link" href="mailto:contact@ioling.org">contact@ioling.org</a>.</p><div className="about-links"><OutLink href="https://ioling.org/countries/">Participating countries and their national contests</OutLink><OutLink href="https://ioling.org/faq/">Frequently asked questions</OutLink></div></div></section>
-    <section className="two-col about-detail wrap"><div><p className="eyebrow">Since 2003</p><h2>From Borovets to Bangkok.</h2></div><div className="prose"><p>The IOL grew out of the linguistics olympiads for school students that began in Moscow in 1965. After teams from Moscow and Bulgaria took part in each other's contests, the idea of an international olympiad followed. The first IOL was held in Borovets, Bulgaria, in 2003, with 33 contestants from six countries.</p><p>IOL 2026 in Bucharest, the 23rd, brought together 255 contestants in 65 teams from 46 countries and territories. Bangkok hosts the 24th IOL in 2027, the first in Southeast Asia.</p><div className="about-links"><OutLink href="https://ioling.org/history/">Full history and statistics</OutLink></div></div></section>
-    <ol className="host-history wrap" aria-label="Every IOL host city">{pastOlympiads.map(([year, city, country]) => <li key={year} className={year === '2027' ? 'host-current' : undefined}><time>{year}</time><div><strong>{city}</strong><small>{country}</small></div></li>)}</ol>
-    <section className="two-col about-detail wrap"><div><p className="eyebrow">How the IOL is run</p><h2>Shared rules, rotating hosts.</h2></div><div className="prose"><p>The International Board governs the IOL, keeps its regulations and decides which countries are accredited. The Problem Committee, with members from many countries, writes the problems for both contests. The International Jury marks the scripts and decides the awards.</p><p>Each year a Local Organising Committee in the host country runs the event itself: venues, programme, registration and the event website. For 2027 that is the Thai organising committee, with POSN, Chulalongkorn University and Kasetsart University as hosts.</p><div className="about-links"><OutLink href="https://ioling.org/regulations/">IOL regulations</OutLink><a className="text-link" href="/people/committee">IOL 2027 committees <ArrowRight size={14} /></a></div></div></section>
-    <section className="two-col about-detail wrap"><div><p className="eyebrow">Official IOL website</p><h2>More at ioling.org.</h2></div><div className="prose"><p>The IOL's own website keeps the archive of every olympiad since 2003, the regulations and news from the IOL Board.</p><p>Follow the IOL on <a className="inline-link" href="https://www.facebook.com/international.linguistics.olympiad" target="_blank" rel="noreferrer">Facebook</a>, <a className="inline-link" href="https://www.instagram.com/ioling.official/" target="_blank" rel="noreferrer">Instagram</a> and <a className="inline-link" href="https://twitter.com/IOLing_official" target="_blank" rel="noreferrer">X</a>.</p><div className="about-links"><a className="pill" href="https://ioling.org/" target="_blank" rel="noreferrer">Visit ioling.org <span><ExternalLink size={16} /></span></a><OutLink href="https://ioling.org/contact/">Contact the IOL Board</OutLink></div></div></section>
+  const { ceremony, team } = aboutPhotos
+  return <><PageIntro eyebrow="About the Olympiad" title="Data holds the pattern, deduction holds the key." body="IOL is one of the International Science Olympiads: a yearly meeting of young problem-solvers who decode the structures hidden inside human language." />
+    <figure className="about-banner wrap"><img src={ceremony.src} alt={ceremony.alt} /><PhotoCredit photo={ceremony} /></figure>
+    <section className="two-col wrap"><div><p className="eyebrow">What happens</p><h2>Reasoning through pattern, verified by rigor.</h2></div><div className="prose"><p>Problems may draw on any language in the world. Contestants discover patterns, test hypotheses and explain systems they have never seen before. No knowledge of particular languages or of linguistic theory is assumed.</p><p>Each accredited country or territory may send up to two teams. A contest team has no more than four contestants and one team leader. Contestants take part in both an individual round and a collaborative team round.</p><p>Careful observation, hypothesis testing and a clear explanation matter more than memorised vocabulary.</p></div></section>
+
+    <section className="about-block wrap">
+      <header className="about-head"><p className="eyebrow">The contests</p><h2>Two contests in one week.</h2><p>Every problem is self-contained: everything needed to solve it is on the page.</p></header>
+      <div className="contest-cards">
+        <article className="contest-card contest-individual"><div className="contest-card-top"><span className="contest-icon"><User size={22} /></span><span className="contest-kicker">Individual contest</span></div><div className="contest-stats"><div><strong>5</strong><span>problems</span></div><div><strong>6</strong><span>hours</span></div><div><strong>1</strong><span>solver</span></div></div><p>Each contestant works alone, with no break. Problems can come from any branch of linguistics, from sound systems and word structure to syntax, meaning, language history and computational linguistics.</p></article>
+        <article className="contest-card contest-team"><div className="contest-card-top"><span className="contest-icon"><Users size={22} /></span><span className="contest-kicker">Team contest</span></div><div className="contest-stats"><div><strong>1</strong><span>problem set</span></div><div><strong>3–4</strong><span>hours</span></div><div><strong>4</strong><span>solvers at most</span></div></div><p>Later in the week, each team works together on a single problem set and hands in one joint solution.</p></article>
+      </div>
+      <div className="language-band">
+        <div><span className="contest-icon"><Languages size={22} /></span><h3>Read and answer in your own language.</h3><p>Contestants choose the language they read the problems in and write their answers in. IOL 2026 offered 29 working languages, Thai among them.</p></div>
+        <ul className="language-chips">{workingLanguages.map((language) => <li key={language.lang} lang={language.lang} dir={language.dir} title={language.name} className={language.lang === 'th' ? 'is-thai' : undefined}>{language.native}</li>)}</ul>
+      </div>
+      <div className="about-actions"><a className="pill" href="https://ioling.org/problems/samples/" target="_blank" rel="noreferrer">Try the sample problems <span><ExternalLink size={16} /></span></a><OutLink href="https://ioling.org/problems/by_year/">Every past problem, with solutions</OutLink></div>
+    </section>
+
+    <section className="about-block wrap">
+      <header className="about-head"><p className="eyebrow">Awards</p><h2>Medals, mentions and prizes.</h2><p>Medals go to between a quarter and a third of all contestants, in a ratio of roughly 1:2:3. Contestants who reach the top half without a medal receive an honourable mention.</p></header>
+      <div className="awards-layout">
+        <div className="awards-panel"><p className="awards-panel-title">Out of every 24 contestants, roughly:</p><MedalDots /><p className="awards-note">Exact numbers depend on the scores. Everyone else receives a certificate of participation.</p></div>
+        <div className="prize-grid">
+          <article><span className="prize-icon"><Users size={20} /></span><h3>Team medals</h3><p>Up to one gold, two silver and three bronze in the team contest.</p></article>
+          <article><span className="prize-icon"><PenTool size={20} /></span><h3>Best solutions</h3><p>Prizes for the best one or two solutions to each individual problem.</p></article>
+          <article><span className="prize-icon"><Trophy size={20} /></span><h3>Best country average</h3><p>A trophy for the country with the highest average individual score.</p></article>
+          <article><span className="prize-icon"><Heart size={20} /></span><h3>Solvers' Choice</h3><p>Contestants vote for their favourite problem, and its author receives the award.</p></article>
+        </div>
+      </div>
+      <div className="about-actions"><OutLink href="https://ioling.org/results/">Results of every IOL</OutLink></div>
+    </section>
+
+    <section className="about-block wrap">
+      <header className="about-head"><p className="eyebrow">Who takes part</p><h2>Qualify at home, compete together.</h2></header>
+      <ol className="path-steps">
+        <li className="jade"><span className="path-number">01</span><span className="path-icon"><GraduationCap size={22} /></span><h3>Under 20, not yet at university</h3><p>Contestants must be pre-university students under 20 on the first day of the competition.</p></li>
+        <li className="saffron"><span className="path-number">02</span><span className="path-icon"><Flag size={22} /></span><h3>Win a place at home</h3><p>Students cannot enter on their own. They qualify through their country's national linguistics olympiad, run by an IOL-accredited organisation.</p></li>
+        <li className="plum"><span className="path-number">03</span><span className="path-icon"><Globe size={22} /></span><h3>Travel as a team</h3><p>Each country sends one or two teams of up to four contestants, each with a team leader.</p></li>
+      </ol>
+      <div className="lot-layout">
+        <article className="lot-card"><ThaiFlag className="lot-flag" /><p className="eyebrow">Thailand's national round</p><h3 lang="th">ภาษาศาสตร์โอลิมปิกแห่งประเทศไทย</h3><p className="lot-name">Thailand Linguistics Olympiad (LOT)</p><p>Held every year with support from POSN to select the students who represent Thailand at the IOL.</p><OutLink href="http://www.arts.chula.ac.th/ling/lot/">Visit the LOT website</OutLink></article>
+        <figure className="about-photo"><img src={team.src} alt={team.alt} loading="lazy" /><PhotoCredit photo={team} /></figure>
+      </div>
+      <p className="about-footnote">National organisations that want their country to take part can apply to the IOL Board for accreditation at <a className="inline-link" href="mailto:contact@ioling.org">contact@ioling.org</a>.</p>
+      <div className="about-actions"><OutLink href="https://ioling.org/countries/">Participating countries and their national contests</OutLink><OutLink href="https://ioling.org/faq/">Frequently asked questions</OutLink></div>
+    </section>
+
+    <section className="about-block wrap">
+      <header className="about-head"><p className="eyebrow">Since 2003</p><h2>From Borovets to Bangkok.</h2><p>The IOL grew out of the linguistics olympiads for school students that began in Moscow in 1965. After teams from Moscow and Bulgaria took part in each other's contests, the idea of an international olympiad followed.</p></header>
+      <ol className="milestones">
+        <li><time>1965</time><strong>Moscow</strong><span>The first linguistics olympiad for school students.</span></li>
+        <li><time>2003</time><strong>Borovets, Bulgaria</strong><span>The first IOL: 33 contestants from six countries.</span></li>
+        <li><time>2026</time><strong>Bucharest, Romania</strong><span>The 23rd IOL: 255 contestants in 65 teams from 46 countries and territories.</span></li>
+        <li className="is-next"><time>2027</time><strong>Bangkok, Thailand</strong><span>The 24th IOL, and the first in Southeast Asia.</span></li>
+      </ol>
+      <figure className="map-panel"><figcaption><p className="eyebrow">Host cities</p><h3>Thailand becomes the 20th host country.</h3></figcaption><HostMap /><p className="map-key"><span className="map-key-dot" /> Past host <span className="map-key-dot map-key-next" /> IOL 2027</p></figure>
+      <figure className="chart-panel"><figcaption><p className="eyebrow">Contestants per olympiad</p><h3>From 33 to 255 in 23 olympiads.</h3></figcaption><GrowthChart /><p className="chart-note">There was no olympiad in 2020. Source: ioling.org.</p></figure>
+      <details className="host-details"><summary>All 24 olympiads: city, country and contestants</summary><ol className="host-history" aria-label="Every IOL host city">{olympiads.map((o) => <li key={o.year} className={o.year === 2027 ? 'host-current' : undefined}><time>{o.year}</time><div><strong>{o.city}</strong><small>{o.country}{o.contestants ? ` · ${o.contestants} contestants` : ' · 21–28 July'}</small></div></li>)}</ol></details>
+      <div className="about-actions"><OutLink href="https://ioling.org/history/">Full history and statistics</OutLink></div>
+    </section>
+
+    <section className="about-block wrap">
+      <header className="about-head"><p className="eyebrow">How the IOL is run</p><h2>Shared rules, rotating hosts.</h2></header>
+      <div className="role-cards">
+        <article className="role-card role-board"><span className="role-icon"><Landmark size={22} /></span><h3>International Board</h3><p>Governs the IOL, keeps its regulations and decides which countries are accredited.</p></article>
+        <article className="role-card role-problems"><span className="role-icon"><PenTool size={22} /></span><h3>Problem Committee</h3><p>Members from many countries write the problems for both contests.</p></article>
+        <article className="role-card role-jury"><span className="role-icon"><Scale size={22} /></span><h3>International Jury</h3><p>Marks the scripts and decides the awards.</p></article>
+        <article className="role-card role-local"><span className="role-icon"><Building2 size={22} /></span><h3>Local Organising Committee</h3><p>Runs the event in the host country. For 2027 that is Thailand, with POSN, Chulalongkorn University and Kasetsart University as hosts.</p></article>
+      </div>
+      <div className="about-actions"><OutLink href="https://ioling.org/regulations/">IOL regulations</OutLink><a className="text-link" href="/people/committee">IOL 2027 committees <ArrowRight size={14} /></a></div>
+    </section>
+
+    <section className="ioling-banner wrap">
+      <img src="/assets/iol-wordmark-transparent.png" alt="International Linguistics Olympiad logo" loading="lazy" />
+      <div><p className="eyebrow">Official IOL website</p><h2>More at ioling.org.</h2><p>The archive of every olympiad since 2003, the regulations and news from the IOL Board.</p>
+        <div className="about-actions"><a className="pill" href="https://ioling.org/" target="_blank" rel="noreferrer">Visit ioling.org <span><ExternalLink size={16} /></span></a><OutLink href="https://ioling.org/contact/">Contact the IOL Board</OutLink></div>
+        <div className="social-row"><span>Follow the IOL</span>{socialLinks.map((social) => <a key={social.label} className="social-link" href={social.href} target="_blank" rel="noreferrer" aria-label={`IOL on ${social.label}`}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={social.path} /></svg></a>)}</div>
+      </div>
+    </section>
     <SectionLinks links={[{ href: '/about/thailand', label: 'Host: Thailand', detail: 'Meet Bangkok and the host programme.' }, { href: '/about/thai-language', label: 'Useful Thai', detail: 'Useful phrases for travelling in Thailand.' }, { href: '/about/important-dates', label: 'Important dates', detail: 'Registration periods and the event week.' }]} /></>
 }
 

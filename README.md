@@ -54,6 +54,15 @@ Campus photographs are from Wikimedia Commons under CC BY-SA 4.0. The licence re
 | `public/assets/venues/chula-mahavajiravudh.jpg` | Maha Vajiravudh Building, Faculty of Arts, Chulalongkorn University | BunBn | [Commons](https://commons.wikimedia.org/wiki/File:Mahavajiravudh_Building,_Chulalongkorn_University.jpg) |
 | `public/assets/venues/kasetsart-main-auditorium.jpg` | Main Auditorium, Kasetsart University | David Supervid | [Commons](https://commons.wikimedia.org/wiki/File:Kasetsart_University_Auditorium.jpg) |
 
+The two IOL photographs on the About page are from Wikimedia Commons under CC BY 4.0, resized for the web. Each one shows its credit and links to its source on the page.
+
+| File | Subject | Author | Source |
+| --- | --- | --- | --- |
+| `public/assets/about/iol-2024-opening-ceremony.jpg` | Opening ceremony, IOL 2024, Brasília | L'Astorina | [Commons](https://commons.wikimedia.org/wiki/File:IOL_2024_Opening_ceremony.jpg) |
+| `public/assets/about/iol-2019-team-yongin.jpg` | Brazilian team, IOL 2019, Yongin | L'Astorina | [Commons](https://commons.wikimedia.org/wiki/File:Time_brasileiro_na_IOL_2019.jpg) |
+
+`public/assets/about/world-dots.svg` is drawn from [Natural Earth](https://www.naturalearthdata.com/) 1:110m land (public domain): landmasses only, no country borders. The Facebook, Instagram and X icons on the About page are from [Simple Icons](https://simpleicons.org/) (CC0).
+
 Mandarin Hotel Bangkok images come from the hotel's official website.
 
 ## Hosting
