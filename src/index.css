@@ -148,7 +148,7 @@ select.reg-input{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://w
 /* Board feedback: small venue photos on the home page{grid-template-columns:124px 1fr;gap:24px;align-items:start}
 
 /* Board feedback: IPA transcription and playback-speed control on Useful Thai */
-.phrase-ipa{margin:8px 0 2px;font-size:16px;line-height:1.5;color:var(--plum);font-family:'Segoe UI','Charis SIL','Doulos SIL','Gentium Plus','DejaVu Sans',system-ui,sans-serif;font-feature-settings:'kern' 1}
+.phrase-ipa{margin:8px 0 2px;font-size:16px;line-height:1.5;color:var(--plum);font-family:'Gentium Plus','Charis SIL','Doulos SIL','DejaVu Sans',system-ui,sans-serif;font-feature-settings:'kern' 1}
 .phrase-grid .phrase-reading{margin-top:4px;color:#6b626e}
 .phrase-speed{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:26px 0 18px}
 .phrase-speed>span{font-size:14px;color:#5d565f}
