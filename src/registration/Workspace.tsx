@@ -50,6 +50,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff }: { deleg
   const [sectionError, setSectionError] = useState<ReactNode>(null)
   const [savedNote, setSavedNote] = useState('')
   const [busy, setBusy] = useState(false)
+  const [infoNote, setInfoNote] = useState('')
   const [stay, setStay] = useState({ arrival: '', departure: '' })
   const [stayNote, setStayNote] = useState('')
   const [navOpen, setNavOpen] = useState(false)
@@ -137,7 +138,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff }: { deleg
 
   /** Runs a server action, reloads, and turns failures into a visible message. */
   const run = async (work: () => Promise<void>) => {
-    setBusy(true); setSectionError(null)
+    setBusy(true); setSectionError(null); setInfoNote('')
     try {
       await work()
     } catch (e) {
@@ -153,6 +154,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff }: { deleg
     await load()
     const next = nextOf(id)
     if (next) open(next)
+    if (sections.find((s) => s.id === id)?.required) {
+      setInfoNote('Section saved. Please email your team leader to distribute any information from this section.')
+    }
   }
 
   /* records ------------------------------------------------------- */
@@ -235,12 +239,13 @@ export default function Workspace({ delegationId, onSessionEnd, staff }: { deleg
     const form = new FormData(event.currentTarget)
     const teams = Number(form.get('Number of teams'))
     const observers = Number(form.get('Number of observers'))
+    const roomType = String(form.get('Room type preference') ?? '') || null
     const errors: Record<string, string> = {}
     if (![1, 2].includes(teams)) errors['Number of teams'] = 'Choose one or two teams.'
     if (!Number.isInteger(observers) || observers < 0 || observers > 20) errors['Number of observers'] = 'Enter a whole number from 0 to 20.'
     setFieldErrors(errors)
     if (Object.keys(errors).length) { focusFirstError(panelRef.current); return }
-    run(() => finishStep('setup', { numberOfTeams: teams, numberOfObservers: observers }))
+    run(() => finishStep('setup', { numberOfTeams: teams, numberOfObservers: observers, contestantRoomType: roomType }))
   }
 
   const invoiceBody = () => {
@@ -411,6 +416,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff }: { deleg
             <p>{section.intro}</p>
           </header>
 
+          {infoNote && <p className="reg-aside"><Info size={18} aria-hidden="true" />{infoNote}</p>}
+
           {locked && (
             <div className="reg-locked">
               <Lock size={22} aria-hidden="true" />
@@ -443,11 +450,11 @@ export default function Workspace({ delegationId, onSessionEnd, staff }: { deleg
               <Facts items={[
                 { label: 'Team Leader', value: `${d.primaryTeamLeaderName} · ${d.teamLeaderEmail}`, help: 'From your verified account.' },
                 { label: 'Country', value: `${d.countryTerritory} · set by your invitation code` },
-                { label: 'Rooms', value: 'Assigned by the organisers', help: 'Team Leaders and observers get single rooms; contestants share same-gender rooms.' },
               ]} />
               <div className="reg-grid">
                 <FieldControl idPrefix="setup" error={fieldErrors['Number of teams']} field={{ label: 'Number of teams', value: String(d.numberOfTeams), kind: 'select', help: 'Up to two teams per country or territory.' }} />
                 <FieldControl idPrefix="setup" error={fieldErrors['Number of observers']} field={{ label: 'Number of observers', value: String(d.numberOfObservers), kind: 'number', help: 'Observer fees are added once the organisers confirm the rate.' }} />
+                <FieldControl idPrefix="setup" error={fieldErrors['Room type preference']} field={{ label: 'Room type preference', value: d.contestantRoomType ?? '', kind: 'select', help: 'Preferred room type for contestants. Team Leaders and observers always receive single rooms.', optional: true }} />
               </div>
               {paymentDone && <p className="reg-aside"><Info size={18} aria-hidden="true" />You have already paid. Changing these numbers may change your fees; Finance will contact you if it does.</p>}
               <div className="reg-panel-actions">
@@ -676,7 +683,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff }: { deleg
           ) : <>
             {outstanding.length > 0 ? (
               <section className="reg-block" aria-labelledby="review-left">
-                <h4 id="review-left">Still to do</h4>
+                <h4 id="review-left">Please complete the following first</h4>
                 <ul className="reg-todo">
                   {outstanding.map((item) => <li key={item.text}><button type="button" className="reg-inline-btn" onClick={() => open(item.to)}>{item.text}</button></li>)}
                 </ul>

@@ -392,6 +392,7 @@ app.patch('/api/registration/delegations/:delegationId', ...signedIn, delegation
     declaredDepartureDate: 'declared_departure_date',
     stayWindowNote: 'stay_window_note',
     welfareNote: 'welfare_note',
+    contestantRoomType: 'contestant_room_type',
     completedSteps: 'completed_steps',
   }
   const delegation = await withTransaction(async (client) => {

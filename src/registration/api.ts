@@ -45,7 +45,7 @@ export type Delegation = {
   id: string; countryTerritory: string; accreditedOrganisation: string | null; primaryTeamLeaderName: string
   teamLeaderEmail: string; numberOfTeams: number; numberOfObservers: number; registrationStatus: string
   paymentStatus: string; declaredArrivalDate: string | null; declaredDepartureDate: string | null
-  stayWindowNote: string | null; welfareNote: string | null; completedSteps: string[]; submittedAt: string | null
+  stayWindowNote: string | null; welfareNote: string | null; contestantRoomType: string | null; completedSteps: string[]; submittedAt: string | null
 }
 export type Attachment = { id: string; memberId: string | null; kind: string; originalFilename: string; mimeType: string; createdAt: string }
 export type GuardianConsentPolicy = { required: boolean; ageThreshold: number; referenceDate: string }

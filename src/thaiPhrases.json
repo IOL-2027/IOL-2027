@@ -84,7 +84,7 @@
       {
         "label": "Listen",
         "speech": "ใช่",
-        "ipa": "cʰâj",
+        "ipa": "tɕʰâj",
         "voice": "female",
         "audio": "yes"
       }
@@ -98,7 +98,7 @@
       {
         "label": "Listen",
         "speech": "ไม่ใช่",
-        "ipa": "mâj.cʰâj",
+        "ipa": "mâj.tɕʰâj",
         "voice": "female",
         "audio": "no"
       }
@@ -126,7 +126,7 @@
       {
         "label": "Listen",
         "speech": "ชอบ",
-        "ipa": "cʰɔ̂ːp",
+        "ipa": "tɕʰɔ̂ːp",
         "voice": "female",
         "audio": "i-like-it"
       }
@@ -168,7 +168,7 @@
       {
         "label": "Listen",
         "speech": "ช่วยด้วย",
-        "ipa": "cʰûːaj.dûːaj",
+        "ipa": "tɕʰûːaj.dûːaj",
         "voice": "female",
         "audio": "help"
       }
