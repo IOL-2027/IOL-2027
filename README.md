@@ -64,6 +64,17 @@ Mandarin Hotel Bangkok images come from the hotel's official website.
 | Development (`dev` target) | https://iol2027-dev.web.app | push to `development` (not indexed by search engines) |
 | Pull request previews | posted as a PR comment | every PR, expires after 7 days |
 
+### Branches until registration opens (18 January 2027)
+
+```
+development  ──merge──▶  prelaunch  ──PR──▶  main (public site)
+```
+
+- `development` is the full system, registration included. Build features here.
+- `prelaunch` is `development` with one line changed: `registrationOpen = false` in `src/launch.ts`. That hides the Team Leader portal, staff back office and badge scanner; their addresses show the "opens 18 January 2027" page. Never edit anything else on it.
+- To publish public-site changes: merge `development` into `prelaunch`, then open a PR from `prelaunch` to `main`. Do not commit to `main` directly.
+- When registration opens: merge `development` into `main`, set `registrationOpen` back to `true` on `main`, and retire `prelaunch`.
+
 ## Useful Thai audio
 
 The phrase audio on `/about/thai-language` is pre-rendered, not generated in the visitor's browser. `src/thaiPhrases.json` is the single source for the phrases, their IPA and their audio file names; `scripts/generate-thai-audio.py` reads it and writes `public/audio/thai/<slug>.mp3` plus a `-slow` version of each.
