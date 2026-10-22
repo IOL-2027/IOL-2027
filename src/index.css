@@ -150,6 +150,13 @@ select.reg-input{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://w
 /* Board feedback: IPA transcription and playback-speed control on Useful Thai */
 .phrase-ipa{margin:8px 0 2px;font-size:16px;line-height:1.5;color:var(--plum);font-family:'Gentium Plus','Charis SIL','Doulos SIL','DejaVu Sans',system-ui,sans-serif;font-feature-settings:'kern' 1}
 .phrase-grid .phrase-reading{margin-top:4px;color:#6b626e}
+.ipa-key{margin:20px 0 4px;border:1px solid var(--line);border-radius:10px;padding:0}
+.ipa-key summary{padding:10px 16px;cursor:pointer;font-size:14px;color:#5d565f;list-style:none;display:flex;align-items:center;gap:6px}
+.ipa-key summary::before{content:'▸';font-size:11px;transition:transform .18s ease}
+.ipa-key[open] summary::before{transform:rotate(90deg)}
+.ipa-key dl{margin:0;padding:10px 16px 14px;display:grid;grid-template-columns:auto 1fr;gap:6px 16px;align-items:baseline}
+.ipa-key dt{font-size:15px;white-space:nowrap}
+.ipa-key dd{margin:0;font-size:13px;color:#5d565f;line-height:1.5}
 .phrase-speed{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:26px 0 18px}
 .phrase-speed>span{font-size:14px;color:#5d565f}
 .phrase-speed>div{display:inline-flex;border:1px solid var(--line);border-radius:99px;padding:3px;gap:3px;background:#f1efec}
