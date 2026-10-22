@@ -2,6 +2,7 @@
 // On Cloud Run the local disk is wiped on every restart, so production sets UPLOAD_BUCKET
 // and files go to a private Cloud Storage bucket. Without it, files stay on local disk,
 // which is what local development uses.
+import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { Storage } from '@google-cloud/storage'
@@ -28,4 +29,17 @@ export async function saveUpload(key, file) {
   await fs.mkdir(path.dirname(storedPath), { recursive: true })
   await fs.writeFile(storedPath, file.buffer)
   return storedPath
+}
+
+/** Open a stored upload for reading. Only paths inside the configured bucket or upload folder are allowed. */
+export async function readUpload(storedPath) {
+  if (storedPath.startsWith('gs://')) {
+    const prefix = `gs://${bucketName}/`
+    if (!bucket || !storedPath.startsWith(prefix)) throw Object.assign(new Error('File is not in the configured bucket.'), { status: 404 })
+    return bucket.file(storedPath.slice(prefix.length)).createReadStream()
+  }
+  const resolved = path.resolve(storedPath)
+  if (!resolved.startsWith(uploadDir + path.sep)) throw Object.assign(new Error('File is outside the upload folder.'), { status: 404 })
+  await fs.access(resolved)
+  return createReadStream(resolved)
 }

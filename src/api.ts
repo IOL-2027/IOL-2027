@@ -297,7 +297,7 @@ export const api = {
     MOCK ? mockApi.patchDelegation(delegationId, body) : request<{ delegation: Delegation }>('PATCH', `/registration/delegations/${delegationId}`, body),
 
   createMember: (delegationId: string, body: Partial<Member> & { role: string; displayName: string; officialName: string }) =>
-    MOCK ? mockApi.createMember(delegationId, body) : request<{ member: Member }>('POST', `/registration/delegations/${delegationId}/members`, body),
+    MOCK ? mockApi.createMember(delegationId, body as Parameters<typeof mockApi.createMember>[1]) : request<{ member: Member }>('POST', `/registration/delegations/${delegationId}/members`, body),
 
   patchMember: (memberId: string, body: Partial<Omit<Member, 'id' | 'delegationId'>>) =>
     MOCK ? mockApi.patchMember(memberId, body) : request<{ member: Member }>('PATCH', `/registration/members/${memberId}`, body),

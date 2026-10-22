@@ -1,57 +1,107 @@
 # IOL 2027 Registration Backend
 
-This backend is the PostgreSQL API for the Team Leader registration system. It does not process payments. It only stores transfer instructions/status, accepts proof uploads, and lets Finance review them later.
+Express + PostgreSQL API for the Team Leader registration system. It does not process payments: it stores invoice details and transfer status, accepts proof uploads, and lets Finance approve or return them.
 
-## Local Setup
+Roles, permissions and the test accounts are described in [docs/ROLES.md](../docs/ROLES.md). The plan for everything still to build is in [docs/IMPLEMENTATION_PLAN.md](../docs/IMPLEMENTATION_PLAN.md).
 
-1. Copy `.env.example` to `.env`.
-   Add `RESEND_API_KEY` and a verified `EMAIL_FROM` address to deliver verification emails. Without them, development responses include the code instead.
-2. Start PostgreSQL:
+## Where it runs
+
+| | Site | API |
+| --- | --- | --- |
+| Local | `npm run dev` → http://localhost:5180 | `npm run dev:api` → http://localhost:4000 (Vite proxies `/api`) |
+| Development | https://iol2027-dev.web.app | Cloud Run `iol2027-api` (asia-southeast1), reached through the Firebase rewrite `/api/**` on the dev target only |
+| Public site | https://iol2027.web.app | None yet. The portal shows "Registration opens on 18 January 2027". |
+
+The site and API always share an origin, so the session cookie needs no CORS. Firebase Hosting only forwards a cookie named `__session`, which is why the session cookie has that name.
+
+Database: database `iol2027` on Cloud SQL instance `research-trend-analysis:asia-southeast1:papertrend-pg`, login `iol2027_app`. The connection string is the secret `iol2027-database-url` in project `iol2027`. Uploads go to the private bucket `gs://iol2027-registration-uploads`. The service runs as `iol2027-api@iol2027.iam.gserviceaccount.com`.
+
+## Local setup
+
+1. Copy `.env.example` to `.env` and set `DATABASE_URL`. Either run Postgres locally (`docker compose up -d postgres`) or reach the Cloud SQL database through the proxy:
+
+   ```sh
+   cloud-sql-proxy research-trend-analysis:asia-southeast1:papertrend-pg --port 55432 --gcloud-auth
+   ```
+
+2. Create or update the tables, then load the test accounts:
+
+   ```sh
+   npm run db:migrate
+   TEST_ACCOUNT_PASSWORD=... npm run db:seed-test
+   ```
+
+   `db:migrate` applies `schema.sql` and then every new file in `migrations/`. `db:seed-test` only touches `@iol2027.test` accounts and `TEST` invite codes, so it is safe to rerun to reset the test data. The shared password is in Secret Manager: `gcloud secrets versions access latest --secret=iol2027-test-account-password --project=iol2027`.
+
+3. Start the API with `npm run dev:api` and the site with `npm run dev`.
+
+Without `GMAIL_USER` and `GMAIL_APP_PASSWORD` (or a Resend key), emails are recorded as "queued" and not sent. Set `EXPOSE_DEV_CODES=true` to have the API return email verification codes so the sign-up flow can be tested. Never set it on the public deployment.
+
+## Tests
+
+With the API running and the test data freshly seeded:
 
 ```sh
-docker compose up -d postgres
+BASE=http://localhost:4000 PW=... npm run test:api
+npm run db:seed-test   # the suite changes the Thailand test data, so reset it afterwards
 ```
 
-3. Apply schema and seed data:
+The suite covers sign-in, lockout, every role's access, the payment gate, fees, submission checks and Finance review.
+
+## Deploying the API
+
+From the repository root (the root `Dockerfile` builds the static site; the API uses `server/Dockerfile`):
 
 ```sh
-npm run db:schema
-npm run db:seed
+gcloud builds submit --config server/cloudbuild.yaml --substitutions=_TAG=$(git rev-parse --short HEAD) --project iol2027 --region asia-southeast1
+gcloud run deploy iol2027-api --project iol2027 --region asia-southeast1 \
+  --image asia-southeast1-docker.pkg.dev/iol2027/registration/api:<tag> \
+  --service-account iol2027-api@iol2027.iam.gserviceaccount.com \
+  --add-cloudsql-instances research-trend-analysis:asia-southeast1:papertrend-pg \
+  --set-secrets DATABASE_URL=iol2027-database-url:latest,GMAIL_APP_PASSWORD=iol2027-gmail-app-password:latest \
+  --set-env-vars NODE_ENV=production,UPLOAD_BUCKET=iol2027-registration-uploads,EXPOSE_DEV_CODES=true,DB_POOL_MAX=5,SITE_URL=https://iol2027-dev.web.app,GMAIL_USER=iol2027.th@gmail.com \
+  --allow-unauthenticated --min-instances 0 --max-instances 2 --memory 512Mi
 ```
 
-4. Start the API:
+Run `npm run db:migrate` (through the proxy) before deploying code that needs a new migration. Email goes out from iol2027.th@gmail.com through Gmail when `GMAIL_USER` and `GMAIL_APP_PASSWORD` (secret `iol2027-gmail-app-password`) are set, as they are on the dev server. Addresses ending in `.test` are never sent. Environment and secrets set with `gcloud run services update` stay on later deploys. See [docs/EMAIL_SETUP.md](../docs/EMAIL_SETUP.md).
 
-```sh
-npm run dev:api
-```
+## Endpoints
 
-The API listens on `http://localhost:4000` by default.
+Every route except the public ones checks the session and the caller's role, and Team Leaders can only reach their own delegation. Every write needs the header `X-IOL-Request: 1`.
 
-## Main Endpoints
+Public
+- `GET /api/health`, `GET /api/registration/options`
+- `POST /api/registration/invite/verify`, `POST /api/registration/team-leader-account`
+- `GET /api/auth/me`, `POST /api/auth/login`, `POST /api/auth/logout`
+- `POST /api/auth/verify-email/request`, `POST /api/auth/verify-email` (signed in, unverified)
+- `POST /api/auth/password-reset/request` (always answers 202, so it cannot reveal accounts), `POST /api/auth/password-reset/confirm`
 
-- `GET /api/health`
-- `GET /api/registration/options`
-- `POST /api/registration/invite/verify`
-- `POST /api/registration/team-leader-account`
-- `POST /api/registration/accounts/:accountId/request-email-verification`
-- `POST /api/registration/accounts/:accountId/verify-email`
-- `GET /api/registration/delegations/:delegationId`
-- `PATCH /api/registration/delegations/:delegationId`
-- `POST /api/registration/delegations/:delegationId/members`
-- `PATCH /api/registration/members/:memberId`
-- `DELETE /api/registration/members/:memberId`
-- `POST /api/registration/delegations/:delegationId/teams`
-- `PATCH /api/registration/teams/:teamId`
-- `POST /api/registration/delegations/:delegationId/travel`
-- `PATCH /api/registration/travel/:travelRecordId`
-- `POST /api/registration/delegations/:delegationId/payment-proof`
-- `POST /api/registration/members/:memberId/guardian-consent`
-- `POST /api/registration/members/:memberId/badge`
-- `POST /api/registration/check-in/scan`
-- `GET /api/registration/admin/dashboard`
+Team Leader (own delegation; admins can open any)
+- `GET|PATCH /api/registration/delegations/:delegationId`
+- `PUT /api/registration/delegations/:delegationId/invoice`, `POST …/payment-proof`
+- `POST …/teams`, `PATCH /api/registration/teams/:teamId`
+- `POST …/members`, `PATCH|DELETE /api/registration/members/:memberId`, `POST …/guardian-consent`
+- `POST …/travel`, `PATCH /api/registration/travel/:travelRecordId`
+- `POST …/submit` (409 with a `missing` list until people, teams, payment and stay dates are complete)
+- `GET /api/registration/attachments/:attachmentId` (`?inline=1` to preview in the page)
 
-Country is taken from the invitation and cannot be changed through the registration update endpoint. Creating the account also creates the Team Leader member record, so the leader's identity is not entered twice.
+Participant
+- `GET /api/participant/me`
 
-Travel records are intentionally separate and can be completed later after the first registration submission. Guardian consent upload support exists, but the requirement remains disabled in the UI until the organiser confirms the policy.
+Staff (routes in `admin.js`)
+- `GET /api/admin/dashboard`, `GET /api/admin/delegations`, `GET /api/admin/payments`
+- `POST /api/admin/payments/:paymentId/approve|reject` (Finance; approval issues the receipt number)
+- `GET /api/admin/people` (status of every person; missing details only for the registration team)
+- `GET /api/admin/welfare` (Welfare; no passport data)
+- `GET|POST /api/admin/invites`, `PATCH /api/admin/invites/:inviteId`, `POST /api/admin/invites/:inviteId/send` (Registration admin)
+- `GET /api/admin/exports`, `GET /api/admin/exports/:kind` (CSV; which kinds depends on the role)
+- `GET /api/admin/audit`, `GET /api/admin/email-deliveries` (Registration admin)
+- `GET /api/admin/settings`, `PUT /api/admin/settings/fees` (Finance), `PUT /api/admin/settings/guardian-consent` (Registration admin)
+- `GET|POST /api/admin/accounts`, `PATCH /api/admin/accounts/:accountId` (role, disabled), `POST /api/admin/accounts/:accountId/setup-code` (Super admin; changes sign that person out)
+- `POST /api/registration/members/:memberId/badge`, `POST /api/registration/check-in/scan`
 
-Badge issuance returns a QR image containing a random public ID and secret. It never places personal information in the QR. Scan events store the member, checkpoint, result, operator account when supplied, and timestamp.
+Country comes from the invitation and cannot be changed. Creating the account also creates the Team Leader's member record, so their identity is not entered twice. People can be saved with only a display name and completed in stages; completeness (and guardian consent, when the policy is on) is checked on submission. Fees are calculated on the server from the `settings` table, with defaults in `fees.js`.
+
+Code layout: `index.js` (accounts, registration, badges), `admin.js` (back office), `lib.js` (database helpers), `codes.js` (emailed codes), `auth.js` (sessions and roles), `fees.js` (fees and organiser settings), `email.js` (templates and sending), `storage.js` (uploads).
+
+Badge issuance returns a QR image containing a random public ID and secret, never personal information. Scan events store the member, checkpoint, result, operator account and timestamp.

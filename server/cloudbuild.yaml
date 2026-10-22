@@ -1,0 +1,11 @@
+# Builds the registration API image. Run from the repository root:
+#   gcloud builds submit --config server/cloudbuild.yaml --project iol2027
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ['build', '-f', 'server/Dockerfile', '-t', '${_IMAGE}:${_TAG}', '-t', '${_IMAGE}:latest', '.']
+images: ['${_IMAGE}:${_TAG}', '${_IMAGE}:latest']
+substitutions:
+  _IMAGE: asia-southeast1-docker.pkg.dev/iol2027/registration/api
+  _TAG: manual
+options:
+  logging: CLOUD_LOGGING_ONLY
