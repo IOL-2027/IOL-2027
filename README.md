@@ -54,11 +54,10 @@ Campus photographs are from Wikimedia Commons under CC BY-SA 4.0. The licence re
 | `public/assets/venues/chula-mahavajiravudh.jpg` | Maha Vajiravudh Building, Faculty of Arts, Chulalongkorn University | BunBn | [Commons](https://commons.wikimedia.org/wiki/File:Mahavajiravudh_Building,_Chulalongkorn_University.jpg) |
 | `public/assets/venues/kasetsart-main-auditorium.jpg` | Main Auditorium, Kasetsart University | David Supervid | [Commons](https://commons.wikimedia.org/wiki/File:Kasetsart_University_Auditorium.jpg) |
 
-The two IOL photographs on the About page are from Wikimedia Commons under CC BY 4.0, resized for the web. Each one shows its credit and links to its source on the page.
+The IOL photograph on the About page is from Wikimedia Commons under CC BY 4.0, resized for the web. It shows its credit and links to its source on the page.
 
 | File | Subject | Author | Source |
 | --- | --- | --- | --- |
-| `public/assets/about/iol-2024-opening-ceremony.jpg` | Opening ceremony, IOL 2024, Brasília | L'Astorina | [Commons](https://commons.wikimedia.org/wiki/File:IOL_2024_Opening_ceremony.jpg) |
 | `public/assets/about/iol-2019-team-yongin.jpg` | Brazilian team, IOL 2019, Yongin | L'Astorina | [Commons](https://commons.wikimedia.org/wiki/File:Time_brasileiro_na_IOL_2019.jpg) |
 
 `public/assets/about/world-dots.svg` is drawn from [Natural Earth](https://www.naturalearthdata.com/) 1:110m land (public domain): landmasses only, no country borders. The Facebook, Instagram and X icons on the About page are from [Simple Icons](https://simpleicons.org/) (CC0).
@@ -79,10 +78,12 @@ Mandarin Hotel Bangkok images come from the hotel's official website.
 development  ──merge──▶  prelaunch  ──PR──▶  main (public site)
 ```
 
-- `development` is the full system, registration included. Build features here.
-- `prelaunch` is `development` with one line changed: `registrationOpen = false` in `src/launch.ts`. That hides the Team Leader portal, staff back office and badge scanner; their addresses show the "opens 18 January 2027" page. Never edit anything else on it.
-- To publish public-site changes: merge `development` into `prelaunch`, then open a PR from `prelaunch` to `main`. Do not commit to `main` directly.
-- When registration opens: merge `development` into `main`, set `registrationOpen` back to `true` on `main`, and retire `prelaunch`.
+- `development` is the full system, registration included. Build features here, and start new branches from `development`, never from `main`.
+- The public site hides registration because of how it is **built**, not because of its code: the workflow that deploys `main` (`.github/workflows/firebase-hosting-merge.yml`) builds with `VITE_REGISTRATION_OPEN=false`, and so do pull-request previews into `main`. `src/launch.ts` reads that setting. It hides the Team Leader portal, staff back office and badge scanner; their addresses show the "opens 18 January 2027" page. Every other build, including the dev site and local development, has registration open.
+- `prelaunch` carries the same code as `development`; it is the staging step before the public site.
+- To publish public-site changes: merge `development` into `prelaunch`, then open a PR from `prelaunch` to `main` and check its preview. Do not commit to `main` directly.
+- To see the public version locally: `VITE_REGISTRATION_OPEN=false npm run build && npm run preview`.
+- When registration opens: delete the two `env` lines from `firebase-hosting-merge.yml` and the one from `firebase-hosting-pull-request.yml`, then merge as usual.
 
 ## Useful Thai audio
 
