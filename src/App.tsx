@@ -4,6 +4,7 @@ import { event, homeBaseRoute, schedule, venues } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
 import thaiPhrases from './thaiPhrases.json'
 import TeamLeaderPortal from './registration/TeamLeaderPortal'
+import { registrationOpen } from './launch'
 
 type NavItem = { label: string; href: string; external?: boolean; children?: { label: string; href: string }[] }
 const badgeScannerMode = import.meta.env.VITE_BADGE_SCANNER_MODE === 'live' ? 'live' : 'demo'
@@ -22,7 +23,7 @@ const navigation: NavItem[] = [
     { label: 'How to register', href: '/registration/how-to-register' },
     { label: 'Fees & deadlines', href: '/registration/fees-deadlines' },
     { label: 'Visa & invitation letters', href: '/registration/visas' },
-    { label: 'Team Leader account', href: '/registration/team-leader' },
+    ...(registrationOpen ? [{ label: 'Team Leader account', href: '/registration/team-leader' }] : []),
   ] },
   { label: 'Event guide', href: '/event-guide', children: [
     { label: 'Schedule & venues', href: '/programme' },
@@ -277,7 +278,7 @@ function Sponsors() {
 }
 
 function Registration() {
-  return <><section className="coming-soon grain"><div className="coming-mark"><img src="/assets/iol-mark.png" alt="IOL 2027 Thailand mark" /></div><div><p className="system-label">REGISTRATION CHANNEL / PREPARING</p><h1>OPENS<br /><em>18 JAN 2027.</em></h1><p>Registration is not open yet. The planned flow uses one team leader per country, an invitation code, staged participant data, bank-transfer instructions, proof upload and later travel updates.</p><div className="hero-actions"><LinkButton href="/registration/team-leader" light>Create Team Leader Account</LinkButton><a href="/registration/how-to-register" className="text-link">See the registration flow <ArrowRight size={16} /></a><a href="/registration/check-in" className="text-link">Badge scanner demo <ArrowRight size={16} /></a></div></div><aside><span>FEE RELEASE</span><strong>18 JAN 2027</strong><span>EARLY BIRD</span><strong>18 JAN-12 MAR</strong><span>REGULAR</span><strong>13 MAR-30 APR</strong><span>STATUS</span><strong>PREPARING</strong></aside></section></>
+  return <><section className="coming-soon grain"><div className="coming-mark"><img src="/assets/iol-mark.png" alt="IOL 2027 Thailand mark" /></div><div><p className="system-label">REGISTRATION CHANNEL / PREPARING</p><h1>OPENS<br /><em>18 JAN 2027.</em></h1><p>Registration is not open yet. The planned flow uses one team leader per country, an invitation code, staged participant data, bank-transfer instructions, proof upload and later travel updates.</p><div className="hero-actions">{registrationOpen ? <><LinkButton href="/registration/team-leader" light>Create Team Leader Account</LinkButton><a href="/registration/how-to-register" className="text-link">See the registration flow <ArrowRight size={16} /></a><a href="/registration/check-in" className="text-link">Badge scanner demo <ArrowRight size={16} /></a></> : <><LinkButton href="/registration/how-to-register" light>See the registration flow</LinkButton><a href="/registration/fees-deadlines" className="text-link">Fees and deadlines <ArrowRight size={16} /></a></>}</div></div><aside><span>FEE RELEASE</span><strong>18 JAN 2027</strong><span>EARLY BIRD</span><strong>18 JAN-12 MAR</strong><span>REGULAR</span><strong>13 MAR-30 APR</strong><span>STATUS</span><strong>PREPARING</strong></aside></section></>
 }
 
 function RegistrationHow() {
@@ -291,7 +292,7 @@ function RegistrationHow() {
     { title: 'Return later with travel details.', detail: 'Arrival and departure remain open after initial registration because itineraries can change.' },
     { title: 'Use individual QR badges during the event.', detail: 'Every person brings their badge for scanning at arrival and approved checkpoints.' },
   ]
-  return <><PageIntro eyebrow="Registration / How to register" title="One clear path for every team." body="One team leader coordinates the entire process, from registration and payment confirmation to travel information and document delivery." /><section className="steps wrap">{steps.map((step, index) => <article key={step.title}><span>{String(index + 1).padStart(2, '0')}</span><div><h2>{step.title}</h2><p>{step.detail}</p></div></article>)}</section><section className="notice-panel wrap"><p className="eyebrow">Team Leader entry</p><h2>Start with the invitation code. You only need headcounts and room preference for the initial setup.</h2><a className="text-link" href="/registration/team-leader">Create Team Leader Account <ArrowRight size={16} /></a></section></>
+  return <><PageIntro eyebrow="Registration / How to register" title="One clear path for every team." body="One team leader coordinates the entire process, from registration and payment confirmation to travel information and document delivery." /><section className="steps wrap">{steps.map((step, index) => <article key={step.title}><span>{String(index + 1).padStart(2, '0')}</span><div><h2>{step.title}</h2><p>{step.detail}</p></div></article>)}</section><section className="notice-panel wrap">{registrationOpen ? <><p className="eyebrow">Team Leader entry</p><h2>Start with the invitation code. You only need headcounts and room preference for the initial setup.</h2><a className="text-link" href="/registration/team-leader">Create Team Leader Account <ArrowRight size={16} /></a></> : <><p className="eyebrow">Opens 18 January 2027</p><h2>Each country's official contact will receive an invitation code by email. You only need headcounts and room preference for the initial setup.</h2><a className="text-link" href="/registration/fees-deadlines">Fees and deadlines <ArrowRight size={16} /></a></>}</section></>
 }
 
 function BadgeCheckIn() {
@@ -477,7 +478,9 @@ function App() {
     // Images above the anchor can still be loading; settle on the anchor once they have.
     if (document.readyState !== 'complete') window.addEventListener('load', () => target.scrollIntoView(), { once: true })
   }, [])
-  const path = window.location.pathname.replace(/\/$/, '') || '/'
+  const requested = window.location.pathname.replace(/\/$/, '') || '/'
+  // While registration is closed, the portal and scanner addresses show the registration page.
+  const path = !registrationOpen && ['/registration/team-leader', '/registration/check-in'].includes(requested) ? '/registration' : requested
   const pages: Record<string, React.ReactElement> = {
     '/': <Home />,
     '/about': <About />, '/about/the-iol': <About />, '/about/thailand': <Thailand />, '/about/thai-language': <ThaiLanguage />, '/about/important-dates': <ImportantDates />, '/thailand': <Thailand />,
