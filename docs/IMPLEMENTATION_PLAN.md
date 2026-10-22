@@ -1,6 +1,6 @@
 # IOL 2027 implementation plan
 
-**Status as of:** 21 October 2026
+**Status as of:** 22 October 2026
 **Event:** 21–28 July 2027, Bangkok · **Registration opens:** 18 January 2027
 
 ## How to read this plan
@@ -47,7 +47,7 @@ Owners follow the source document's §11: **Web/Dev** (อาม, ภีม์),
 
 ## 2. Public website
 
-Source §3. Hosted on Firebase Hosting (`main` → https://iol2027.web.app, `development` → https://iol2027-dev.web.app).
+Source §3. Hosted on Firebase Hosting (`main` → https://iol2027.web.app, `development` → https://iol2027-dev.web.app). Until registration opens, `main` is fed from the `prelaunch` branch, which hides the registration portal (README → Hosting).
 
 | Page | Source phase | Status | Next action |
 | --- | --- | --- | --- |
