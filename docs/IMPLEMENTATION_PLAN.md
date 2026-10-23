@@ -1,6 +1,6 @@
 # IOL 2027 implementation plan
 
-**Status as of:** 22 October 2026
+**Status as of:** 24 October 2026
 **Event:** 21–28 July 2027, Bangkok · **Registration opens:** 18 January 2027
 
 ## How to read this plan
@@ -64,11 +64,11 @@ Source §3. Hosted on Firebase Hosting (`main` → https://iol2027.web.app, `dev
 | Logistics: important dates | Limited | ✅ | |
 | Logistics: guidebook (PDF) | Full | ⬜ | Waiting on LOC content |
 | Explore | Full | 🟡 | Folded into Host: Thailand |
-| People: committee, jury, problem committee, volunteers | Limited → ongoing | 🟡 | Committee roster done; jury and volunteers waiting on names |
+| People: committee, jury, problem committee, volunteers | Limited → ongoing | 🟡 | Committee roster done; jury and volunteers waiting on names. Hidden on the public site until launch (24 Oct 2026) |
 | Results (individual, team) | Full / event | ⚠️ | Links to the IOL central archive today; source wants admin-entered results (§6) |
-| Gallery | Before event: empty | 🟡 | Page exists; admin upload not built (§6) |
+| Gallery | Before event: empty | 🟡 | Page exists; admin upload not built (§6). Hidden on the public site until launch |
 | For Teachers portal | Optional | ⬜ | Lowest priority |
-| Sponsors | Not in source | ✅ | Equal-area grid per board feedback |
+| Sponsors | Not in source | 🟡 | Equal-area grid per board feedback; placeholder logos, so the page and the home-page block are hidden on the public site until sponsors are confirmed |
 | Privacy / PDPA | Limited (mandatory) | 🟡 | Draft page live; needs data controller, retention periods and contact (§9) |
 | Footer (contact, partners, UNESCO, PDPA, source code, social) | Limited | 🟡 | UNESCO, source code and social links still missing |
 | Thai mirror for internal use | Source §9.3 | ⬜ | ⚠️ Not started; confirm it is still wanted |
@@ -112,7 +112,7 @@ Source §5. Front end: `src/registration/`. API: `server/index.js`.
 | 7 | Team Leader transfers outside the system, then uploads proof | ✅ | Invoice details saved first, then proof upload unlocks People |
 | 8 | Admin sees the proof in a review queue | ✅ | Payment queue with inline preview, filters and search |
 | 9 | Staff check the proof against สอวน's statement, then approve or reject | ✅ | Approval bug fixed; returning a proof needs a reason, which the Team Leader sees |
-| 10 | On approval, email (a) e-receipt PDF, (b) ID badge with QR, (c) invitation letter | 🟡 | (a) done: the confirmation email links to the e-receipt. (b) badge PDF and (c) letters in Sprint 3; the letter needs its template (Q12) |
+| 10 | On approval, email (a) e-receipt PDF, (b) ID badge with QR, (c) invitation letter | 🟡 | (a) done: the confirmation email links to the e-receipt and to the Travel step. (b) done 24 Oct 2026: once submitted, paid and everyone has an arrival and departure, the Team Leader is emailed every person’s QR code; the printed badge design is still to come (§8). (c) letters in Sprint 3; the letter needs its template (Q12) |
 | 11 | Add members later; pay only for the added people | ⬜ | ⚠️ Per-person price formula is open question Q1 |
 
 ### 4.2 After registration, before the event (source §5.2)
@@ -121,7 +121,7 @@ Source §5. Front end: `src/registration/`. API: `server/index.js`.
 | --- | --- | --- |
 | Add, remove and edit members at any time | 🟡 | Removal after payment depends on refund policy (Q2) |
 | See payment and review status | ✅ | |
-| Download invitation letter and QR badge | ⬜ | Sprint 3 |
+| Download invitation letter and QR badge | 🟡 | QR codes are emailed (see step 10); badge QRs can be redrawn from `BADGE_SIGNING_KEY` for printing. Letters in Sprint 3 |
 | Update arrival and departure details | 🟡 | Stay dates required at submission; flights later |
 | Change-request channel for locked fields | ⬜ | PRD requirement |
 
@@ -170,6 +170,7 @@ Source §6. Only the API pieces exist today.
 | Results entry with draft / publish and CSV import | ⬜ | Before event; ⚠️ see D7 |
 | Check-in reports by country | ⬜ | Before event |
 | User and role management | ✅ | Create staff accounts (setup code by email), change roles, disable |
+| Several admins at once | ✅ | Each admin gets their own account (a shared login would hide who did what in the activity log). Load test on the dev site, 24 Oct 2026: 10 admins refreshing every back-office screen together, 1,300 requests, 0 errors, median 0.25 s; 25 admins, 0 errors, median 0.38 s |
 
 ---
 
@@ -183,11 +184,11 @@ Source §2.3, §5.1 step 10, and the email questions in the source's question li
 | From address | ✅ | IOL 2027 Registration &lt;iol2027.th@gmail.com&gt;. No domain will be used (decided 16 Oct 2026, D5) |
 | Account verification code | ✅ | |
 | Proof received (Team Leader) and Finance alert | ✅ | |
-| Payment confirmed | ✅ | Links to the e-receipt |
-| Registration submitted | ✅ | |
+| Payment confirmed | ✅ | Links to the e-receipt and to the Travel step, to add flights |
+| Registration submitted | ✅ | The invoice is attached as a PDF (24 Oct 2026); says what is still needed before the QR badges |
 | Invite code email | ✅ | |
 | Password reset email | ✅ | Also used for new staff setup |
-| E-receipt, QR badge and invitation letter emails | 🟡 | E-receipt link in the payment-confirmed email; badge and letter emails in Sprint 3 |
+| E-receipt, QR badge and invitation letter emails | 🟡 | E-receipt link in the payment-confirmed email; QR badges email done (24 Oct 2026); letters in Sprint 3 |
 | Deadline reminders to unpaid countries | ⬜ | Source §12.1 |
 | Announcements to all participants (~500) | ⬜ | Gmail allows about 500 recipients a day, so spread over two days or send by BCC from Gmail |
 
@@ -204,6 +205,8 @@ Source §8.
 | Fallback search by name or passport | 🟡 | Check-in staff can search People by name; marking someone checked in by hand is not built |
 | Offline or cached mode for weak venue Wi-Fi | ⬜ | Q8 with LOC |
 | Printed badges with QR from a vendor | ⬜ | Source §12.1; LOC procurement |
+| Badge design (lanyard badge, front only, 10 cm × 14 cm) with each person’s QR | ⬜ | Professor’s feedback, 24 Oct 2026. Badge QRs can already be redrawn for printing |
+| QR codes with the IOL logo in the middle | ⬜ | Professor’s feedback, 24 Oct 2026. Needs a higher error-correction level (H) so the logo does not stop scans |
 | Rehearsal at the venue | ⬜ | Before event |
 
 ---

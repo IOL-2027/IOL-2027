@@ -4,7 +4,6 @@ import path from 'node:path'
 import cors from 'cors'
 import express from 'express'
 import multer from 'multer'
-import QRCode from 'qrcode'
 import {
   buildProofReceivedEmail,
   buildFinanceAlertEmail,
@@ -12,6 +11,8 @@ import {
   sendEmail,
 } from './email.js'
 import { readUpload, saveUpload } from './storage.js'
+import { invoicePdf } from './invoice-pdf.js'
+import { badgeQrDataUrl, issueBadge, missingTravel, sendBadgesIfSettled } from './badges.js'
 import {
   DELEGATION_ADMINS, DELEGATION_READERS, HttpError,
   checkPasswordRules, createSession, destroySession, filterMember, hashPassword, loginBlocked, recordLogin,
@@ -20,7 +21,7 @@ import {
 import { calculateFees, loadSettings, needsGuardianConsent } from './fees.js'
 import {
   asyncHandler, buildUpdate, camelizeRow, camelizeRows, hashToken, insertAudit, isEmail, missingMemberDetails,
-  optionalNumber, optionalString, pool, query, requireDb, requiredString, withTransaction,
+  optionalNumber, optionalString, pool, query, requireDb, requiredString, siteUrl, withTransaction,
 } from './lib.js'
 import { issuePasswordCode, issueVerificationCode } from './codes.js'
 import { registerAdminRoutes } from './admin.js'
@@ -570,6 +571,8 @@ app.post('/api/registration/delegations/:delegationId/travel', ...signedIn, dele
     await insertAudit(client, { actorAccountId: req.user.id, delegationId: req.params.delegationId, eventType: 'travel_saved', entityType: 'travel_record', entityId: row.id })
     return row
   })
+  // Awaited, not left running: Cloud Run slows work that continues after the response is sent.
+  await sendBadgesIfSettled(req.params.delegationId).catch((e) => console.error(e.message))
   res.status(201).json({ travelRecord: camelizeRow(travel) })
 }))
 
@@ -584,6 +587,7 @@ app.patch('/api/registration/travel/:travelRecordId', ...signedIn, childAccess('
     await insertAudit(client, { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'travel_saved', entityType: 'travel_record', entityId: req.params.travelRecordId })
     return result.rows[0]
   })
+  await sendBadgesIfSettled(req.delegationId).catch((e) => console.error(e.message))
   res.json({ travelRecord: camelizeRow(travel) })
 }))
 
@@ -677,13 +681,28 @@ app.post('/api/registration/delegations/:delegationId/submit', ...signedIn, dele
     await insertAudit(client, { actorAccountId: req.user.id, delegationId: row.id, eventType: 'registration_submitted', entityType: 'delegation', entityId: row.id })
     return row
   })
-  const { subject, html } = buildRegistrationSubmittedEmail({
-    countryTerritory: submitted.country_territory, fullName: submitted.primary_team_leader_name,
-    numberOfTeams: submitted.number_of_teams, numberOfObservers: submitted.number_of_observers, missingItems: [],
-  })
-  sendEmail({ pool: requireDb(), to: submitted.team_leader_email, subject, html, purpose: 'registration_submitted', delegationId: submitted.id }).catch((e) => console.error(e.message))
+  // The emails are awaited (Cloud Run slows work left running after the response); a failure is logged, not shown.
+  await notifySubmitted(submitted).catch((e) => console.error(e.message))
   res.json({ delegation: camelizeRow(submitted) })
 }))
+
+/** The "registration submitted" email with the invoice PDF attached, then the QR badges if everything is already in. */
+async function notifySubmitted(d) {
+  const [payment, settings, travelGaps] = await Promise.all([
+    query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC LIMIT 1', [d.id]).then((r) => r.rows[0] ?? null),
+    loadSettings(requireDb()),
+    missingTravel(d.id),
+  ])
+  const fees = calculateFees(settings.fees, { numberOfTeams: d.number_of_teams, numberOfObservers: d.number_of_observers })
+  const invoice = await invoicePdf({ delegation: d, payment, fees })
+  const { subject, html } = buildRegistrationSubmittedEmail({
+    countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, numberOfTeams: d.number_of_teams, numberOfObservers: d.number_of_observers,
+    paymentConfirmed: payment?.status === 'approved', travelComplete: !travelGaps.length, travelUrl: `${siteUrl}/registration/team-leader?step=travel`,
+  })
+  const filename = `IOL2027-invoice-${d.country_territory.replace(/[^\w-]+/g, '-')}.pdf`
+  await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, attachments: [{ filename, content: invoice, contentType: 'application/pdf' }], purpose: 'registration_submitted', delegationId: d.id })
+  await sendBadgesIfSettled(d.id)
+}
 
 /* ------------------------------------------------------------------ */
 /* Participant                                                         */
@@ -709,16 +728,9 @@ app.get('/api/participant/me', ...signedIn, requireRole('participant'), asyncHan
 app.post('/api/registration/members/:memberId/badge', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
   const member = (await query('SELECT id, delegation_id, display_name, badge_name, role FROM members WHERE id = $1', [req.params.memberId])).rows[0]
   if (!member) throw new HttpError(404, 'Member not found.')
-  const publicId = crypto.randomUUID()
-  const secret = crypto.randomBytes(24).toString('base64url')
-  const credential = (await query(
-    `INSERT INTO badge_credentials (member_id, public_id, secret_hash, status) VALUES ($1, $2, $3, 'active')
-     ON CONFLICT (member_id) DO UPDATE SET public_id = EXCLUDED.public_id, secret_hash = EXCLUDED.secret_hash, status = 'active', issued_at = now(), revoked_at = NULL
-     RETURNING id, member_id, public_id, status, issued_at`,
-    [req.params.memberId, publicId, hashToken(secret)],
-  )).rows[0]
-  const qrDataUrl = await QRCode.toDataURL(`IOL2027:${publicId}.${secret}`, { errorCorrectionLevel: 'M', margin: 1, width: 480, color: { dark: '#160c1b', light: '#ffffff' } })
-  await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: member.delegation_id, eventType: 'badge_issued', entityType: 'member', entityId: member.id, details: { publicId } })
+  const { credential, payload } = await issueBadge(requireDb(), member.id)
+  const qrDataUrl = await badgeQrDataUrl(payload)
+  await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: member.delegation_id, eventType: 'badge_issued', entityType: 'member', entityId: member.id, details: { publicId: credential.public_id } })
   res.status(201).json({ badge: camelizeRow(credential), member: camelizeRow(member), qrDataUrl })
 }))
 

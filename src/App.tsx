@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, ArrowUpRight, Building2, Camera, Car, CheckCircle, ChevronLeft, ChevronRight, ExternalLink, Flag, Footprints, Globe, GraduationCap, Heart, Landmark, Languages, MapPin, Menu, PenTool, Scale, ShieldCheck, Trophy, User, Users, Volume2, X } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Building2, Camera, Car, CheckCircle, ChevronLeft, ChevronRight, ExternalLink, Footprints, Landmark, Languages, MapPin, Menu, PenTool, Scale, ShieldCheck, User, Users, Volume2, X } from 'lucide-react'
 import { event, homeBaseRoute, schedule, venues } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
 import thaiPhrases from './thaiPhrases.json'
 import TeamLeaderPortal from './registration/TeamLeaderPortal'
-import { registrationOpen } from './launch'
-import { aboutPhotos, olympiads, socialLinks, workingLanguages } from './aboutData'
-import { GrowthChart, HostMap, MedalDots, ThaiFlag } from './AboutVisuals'
+import { placeholderPagesShown, registrationOpen } from './launch'
+import { olympiads, socialLinks, workingLanguages } from './aboutData'
+import { GrowthChart, HostMap } from './AboutVisuals'
 
 type NavItem = { label: string; href: string; external?: boolean; children?: { label: string; href: string }[] }
 const badgeScannerMode = import.meta.env.VITE_BADGE_SCANNER_MODE === 'live' ? 'live' : 'demo'
 const demoBadgeCode = 'IOL2027-POC-DEMO'
+
+// Sections that are still placeholders; hidden on the public site until launch (src/launch.ts).
+const placeholderSections = ['/sponsors', '/gallery', '/people']
 
 const navigation: NavItem[] = [
   { label: 'Home', href: '/' },
@@ -42,7 +45,7 @@ const navigation: NavItem[] = [
     { label: 'Volunteers', href: '/people/volunteers' },
   ] },
   { label: 'Contact', href: '/contact' },
-]
+].filter((item) => placeholderPagesShown || !placeholderSections.includes(item.href))
 
 const hosts = [
   { eyebrow: 'HOST 01', name: 'The Promotion of Academic Olympiad and Development of Science Education Foundation (POSN)', shortName: 'POSN', description: 'Nurturing young talent and advancing Thailand through academic Olympiads and science education.', image: '/assets/sponsor-posn-v2.png', className: 'sponsor-posn' },
@@ -190,7 +193,7 @@ function Home() {
       <article className="feature-card jade"><span>HOST PROGRAMME</span><h3>One shared<br />language: curiosity.</h3><p>Excursions, culture and friendships turn a competition into a global community.</p></article>
     </section>
     <section className="venues-preview wrap"><div className="section-heading"><p className="eyebrow">Across Bangkok</p><h2>Three places.<br />One Olympiad.</h2><LinkButton href="/programme">See venues</LinkButton></div><div className="venue-photo-stack">{venues.map((venue) => <article key={venue.index}><img src={venue.image} alt={venue.imageAlt} loading="lazy" style={{ objectPosition: venue.imagePosition }} /><div className="venue-photo-copy"><p>{venue.index} · {venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small><MapsLink query={venue.mapQuery} name={venue.name} /></div><a className="venue-photo-credit" href={venue.imageCreditUrl} target="_blank" rel="noreferrer">{venue.imageCredit}</a></article>)}</div></section>
-    <SponsorPreview />
+    {placeholderPagesShown && <SponsorPreview />}
   </>
 }
 
@@ -198,12 +201,7 @@ function OutLink({ href, children }: { href: string; children: React.ReactNode }
   return <a className="text-link" href={href} target="_blank" rel="noreferrer">{children} <ExternalLink size={14} /></a>
 }
 
-function PhotoCredit({ photo }: { photo: { caption: string; credit: string; source: string } }) {
-  return <figcaption><span>{photo.caption}</span><a href={photo.source} target="_blank" rel="noreferrer">{photo.credit}</a></figcaption>
-}
-
 function About() {
-  const { team } = aboutPhotos
   return <div className="about-page"><PageIntro eyebrow="About the Olympiad" title="Data holds the pattern, deduction holds the key." body="IOL is one of the International Science Olympiads: a yearly meeting of young problem-solvers who decode the structures hidden inside human language." />
     <section className="two-col wrap"><div><p className="eyebrow">What happens</p><h2>Reasoning through pattern, verified by rigor.</h2></div><div className="prose"><p>Problems may draw on any language in the world. Contestants discover patterns, test hypotheses and explain systems they have never seen before. No knowledge of particular languages or of linguistic theory is assumed.</p><p>Each accredited country or territory may send up to two teams. A contest team has no more than four contestants and one team leader. Contestants take part in both an individual round and a collaborative team round.</p><p>Careful observation, hypothesis testing and a clear explanation matter more than memorised vocabulary.</p></div></section>
 
@@ -221,35 +219,6 @@ function About() {
     </section>
 
     <section className="about-block wrap">
-      <header className="about-head"><p className="eyebrow">Awards</p><h2>Medals, mentions and prizes.</h2><p>Medals go to between a quarter and a third of all contestants, in a ratio of roughly 1:2:3. Contestants who reach the top half without a medal receive an honourable mention.</p></header>
-      <div className="awards-layout">
-        <div className="awards-panel"><p className="awards-panel-title">Out of every 24 contestants, roughly:</p><MedalDots /><p className="awards-note">Exact numbers depend on the scores. Everyone else receives a certificate of participation.</p></div>
-        <div className="prize-grid">
-          <article><span className="prize-icon"><Users size={20} /></span><h3>Team medals</h3><p>Up to one gold, two silver and three bronze in the team contest.</p></article>
-          <article><span className="prize-icon"><PenTool size={20} /></span><h3>Best solutions</h3><p>Prizes for the best one or two solutions to each individual problem.</p></article>
-          <article><span className="prize-icon"><Trophy size={20} /></span><h3>Best country average</h3><p>A trophy for the country with the highest average individual score.</p></article>
-          <article><span className="prize-icon"><Heart size={20} /></span><h3>Solvers' Choice</h3><p>Contestants vote for their favourite problem, and its author receives the award.</p></article>
-        </div>
-      </div>
-      <div className="about-actions"><OutLink href="https://ioling.org/results/">Results of every IOL</OutLink></div>
-    </section>
-
-    <section className="about-block wrap">
-      <header className="about-head"><p className="eyebrow">Who takes part</p><h2>Qualify at home, compete together.</h2></header>
-      <ol className="path-steps">
-        <li className="jade"><span className="path-number">01</span><span className="path-icon"><GraduationCap size={22} /></span><h3>Under 20, not yet at university</h3><p>Contestants must be pre-university students under 20 on the first day of the competition.</p></li>
-        <li className="saffron"><span className="path-number">02</span><span className="path-icon"><Flag size={22} /></span><h3>Win a place at home</h3><p>Students cannot enter on their own. They qualify through their country's national linguistics olympiad, run by an IOL-accredited organisation.</p></li>
-        <li className="plum"><span className="path-number">03</span><span className="path-icon"><Globe size={22} /></span><h3>Travel as a team</h3><p>Each country sends one or two teams of up to four contestants, each with a team leader.</p></li>
-      </ol>
-      <div className="lot-layout">
-        <article className="lot-card"><ThaiFlag className="lot-flag" /><p className="eyebrow">Thailand's national round</p><h3 lang="th">ภาษาศาสตร์โอลิมปิกแห่งประเทศไทย</h3><p className="lot-name">Thailand Linguistics Olympiad (LOT)</p><p>Held every year with support from POSN to select the students who represent Thailand at the IOL.</p><OutLink href="http://www.arts.chula.ac.th/ling/lot/">Visit the LOT website</OutLink></article>
-        <figure className="about-photo"><img src={team.src} alt={team.alt} loading="lazy" /><PhotoCredit photo={team} /></figure>
-      </div>
-      <p className="about-footnote">National organisations that want their country to take part can apply to the IOL Board for accreditation at <a className="inline-link" href="mailto:contact@ioling.org">contact@ioling.org</a>.</p>
-      <div className="about-actions"><OutLink href="https://ioling.org/countries/">Participating countries and their national contests</OutLink><OutLink href="https://ioling.org/faq/">Frequently asked questions</OutLink></div>
-    </section>
-
-    <section className="about-block wrap">
       <header className="about-head"><p className="eyebrow">Since 2003</p><h2>From Borovets to Bangkok.</h2><p>The IOL grew out of the linguistics olympiads for school students that began in Moscow in 1965. After teams from Moscow and Bulgaria took part in each other's contests, the idea of an international olympiad followed.</p></header>
       <ol className="milestones">
         <li><time>1965</time><strong>Moscow</strong><span>The first linguistics olympiad for school students.</span></li>
@@ -257,7 +226,7 @@ function About() {
         <li><time>2026</time><strong>Bucharest, Romania</strong><span>The 23rd IOL: 255 contestants in 65 teams from 46 countries and territories.</span></li>
         <li className="is-next"><time>2027</time><strong>Bangkok, Thailand</strong><span>The 24th IOL, and the first in Southeast Asia.</span></li>
       </ol>
-      <figure className="map-panel"><figcaption><p className="eyebrow">Host cities</p><h3>Thailand becomes the 20th host country.</h3></figcaption><HostMap /><p className="map-key"><span className="map-key-dot" /> Past host <span className="map-key-dot map-key-next" /> IOL 2027</p></figure>
+      <figure className="map-panel"><figcaption><p className="eyebrow">Host cities</p><h3>Thailand becomes the 20th host country.</h3></figcaption><HostMap /><p className="map-key"><span className="map-key-dot" /> Hosted once <span className="map-key-dot map-key-multi">2</span> Hosted 2 or more times <span className="map-key-dot map-key-next" /> IOL 2027</p></figure>
       <figure className="chart-panel"><figcaption><p className="eyebrow">Contestants per olympiad</p><h3>From 33 to 255 in 23 olympiads.</h3></figcaption><GrowthChart /><p className="chart-note">There was no olympiad in 2020. Source: ioling.org.</p></figure>
       <details className="host-details"><summary>All 24 olympiads: city, country and contestants</summary><ol className="host-history" aria-label="Every IOL host city">{olympiads.map((o) => <li key={o.year} className={o.year === 2027 ? 'host-current' : undefined}><time>{o.year}</time><div><strong>{o.city}</strong><small>{o.country}{o.contestants ? ` · ${o.contestants} contestants` : ' · 21–28 July'}</small></div></li>)}</ol></details>
       <div className="about-actions"><OutLink href="https://ioling.org/history/">Full history and statistics</OutLink></div>
@@ -271,7 +240,7 @@ function About() {
         <article className="role-card role-jury"><span className="role-icon"><Scale size={22} /></span><h3>International Jury</h3><p>Marks the scripts and decides the awards.</p></article>
         <article className="role-card role-local"><span className="role-icon"><Building2 size={22} /></span><h3>Local Organising Committee</h3><p>Runs the event in the host country. For 2027 that is Thailand, with POSN, Chulalongkorn University and Kasetsart University as hosts.</p></article>
       </div>
-      <div className="about-actions"><OutLink href="https://ioling.org/regulations/">IOL regulations</OutLink><a className="text-link" href="/people/committee">IOL 2027 committees <ArrowRight size={14} /></a></div>
+      <div className="about-actions"><OutLink href="https://ioling.org/regulations/">IOL regulations</OutLink>{placeholderPagesShown && <a className="text-link" href="/people/committee">IOL 2027 committees <ArrowRight size={14} /></a>}</div>
     </section>
 
     <section className="ioling-banner wrap">
@@ -569,6 +538,8 @@ function App() {
   const requested = window.location.pathname.replace(/\/$/, '') || '/'
   // While registration is closed, the portal and scanner addresses show the registration page.
   const path = !registrationOpen && ['/registration/team-leader', '/registration/check-in'].includes(requested) ? '/registration' : requested
+  // Placeholder sections show the not-found page on the public site until launch (/media/press is the contact page, so it stays).
+  const hidden = !placeholderPagesShown && (placeholderSections.some((section) => path === section || path.startsWith(`${section}/`)) || path === '/media' || path === '/media/gallery')
   const pages: Record<string, React.ReactElement> = {
     '/': <Home />,
     '/about': <About />, '/about/the-iol': <About />, '/about/thailand': <Thailand />, '/about/thai-language': <ThaiLanguage />, '/about/important-dates': <ImportantDates />, '/thailand': <Thailand />,
@@ -583,7 +554,7 @@ function App() {
     '/contact': <Contact />, '/privacy': <Privacy />,
   }
   const isRegistration = path === '/registration'
-  return <div className="app"><Header /><main>{pages[path] || <NotFound />}</main>{!isRegistration && <Footer />}</div>
+  return <div className="app"><Header /><main>{(!hidden && pages[path]) || <NotFound />}</main>{!isRegistration && <Footer />}</div>
 }
 
 export default App

@@ -74,14 +74,15 @@ export const sections: Section[] = [
   { id: 'teams', title: 'Teams', required: true, intro: 'Each team needs a contest working language. Contestants are assigned on each person’s record.', records: { noun: 'team', plural: 'teams' } },
   { id: 'people', title: 'People', required: true, intro: 'Contestants and observers. Opens once proof of payment is uploaded, and can be completed in stages.', records: { noun: 'person', plural: 'people' } },
   { id: 'welfare', title: 'Rooms and welfare', required: true, intro: 'A summary built from each person’s record. Check it reads correctly; edit the person if it does not.' },
-  { id: 'travel', title: 'Travel', required: true, intro: 'Your stay dates set the hotel nights we reserve, so they are needed now. Flights can wait until they are booked.', records: { noun: 'trip', plural: 'trips' } },
+  { id: 'travel', title: 'Travel', required: true, intro: 'Your stay dates set the hotel nights we reserve, so they are needed now. Flights can wait until they are booked. Once everyone’s arrival and departure are in and the payment is confirmed, we email the QR codes for their badges.', records: { noun: 'trip', plural: 'trips' } },
   {
     id: 'review', title: 'Review and submit', required: false,
     intro: 'Submit once every step is done. You can still update travel and people afterwards until the change deadline.',
     facts: [
       { label: 'Invitation letters', value: 'Sent after payment is confirmed', help: 'Each person’s letter supports their visa application.' },
-      { label: 'E-receipt', value: 'Emailed after Finance approves the payment' },
-      { label: 'QR badges', value: 'Issued once names are final' },
+      { label: 'Invoice', value: 'Emailed to you as a PDF when you submit' },
+      { label: 'E-receipt', value: 'In the Payment step once Finance approves the payment', help: 'The payment confirmation email links to it.' },
+      { label: 'QR badges', value: 'Emailed once payment is confirmed and everyone’s travel is in' },
       { label: 'Arrival check-in', value: 'Recorded at the venue during event week' },
     ],
   },
@@ -90,7 +91,7 @@ export const sections: Section[] = [
     intro: 'Every registered person gets their own QR badge. Staff scan it on arrival and at event checkpoints.',
     facts: [
       { label: 'What the QR holds', value: 'A random badge reference only', help: 'No name, passport or other personal data is encoded.' },
-      { label: 'When badges are issued', value: 'After names are final', help: 'Every contestant, Team Leader and observer gets their own badge.' },
+      { label: 'When badges are issued', value: 'When everything is in', help: 'Registration submitted, payment confirmed and every person’s arrival and departure added. The Team Leader gets an email with everyone’s QR code.' },
       { label: 'Where it is scanned', value: 'Arrival desk and event checkpoints', help: 'Each scan records the checkpoint, time and result.' },
     ],
   },
