@@ -45,13 +45,28 @@ const delegations = [
   },
 ]
 
+// A Team Leader at the very start of the flow, as if they had just used their invitation code: for walking
+// through every step (payment, people, travel, submit) with a staff account approving the payment.
+// DEMO_LEADER_EMAIL can point it at a real inbox so the emails arrive; otherwise it uses a .test address (no emails).
+const demo = {
+  email: (process.env.DEMO_LEADER_EMAIL || 'demo.leader@iol2027.test').toLowerCase(),
+  name: 'Demo Team Leader (TEST)', country: 'Demoland (TEST)', org: 'Demoland Linguistics Olympiad', code: 'IOL2027-DEM-TEST',
+}
+
 const hash = hashPassword(password)
 try {
   await db.query('BEGIN')
-  // Remove previous test data. Delegations go first (members cascade), then accounts, then codes.
-  await db.query(`DELETE FROM delegations WHERE account_id IN (SELECT id FROM accounts WHERE email LIKE '%@iol2027.test')`)
-  await db.query(`DELETE FROM accounts WHERE email LIKE '%@iol2027.test'`)
-  await db.query(`DELETE FROM invite_codes WHERE code LIKE 'IOL2027-%-TEST' OR code LIKE 'IOL2027-TST-%' OR country_territory LIKE '%(TEST)'`)
+  // Remove previous test data: delegations first (members cascade), then accounts, then codes. Test accounts are
+  // @iol2027.test addresses, the demo address, and anyone who signed up with a test code (e.g. the demo pointed at a
+  // real inbox on an earlier run, or someone trying the sign-up with IOL2027-TST-0001).
+  const testCodes = `code LIKE 'IOL2027-%-TEST' OR code LIKE 'IOL2027-TST-%' OR country_territory LIKE '%(TEST)'`
+  const testAccounts = (await db.query(
+    `SELECT id FROM accounts WHERE email LIKE '%@iol2027.test' OR email = $1 OR id IN (SELECT used_by_account_id FROM invite_codes WHERE ${testCodes})`,
+    [demo.email],
+  )).rows.map((row) => row.id)
+  await db.query(`DELETE FROM delegations WHERE country_territory LIKE '%(TEST)' OR account_id = ANY($1)`, [testAccounts])
+  await db.query('DELETE FROM accounts WHERE id = ANY($1)', [testAccounts])
+  await db.query(`DELETE FROM invite_codes WHERE ${testCodes}`)
 
   for (const [email, name, role] of staff) {
     await db.query(`INSERT INTO accounts (email, full_name, password_hash, role, email_verified_at) VALUES ($1, $2, $3, $4, now())`, [email, name, hash, role])
@@ -105,9 +120,31 @@ try {
   for (const [code, country] of [['IOL2027-TST-0001', 'Testland (TEST)'], ['IOL2027-TST-0002', 'Sampleland (TEST)']]) {
     await db.query(`INSERT INTO invite_codes (code, country_territory, accredited_organisation, status) VALUES ($1, $2, 'Test organisation', 'active')`, [code, country])
   }
+
+  // The demo Team Leader: same starting point as a new sign-up (one team, four contestant places, nothing filled in).
+  const demoAccount = (await db.query(
+    `INSERT INTO accounts (email, full_name, password_hash, role, email_verified_at) VALUES ($1, $2, $3, 'team_leader', now()) RETURNING id`,
+    [demo.email, demo.name, hash],
+  )).rows[0]
+  const demoInvite = (await db.query(
+    `INSERT INTO invite_codes (code, country_territory, accredited_organisation, contact_email, status, used_at, used_by_account_id)
+     VALUES ($1, $2, $3, $4, 'used', now(), $5) RETURNING id`,
+    [demo.code, demo.country, demo.org, demo.email, demoAccount.id],
+  )).rows[0]
+  const demoDelegation = (await db.query(
+    `INSERT INTO delegations (account_id, invite_code_id, country_territory, accredited_organisation, primary_team_leader_name, team_leader_email,
+       registration_contact_email, number_of_teams, number_of_contestants, number_of_observers)
+     VALUES ($1, $2, $3, $4, $5, $6, $6, 1, 4, 0) RETURNING id`,
+    [demoAccount.id, demoInvite.id, demo.country, demo.org, demo.name, demo.email],
+  )).rows[0]
+  await db.query(
+    `INSERT INTO members (delegation_id, role, display_name, badge_name, official_name, email) VALUES ($1, 'team_leader', $2, $2, $2, $3)`,
+    [demoDelegation.id, demo.name, demo.email],
+  )
+  await db.query(`INSERT INTO teams (delegation_id, name, code, status) VALUES ($1, 'Demoland A', 'DEM-A', 'draft')`, [demoDelegation.id])
   await db.query('COMMIT')
   const count = (await db.query(`SELECT count(*)::int AS n FROM accounts WHERE email LIKE '%@iol2027.test'`)).rows[0].n
-  console.log(`test data ready: ${count} accounts, 2 delegations, 2 unused invite codes`)
+  console.log(`test data ready: ${count} @iol2027.test accounts, 3 delegations (demo leader ${demo.email}), 2 unused invite codes`)
 } catch (error) {
   await db.query('ROLLBACK')
   throw error

@@ -23,8 +23,11 @@ export function HostMap() {
     <img src="/assets/about/world-dots.svg" alt="" />
     {hostCountries.map(({ country, list, left, top }) => {
       const label = mapLabels[country]
-      return <span key={country} className={`host-marker${country === 'Thailand' ? ' host-marker-next' : ''}`} style={{ left: `${left}%`, top: `${top}%` }}>
-        <span className="host-marker-tip"><strong>{country}</strong>{list.map((o) => <span key={o.year}>{o.city} · {o.year}</span>)}</span>
+      // Countries that have hosted more than once get a bigger marker with the number of times inside.
+      const times = list.length
+      return <span key={country} className={`host-marker${country === 'Thailand' ? ' host-marker-next' : ''}${times > 1 ? ' host-marker-multi' : ''}`} style={{ left: `${left}%`, top: `${top}%`, ...(times > 1 ? { '--size': `${12 + 4 * times}px` } as React.CSSProperties : {}) }}>
+        {times > 1 && <span className="host-marker-count">{times}</span>}
+        <span className="host-marker-tip"><strong>{country}{times > 1 ? ` · hosted ${times} times` : ''}</strong>{list.map((o) => <span key={o.year}>{o.city} · {o.year}</span>)}</span>
         {label && <span className={`host-marker-label host-marker-label-${label.side}`}>{label.text}</span>}
       </span>
     })}
@@ -56,26 +59,4 @@ export function GrowthChart() {
       })}
     </div>
   </div>
-}
-
-const medalKinds = [
-  { key: 'gold', letter: 'G', count: 1, label: 'gold' },
-  { key: 'silver', letter: 'S', count: 2, label: 'silver' },
-  { key: 'bronze', letter: 'B', count: 3, label: 'bronze' },
-  { key: 'mention', letter: 'H', count: 6, label: 'honourable mentions' },
-  { key: 'certificate', letter: '', count: 12, label: 'certificates of participation' },
-]
-
-/** Roughly how 24 contestants share the awards: medals in a 1:2:3 ratio for a quarter, mentions for the rest of the top half. */
-export function MedalDots() {
-  return <div className="medal-figure">
-    <div className="medal-dots" role="img" aria-label="Out of every 24 contestants, roughly 1 wins gold, 2 silver, 3 bronze and 6 an honourable mention. The other 12 receive a certificate of participation.">
-      {medalKinds.flatMap((kind) => Array.from({ length: kind.count }, (_, i) => <span key={`${kind.key}-${i}`} className={`medal-dot medal-${kind.key}`} aria-hidden="true">{kind.letter}</span>))}
-    </div>
-    <ul className="medal-legend">{medalKinds.map((kind) => <li key={kind.key}><span className={`medal-dot medal-${kind.key}`} aria-hidden="true">{kind.letter}</span><span><strong>{kind.count}</strong> {kind.label}</span></li>)}</ul>
-  </div>
-}
-
-export function ThaiFlag({ className }: { className?: string }) {
-  return <svg className={className} viewBox="0 0 9 6" role="img" aria-label="Flag of Thailand"><rect width="9" height="6" fill="#a51931" /><rect y="1" width="9" height="4" fill="#f4f5f8" /><rect y="2" width="9" height="2" fill="#2d2a4a" /></svg>
 }

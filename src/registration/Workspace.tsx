@@ -76,6 +76,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff }: { deleg
       const steps = new Set(d.delegation.completedSteps)
       const paid = d.payments[0] && ['awaiting_review', 'approved'].includes(d.payments[0].status)
       if (navigated.current) return
+      // Links in emails open a given step, e.g. /registration/team-leader?step=travel.
+      const requested = new URLSearchParams(window.location.search).get('step')
+      if (requested && sections.some((s) => s.id === requested)) { navigated.current = true; setActiveId(requested as SectionId); return }
       if (d.delegation.registrationStatus !== 'draft') setActiveId('review')
       else if (steps.has('start')) setActiveId(required.find((s) => (s.id === 'payment' ? !paid : !steps.has(s.id)))?.id ?? 'review')
     }).catch((e) => { if (!current) return; if (e instanceof ApiError && e.status === 401) onSessionEnd(); else setLoadError(messageOf(e)) })

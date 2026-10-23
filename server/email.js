@@ -178,47 +178,78 @@ export function buildFinanceAlertEmail({ countryTerritory, paymentReference, amo
   return { subject, html: layout(preview, body) }
 }
 
-export function buildPaymentConfirmedEmail({ countryTerritory, fullName, paymentReference, amountPaid, currency, receiptUrl }) {
+export function buildPaymentConfirmedEmail({ countryTerritory, fullName, paymentReference, amountPaid, currency, receiptNumber, travelUrl, paymentUrl }) {
   const subject = 'Payment confirmed — IOL 2027 registration'
-  const preview = `Your payment for ${countryTerritory} has been confirmed. Your registration is now active.`
+  const preview = `Your payment for ${countryTerritory} is confirmed. Next, add everyone's flights.`
   const body = `
     ${h1('Payment confirmed')}
     ${p(`Hi ${esc(fullName)},`)}
-    ${p(`Great news — Finance has confirmed your payment for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong>.
-         Your IOL 2027 registration is now active.`)}
+    ${p(`Finance has confirmed your payment for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong>. Thank you.`)}
     ${infoTable([
       ['Delegation', countryTerritory],
       ['Payment reference', paymentReference],
       ['Amount confirmed', amountPaid ? `${Number(amountPaid).toLocaleString()} ${currency || 'USD'}` : '—'],
-      ['Registration status', 'Active'],
+      ...(receiptNumber ? [['Receipt number', receiptNumber]] : []),
     ])}
-    ${notice('<strong>Next steps:</strong> Log in to complete member details, teams and travel information. Invitation letters will be sent to registered email addresses.')}
-    ${receiptUrl ? button('Download receipt', receiptUrl) : ''}
-    ${p(`QR badges will be issued once participant names are finalised. You will receive a separate email when they are ready.`, SMALL)}
+    ${notice('<strong>Next: add your flights.</strong> Enter each person’s arrival and departure, with flight number, date and time, in the Travel step. Once your registration is submitted and everyone’s travel is in, we will email the QR codes for their badges.')}
+    ${button('Add flight details', travelUrl)}
+    ${p(`Your e-receipt is in the Payment step of the registration system: <a href="${paymentUrl}" style="color:${C.ink}">download the receipt</a>.`, SMALL)}
   `
   return { subject, html: layout(preview, body) }
 }
 
-export function buildRegistrationSubmittedEmail({ countryTerritory, fullName, numberOfTeams, numberOfObservers, missingItems }) {
+export function buildRegistrationSubmittedEmail({ countryTerritory, fullName, numberOfTeams, numberOfObservers, paymentConfirmed, travelComplete, travelUrl }) {
   const subject = 'Registration submitted — IOL 2027'
-  const preview = `Your initial registration for ${countryTerritory} has been submitted.`
-  const missing = missingItems?.length
-    ? `<ul style="margin:8px 0 0;padding-left:20px">${missingItems.map((item) => `<li style="margin:4px 0;font-size:15px;color:${C.ink}">${item}</li>`).join('')}</ul>`
-    : ''
+  const preview = `The registration for ${countryTerritory} is submitted. Your invoice is attached.`
+  const settled = paymentConfirmed && travelComplete
+  const next = [
+    !paymentConfirmed && 'Finance is checking your transfer. We will email you when the payment is confirmed.',
+    !travelComplete && 'Add each person’s arrival and departure in the Travel step.',
+    settled
+      ? 'Everything is in. The QR codes for everyone’s badges follow in a separate email.'
+      : 'Once the payment is confirmed and everyone’s travel is in, we will email the QR codes for their badges.',
+  ].filter(Boolean)
   const body = `
     ${h1('Registration submitted')}
     ${p(`Hi ${esc(fullName)},`)}
-    ${p(`Your initial registration for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> at IOL 2027 has been submitted successfully.`)}
+    ${p(`The registration for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> at IOL 2027 has been submitted. Your invoice is attached to this email as a PDF.`)}
     ${infoTable([
       ['Delegation', countryTerritory],
       ['Teams', String(numberOfTeams || 1)],
       ['Observers', String(numberOfObservers || 0)],
-      ['Status', 'Submitted'],
+      ['Registration', 'Submitted'],
+      ['Payment', paymentConfirmed ? 'Confirmed' : 'Being checked by Finance'],
     ])}
-    ${missingItems?.length ? `
-      ${notice(`<strong>Still needed before final submission:</strong>${missing}`, C.orange)}
-    ` : notice('Your registration is complete for now. You can return to add travel details after flights are booked.')}
-    ${p(`You will receive a separate email once Finance confirms your payment.`, SMALL)}
+    ${notice(`<strong>What happens next</strong><ul style="margin:8px 0 0;padding-left:20px">${next.map((item) => `<li style="margin:4px 0">${item}</li>`).join('')}</ul>`, settled ? C.jade : C.orange)}
+    ${travelComplete ? '' : button('Add flight details', travelUrl)}
+    ${p('You can still update people and travel in the registration system until the change deadline.', SMALL)}
+  `
+  return { subject, html: layout(preview, body) }
+}
+
+const roleLabel = (role) => ({ team_leader: 'Team Leader', contestant: 'Contestant', observer: 'Observer' }[role] ?? role.replace(/_/g, ' '))
+
+export function buildBadgesEmail({ countryTerritory, fullName, people, newCount }) {
+  const subject = `QR badges for ${countryTerritory} — IOL 2027`
+  const preview = `The QR codes for ${people.length} people in ${countryTerritory} are ready.`
+  const card = (person) => person ? `<td width="50%" valign="top" style="padding:8px">
+      <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border:1px solid ${C.line};border-radius:10px">
+        <tr><td align="center" style="padding:16px 12px 6px"><img src="cid:${person.cid}" width="150" height="150" alt="QR code for ${esc(person.name)}" style="display:block;width:150px;height:150px"></td></tr>
+        <tr><td align="center" style="padding:0 12px 16px">
+          <p style="margin:0;font-size:16px;font-weight:700;color:${C.ink}">${esc(person.name)}</p>
+          <p style="margin:4px 0 0;font-size:14px;color:${C.muted}">${esc(roleLabel(person.role))}${person.team ? ` · ${esc(person.team)}` : ''}</p>
+        </td></tr>
+      </table></td>` : '<td width="50%" style="padding:8px"></td>'
+  const rows = []
+  for (let i = 0; i < people.length; i += 2) rows.push(`<tr>${card(people[i])}${card(people[i + 1])}</tr>`)
+  const body = `
+    ${h1('Your QR badges are ready')}
+    ${p(`Hi ${esc(fullName)},`)}
+    ${p(`Everything for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> is in: the registration is submitted, the payment is confirmed and everyone’s travel is added. Here is the QR code for each person in your delegation.`)}
+    ${newCount < people.length ? p(`This email includes ${newCount} new ${newCount === 1 ? 'badge' : 'badges'}. Everyone else’s code is unchanged.`) : ''}
+    ${notice('Each code is personal. Staff scan it at the arrival desk and at event checkpoints, and the printed badges you receive in Bangkok carry the same codes. The images are also attached, so you can forward each person their own.')}
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:8px 0 16px">${rows.join('')}</table>
+    ${p('If a code is lost or someone’s details change, reply to this email and we will issue a new one.', SMALL)}
   `
   return { subject, html: layout(preview, body) }
 }
@@ -278,21 +309,24 @@ function gmail() {
   return gmailTransport
 }
 
-async function sendWithGmail({ to, subject, html }) {
+async function sendWithGmail({ to, subject, html, attachments }) {
   const user = process.env.GMAIL_USER
   // Gmail only sends as the signed-in mailbox, so the From address is always that account.
   const from = process.env.EMAIL_FROM?.includes(user) ? process.env.EMAIL_FROM : `IOL 2027 Registration <${user}>`
   const replyTo = process.env.EMAIL_REPLY_TO && process.env.EMAIL_REPLY_TO !== user ? process.env.EMAIL_REPLY_TO : undefined
-  const info = await gmail().sendMail({ from, to, subject, html, replyTo })
+  const info = await gmail().sendMail({ from, to, subject, html, replyTo, attachments })
   return info.messageId
 }
 
-async function sendWithResend({ to, subject, html }) {
+async function sendWithResend({ to, subject, html, attachments }) {
   const response = await fetch(RESEND_API, {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
     // Replies go to the central mailbox (EMAIL_REPLY_TO), not the no-reply sending address.
-    body: JSON.stringify({ from: process.env.EMAIL_FROM, to: [to], subject, html, ...(process.env.EMAIL_REPLY_TO ? { reply_to: process.env.EMAIL_REPLY_TO } : {}) }),
+    body: JSON.stringify({
+      from: process.env.EMAIL_FROM, to: [to], subject, html, ...(process.env.EMAIL_REPLY_TO ? { reply_to: process.env.EMAIL_REPLY_TO } : {}),
+      ...(attachments.length ? { attachments: attachments.map((file) => ({ filename: file.filename, content: file.content.toString('base64') })) } : {}),
+    }),
   })
   const payload = await response.json()
   if (!response.ok) throw new Error(payload.message || 'Resend rejected the request.')
@@ -308,11 +342,13 @@ async function sendWithResend({ to, subject, html }) {
  * @param {string}  opts.subject
  * @param {string}  opts.html
  * @param {string}  opts.purpose      - stored in email_deliveries
+ * @param {{ filename: string, content: Buffer, contentType?: string, cid?: string }[]} [opts.attachments]
+ *   files to attach; one with a cid can be shown in the body as <img src="cid:...">
  * @param {string}  [opts.accountId]
  * @param {string}  [opts.delegationId]
  * @returns {{ delivery: object, configured: boolean }} configured is true only when the email really went out.
  */
-export async function sendEmail({ pool, to, subject, html, purpose, accountId = null, delegationId = null }) {
+export async function sendEmail({ pool, to, subject, html, purpose, attachments = [], accountId = null, delegationId = null }) {
   const provider = emailProvider()
   const skip = provider && isTestAddress(to)
   const delivery = (await pool.query(
@@ -324,7 +360,7 @@ export async function sendEmail({ pool, to, subject, html, purpose, accountId = 
   if (!provider || skip) return { delivery, configured: false }
 
   try {
-    const messageId = provider === 'gmail' ? await sendWithGmail({ to, subject, html }) : await sendWithResend({ to, subject, html })
+    const messageId = provider === 'gmail' ? await sendWithGmail({ to, subject, html, attachments }) : await sendWithResend({ to, subject, html, attachments })
     const sent = await pool.query(
       `UPDATE email_deliveries SET status = 'sent', provider_message_id = $1, sent_at = now() WHERE id = $2 RETURNING *`,
       [messageId, delivery.id],
