@@ -76,8 +76,9 @@ development  ──merge──▶  prelaunch  ──PR──▶  main (public si
 - The public site hides registration because of how it is **built**, not because of its code: the workflow that deploys `main` (`.github/workflows/firebase-hosting-merge.yml`) builds with `VITE_REGISTRATION_OPEN=false`, and so do pull-request previews into `main`. `src/launch.ts` reads that setting. It hides the Team Leader portal, staff back office and badge scanner; their addresses show the "opens 18 January 2027" page. Every other build, including the dev site and local development, has registration open.
 - `prelaunch` carries the same code as `development`; it is the staging step before the public site.
 - To publish public-site changes: merge `development` into `prelaunch`, then open a PR from `prelaunch` to `main` and check its preview. Do not commit to `main` directly.
-- To see the public version locally: `VITE_REGISTRATION_OPEN=false npm run build && npm run preview`.
-- When registration opens: delete the two `env` lines from `firebase-hosting-merge.yml` and the one from `firebase-hosting-pull-request.yml`, then merge as usual.
+- The placeholder pages (Gallery, People, Sponsors, and the sponsor block on the home page) are hidden the same way, with `VITE_SHOW_PLACEHOLDER_PAGES=false`; their addresses show the not-found page on the public site.
+- To see the public version locally: `VITE_REGISTRATION_OPEN=false VITE_SHOW_PLACEHOLDER_PAGES=false npm run build && npm run preview`.
+- When registration opens (or a placeholder section is ready): delete its `VITE_...` line from `firebase-hosting-merge.yml` and from `firebase-hosting-pull-request.yml`, then merge as usual.
 
 ## Useful Thai audio
 

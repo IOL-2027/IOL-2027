@@ -56,10 +56,17 @@ const demo = {
 const hash = hashPassword(password)
 try {
   await db.query('BEGIN')
-  // Remove previous test data. Delegations go first (members cascade), then accounts, then codes.
-  await db.query(`DELETE FROM delegations WHERE account_id IN (SELECT id FROM accounts WHERE email LIKE '%@iol2027.test' OR email = $1)`, [demo.email])
-  await db.query(`DELETE FROM accounts WHERE email LIKE '%@iol2027.test' OR email = $1`, [demo.email])
-  await db.query(`DELETE FROM invite_codes WHERE code LIKE 'IOL2027-%-TEST' OR code LIKE 'IOL2027-TST-%' OR country_territory LIKE '%(TEST)'`)
+  // Remove previous test data: delegations first (members cascade), then accounts, then codes. Test accounts are
+  // @iol2027.test addresses, the demo address, and anyone who signed up with a test code (e.g. the demo pointed at a
+  // real inbox on an earlier run, or someone trying the sign-up with IOL2027-TST-0001).
+  const testCodes = `code LIKE 'IOL2027-%-TEST' OR code LIKE 'IOL2027-TST-%' OR country_territory LIKE '%(TEST)'`
+  const testAccounts = (await db.query(
+    `SELECT id FROM accounts WHERE email LIKE '%@iol2027.test' OR email = $1 OR id IN (SELECT used_by_account_id FROM invite_codes WHERE ${testCodes})`,
+    [demo.email],
+  )).rows.map((row) => row.id)
+  await db.query(`DELETE FROM delegations WHERE country_territory LIKE '%(TEST)' OR account_id = ANY($1)`, [testAccounts])
+  await db.query('DELETE FROM accounts WHERE id = ANY($1)', [testAccounts])
+  await db.query(`DELETE FROM invite_codes WHERE ${testCodes}`)
 
   for (const [email, name, role] of staff) {
     await db.query(`INSERT INTO accounts (email, full_name, password_hash, role, email_verified_at) VALUES ($1, $2, $3, $4, now())`, [email, name, hash, role])
