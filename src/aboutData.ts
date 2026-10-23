@@ -51,10 +51,6 @@ export const workingLanguages: { name: string; native: string; lang: string; dir
   { name: 'Thai', native: 'ไทย', lang: 'th' }, { name: 'Turkish', native: 'Türkçe', lang: 'tr' }, { name: 'Ukrainian', native: 'Українська', lang: 'uk' },
 ]
 
-// Photos from Wikimedia Commons, CC BY 4.0, resized for the web.
-export const aboutPhotos = {
-  team: { src: '/assets/about/iol-2019-team-yongin.jpg', alt: 'A national team holding the Brazilian flag in front of an IOL Yongin 2019 backdrop', caption: 'The Brazilian team at IOL 2019 in Yongin, Republic of Korea.', credit: "Photo: L'Astorina, CC BY 4.0", source: 'https://commons.wikimedia.org/wiki/File:Time_brasileiro_na_IOL_2019.jpg' },
-}
 
 // Brand icons from Simple Icons (https://simpleicons.org, CC0), 24x24 viewBox.
 export const socialLinks = [
