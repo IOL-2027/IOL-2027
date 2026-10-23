@@ -571,7 +571,8 @@ app.post('/api/registration/delegations/:delegationId/travel', ...signedIn, dele
     await insertAudit(client, { actorAccountId: req.user.id, delegationId: req.params.delegationId, eventType: 'travel_saved', entityType: 'travel_record', entityId: row.id })
     return row
   })
-  sendBadgesIfSettled(req.params.delegationId).catch((e) => console.error(e.message))
+  // Awaited, not left running: Cloud Run slows work that continues after the response is sent.
+  await sendBadgesIfSettled(req.params.delegationId).catch((e) => console.error(e.message))
   res.status(201).json({ travelRecord: camelizeRow(travel) })
 }))
 
@@ -586,7 +587,7 @@ app.patch('/api/registration/travel/:travelRecordId', ...signedIn, childAccess('
     await insertAudit(client, { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'travel_saved', entityType: 'travel_record', entityId: req.params.travelRecordId })
     return result.rows[0]
   })
-  sendBadgesIfSettled(req.delegationId).catch((e) => console.error(e.message))
+  await sendBadgesIfSettled(req.delegationId).catch((e) => console.error(e.message))
   res.json({ travelRecord: camelizeRow(travel) })
 }))
 
@@ -680,7 +681,8 @@ app.post('/api/registration/delegations/:delegationId/submit', ...signedIn, dele
     await insertAudit(client, { actorAccountId: req.user.id, delegationId: row.id, eventType: 'registration_submitted', entityType: 'delegation', entityId: row.id })
     return row
   })
-  notifySubmitted(submitted).catch((e) => console.error(e.message))
+  // The emails are awaited (Cloud Run slows work left running after the response); a failure is logged, not shown.
+  await notifySubmitted(submitted).catch((e) => console.error(e.message))
   res.json({ delegation: camelizeRow(submitted) })
 }))
 
