@@ -3,6 +3,7 @@
 import crypto from 'node:crypto'
 import { HttpError, ROLES, filterMember, hashPassword, requireRole } from './auth.js'
 import { buildInviteEmail, buildPaymentConfirmedEmail, sendEmail } from './email.js'
+import { sendBadgesIfSettled } from './badges.js'
 import { calculateFees, cleanFees, cleanGuardianConsent, loadSettings, needsGuardianConsent } from './fees.js'
 import { issuePasswordCode } from './codes.js'
 import {
@@ -152,7 +153,7 @@ export function registerAdminRoutes(app, { signedIn }) {
         `UPDATE payments SET status = 'approved', reviewed_at = now(), reviewed_by_account_id = $2, review_note = $3, updated_at = now(),
            receipt_number = COALESCE(receipt_number, 'IOL2027-R-' || lpad(nextval('receipt_number_seq')::text, 4, '0'))
          WHERE id = $1 AND status = 'awaiting_review' RETURNING *`,
-        [req.params.paymentId, req.user.id, optionalString(req.body.note)],
+        [req.params.paymentId, req.user.id, optionalString(req.body?.note)],
       )).rows[0]
       if (!payment) throw new HttpError(409, 'This payment is not waiting for review.')
       await client.query(`UPDATE delegations SET payment_status = 'approved', updated_at = now() WHERE id = $1`, [payment.delegation_id])
@@ -162,9 +163,13 @@ export function registerAdminRoutes(app, { signedIn }) {
     const d = (await query('SELECT country_territory, team_leader_email, primary_team_leader_name FROM delegations WHERE id = $1', [approved.delegation_id])).rows[0]
     const { subject, html } = buildPaymentConfirmedEmail({
       countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, paymentReference: approved.payment_reference,
-      amountPaid: approved.amount_due, currency: approved.currency || 'USD', receiptUrl: `${siteUrl}/registration/team-leader`,
+      amountPaid: approved.amount_due, currency: approved.currency || 'USD', receiptNumber: approved.receipt_number,
+      travelUrl: `${siteUrl}/registration/team-leader?step=travel`, paymentUrl: `${siteUrl}/registration/team-leader?step=payment`,
     })
-    sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_confirmed', delegationId: approved.delegation_id }).catch((e) => console.error(e.message))
+    // Awaited so Cloud Run does not slow it down after the response; a failure is logged, not shown.
+    await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_confirmed', delegationId: approved.delegation_id })
+      .then(() => sendBadgesIfSettled(approved.delegation_id))
+      .catch((e) => console.error(e.message))
     res.json({ payment: camelizeRow(approved) })
   }))
 

@@ -13,10 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Previews of pull requests into main look like the public site, so registration is hidden there too.
+      # Previews of pull requests into main look like the public site, so registration and placeholder pages are hidden there too.
       - run: npm ci && npm run build
         env:
           VITE_REGISTRATION_OPEN: ${{ github.base_ref == 'main' && 'false' || 'true' }}
+          VITE_SHOW_PLACEHOLDER_PAGES: ${{ github.base_ref == 'main' && 'false' || 'true' }}
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}

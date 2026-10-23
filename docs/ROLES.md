@@ -85,9 +85,18 @@ gcloud secrets versions access latest --secret=iol2027-test-account-password --p
 
 It is never committed to the repository. Recreate or reset the accounts with `npm run db:seed-test` (see `server/README.md`).
 
+### Demo walkthrough: the whole flow with two accounts
+
+| Account | Email | Use it for |
+| --- | --- | --- |
+| Demo Team Leader | `demo.leader@iol2027.test`, or the address in `DEMO_LEADER_EMAIL` when the data was seeded | **Demoland (TEST)**, at the very start, as if the invitation code had just been used. Go through every step: Team and observers → Payment (any PDF, JPG or PNG works as the proof) → Teams → People → Rooms and welfare → Travel → Review and submit. |
+| Super admin | `superadmin@iol2027.test` | The back office, in a second browser or a private window: approve Demoland's payment under **Payments**, follow its people and stages, and read **Email log**. |
+
+Along the way the system sends the Team Leader: proof received, registration submitted (with the invoice as a PDF), payment confirmed (with a link to the Travel step) and, once the registration is submitted, paid and everyone has an arrival and departure, the QR badges. To a `.test` address they are only recorded (Skipped in the email log); seeded with `DEMO_LEADER_EMAIL` pointing at a real inbox, they arrive there. `npm run db:seed-test` puts Demoland back at the start (pass `DEMO_LEADER_EMAIL` again to keep the real inbox).
+
 ### Test invite codes
 
-Unused codes for trying the full sign-up flow from scratch. Each works once; `npm run db:seed-test` makes them unused again. Emails to `.test` addresses are never sent, so the dev site shows the 6-digit email code on screen.
+Unused codes for trying the sign-up itself (invitation code, account, email verification) from scratch. Each works once; `npm run db:seed-test` makes them unused again and removes the accounts made with them. Emails to `.test` addresses are never sent, so the dev site shows the 6-digit email code on screen; sign up with a real address to receive the emails instead.
 
 | Code | Country |
 | --- | --- |

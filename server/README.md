@@ -31,7 +31,7 @@ Database: database `iol2027` on Cloud SQL instance `research-trend-analysis:asia
    TEST_ACCOUNT_PASSWORD=... npm run db:seed-test
    ```
 
-   `db:migrate` applies `schema.sql` and then every new file in `migrations/`. `db:seed-test` only touches `@iol2027.test` accounts and `TEST` invite codes, so it is safe to rerun to reset the test data. The shared password is in Secret Manager: `gcloud secrets versions access latest --secret=iol2027-test-account-password --project=iol2027`.
+   `db:migrate` applies `schema.sql` and then every new file in `migrations/`. `db:seed-test` only touches test data (`@iol2027.test` accounts, `TEST` invite codes and countries, and accounts made with those codes), so it is safe to rerun to reset it; that includes putting the demo Team Leader (Demoland) back at the start. Add `DEMO_LEADER_EMAIL=<real inbox>` to have the demo's emails delivered (docs/ROLES.md). The shared password is in Secret Manager: `gcloud secrets versions access latest --secret=iol2027-test-account-password --project=iol2027`.
 
 3. Start the API with `npm run dev:api` and the site with `npm run dev`.
 
@@ -58,12 +58,12 @@ gcloud run deploy iol2027-api --project iol2027 --region asia-southeast1 \
   --image asia-southeast1-docker.pkg.dev/iol2027/registration/api:<tag> \
   --service-account iol2027-api@iol2027.iam.gserviceaccount.com \
   --add-cloudsql-instances research-trend-analysis:asia-southeast1:papertrend-pg \
-  --set-secrets DATABASE_URL=iol2027-database-url:latest,GMAIL_APP_PASSWORD=iol2027-gmail-app-password:latest \
+  --set-secrets DATABASE_URL=iol2027-database-url:latest,GMAIL_APP_PASSWORD=iol2027-gmail-app-password:latest,BADGE_SIGNING_KEY=iol2027-badge-signing-key:latest \
   --set-env-vars NODE_ENV=production,UPLOAD_BUCKET=iol2027-registration-uploads,EXPOSE_DEV_CODES=true,DB_POOL_MAX=5,SITE_URL=https://iol2027-dev.web.app,GMAIL_USER=iol2027.th@gmail.com \
   --allow-unauthenticated --min-instances 0 --max-instances 2 --memory 512Mi
 ```
 
-Run `npm run db:migrate` (through the proxy) before deploying code that needs a new migration. Email goes out from iol2027.th@gmail.com through Gmail when `GMAIL_USER` and `GMAIL_APP_PASSWORD` (secret `iol2027-gmail-app-password`) are set, as they are on the dev server. Addresses ending in `.test` are never sent. Environment and secrets set with `gcloud run services update` stay on later deploys. See [docs/EMAIL_SETUP.md](../docs/EMAIL_SETUP.md).
+Run `npm run db:migrate` (through the proxy) before deploying code that needs a new migration. Email goes out from iol2027.th@gmail.com through Gmail when `GMAIL_USER` and `GMAIL_APP_PASSWORD` (secret `iol2027-gmail-app-password`) are set, as they are on the dev server. Addresses ending in `.test` are never sent. `BADGE_SIGNING_KEY` (secret `iol2027-badge-signing-key`) derives each badge's QR secret, so the same QR can be drawn again for printed badges; changing it makes every issued QR unreadable until it is reissued. Environment and secrets set with `gcloud run services update` stay on later deploys. See [docs/EMAIL_SETUP.md](../docs/EMAIL_SETUP.md).
 
 ## Endpoints
 
