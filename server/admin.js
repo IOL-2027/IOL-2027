@@ -3,6 +3,7 @@
 import crypto from 'node:crypto'
 import { HttpError, ROLES, filterMember, hashPassword, requireRole } from './auth.js'
 import { buildInviteEmail, buildPaymentConfirmedEmail, sendEmail } from './email.js'
+import { sendBadgesIfSettled } from './badges.js'
 import { calculateFees, cleanFees, cleanGuardianConsent, loadSettings, needsGuardianConsent } from './fees.js'
 import { issuePasswordCode } from './codes.js'
 import {
@@ -162,9 +163,12 @@ export function registerAdminRoutes(app, { signedIn }) {
     const d = (await query('SELECT country_territory, team_leader_email, primary_team_leader_name FROM delegations WHERE id = $1', [approved.delegation_id])).rows[0]
     const { subject, html } = buildPaymentConfirmedEmail({
       countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, paymentReference: approved.payment_reference,
-      amountPaid: approved.amount_due, currency: approved.currency || 'USD', receiptUrl: `${siteUrl}/registration/team-leader`,
+      amountPaid: approved.amount_due, currency: approved.currency || 'USD', receiptNumber: approved.receipt_number,
+      travelUrl: `${siteUrl}/registration/team-leader?step=travel`, paymentUrl: `${siteUrl}/registration/team-leader?step=payment`,
     })
-    sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_confirmed', delegationId: approved.delegation_id }).catch((e) => console.error(e.message))
+    sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_confirmed', delegationId: approved.delegation_id })
+      .then(() => sendBadgesIfSettled(approved.delegation_id))
+      .catch((e) => console.error(e.message))
     res.json({ payment: camelizeRow(approved) })
   }))
 
