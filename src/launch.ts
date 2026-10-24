@@ -7,3 +7,8 @@ export const registrationOpen: boolean = import.meta.env.VITE_REGISTRATION_OPEN 
 // Placeholder pages (Gallery, People, Sponsors, and the sponsor block on the home page) work the same way: the public
 // site builds with VITE_SHOW_PLACEHOLDER_PAGES=false until launch, so they are hidden there and shown everywhere else.
 export const placeholderPagesShown: boolean = import.meta.env.VITE_SHOW_PLACEHOLDER_PAGES !== 'false'
+
+// The registration portal is its own site (iol2027-portal.web.app, dev: iol2027-portal-dev.web.app); the public site
+// links to it and the portal links back. Each deploy sets both addresses; the defaults are the dev sites.
+export const portalUrl: string = (import.meta.env.VITE_PORTAL_URL || 'https://iol2027-portal-dev.web.app').replace(/\/$/, '')
+export const publicSiteUrl: string = (import.meta.env.VITE_PUBLIC_SITE_URL || 'https://iol2027-dev.web.app').replace(/\/$/, '')

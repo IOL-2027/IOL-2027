@@ -59,11 +59,11 @@ gcloud run deploy iol2027-api --project iol2027 --region asia-southeast1 \
   --service-account iol2027-api@iol2027.iam.gserviceaccount.com \
   --add-cloudsql-instances research-trend-analysis:asia-southeast1:papertrend-pg \
   --set-secrets DATABASE_URL=iol2027-database-url:latest,GMAIL_APP_PASSWORD=iol2027-gmail-app-password:latest,BADGE_SIGNING_KEY=iol2027-badge-signing-key:latest \
-  --set-env-vars NODE_ENV=production,UPLOAD_BUCKET=iol2027-registration-uploads,EXPOSE_DEV_CODES=true,DB_POOL_MAX=5,SITE_URL=https://iol2027-dev.web.app,GMAIL_USER=iol2027.th@gmail.com \
+  --set-env-vars NODE_ENV=production,UPLOAD_BUCKET=iol2027-registration-uploads,EXPOSE_DEV_CODES=true,DB_POOL_MAX=5,PORTAL_URL=https://iol2027-portal-dev.web.app,GMAIL_USER=iol2027.th@gmail.com \
   --allow-unauthenticated --min-instances 0 --max-instances 2 --memory 512Mi
 ```
 
-Run `npm run db:migrate` (through the proxy) before deploying code that needs a new migration. Email goes out from iol2027.th@gmail.com through Gmail when `GMAIL_USER` and `GMAIL_APP_PASSWORD` (secret `iol2027-gmail-app-password`) are set, as they are on the dev server. Addresses ending in `.test` are never sent. `BADGE_SIGNING_KEY` (secret `iol2027-badge-signing-key`) derives each badge's QR secret, so the same QR can be drawn again for printed badges; changing it makes every issued QR unreadable until it is reissued. Environment and secrets set with `gcloud run services update` stay on later deploys. See [docs/EMAIL_SETUP.md](../docs/EMAIL_SETUP.md).
+The API is reached through the registration portal's Firebase rewrite (`/api/**` on https://iol2027-portal-dev.web.app), so it shares the portal's origin and its `__session` cookie; the public website has no API behind it. `PORTAL_URL` is where links in emails point. Run `npm run db:migrate` (through the proxy) before deploying code that needs a new migration. Email goes out from iol2027.th@gmail.com through Gmail when `GMAIL_USER` and `GMAIL_APP_PASSWORD` (secret `iol2027-gmail-app-password`) are set, as they are on the dev server. Addresses ending in `.test` are never sent. `BADGE_SIGNING_KEY` (secret `iol2027-badge-signing-key`) derives each badge's QR secret, so the same QR can be drawn again for printed badges; changing it makes every issued QR unreadable until it is reissued. Environment and secrets set with `gcloud run services update` stay on later deploys. See [docs/EMAIL_SETUP.md](../docs/EMAIL_SETUP.md).
 
 ## Endpoints
 

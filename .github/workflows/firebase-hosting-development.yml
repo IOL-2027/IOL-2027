@@ -1,6 +1,5 @@
-# Permanent development site: https://iol2027-dev.web.app
-# Every push to the development branch deploys to the "dev" hosting target
-# (site iol2027-dev). It never touches the public site, which deploys from main.
+# Permanent development sites: https://iol2027-dev.web.app and the registration portal https://iol2027-portal-dev.web.app.
+# Every push to the development branch deploys to the "dev" and "portal-dev" hosting targets. It never touches the public site, which deploys from main.
 # The dev site sends X-Robots-Tag: noindex so search engines do not list it.
 name: Deploy development to iol2027-dev
 on:
@@ -12,11 +11,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npm ci && npm run build
+      # The dev public site and the dev registration portal link to each other.
+      - run: npm ci && npm run build && npm run build:portal
+        env:
+          VITE_PUBLIC_SITE_URL: https://iol2027-dev.web.app
+          VITE_PORTAL_URL: https://iol2027-portal-dev.web.app
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_IOL2027 }}
-          projectId: iol2027
           channelId: live
+          projectId: iol2027
           target: dev
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_IOL2027 }}
+          channelId: live
+          projectId: iol2027
+          target: portal-dev

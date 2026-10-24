@@ -13,11 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Previews of pull requests into main look like the public site, so registration and placeholder pages are hidden there too.
+      # Previews of pull requests into main look like the public site: no portal link, placeholder pages hidden.
       - run: npm ci && npm run build
         env:
           VITE_REGISTRATION_OPEN: ${{ github.base_ref == 'main' && 'false' || 'true' }}
           VITE_SHOW_PLACEHOLDER_PAGES: ${{ github.base_ref == 'main' && 'false' || 'true' }}
+          VITE_PUBLIC_SITE_URL: ${{ github.base_ref == 'main' && 'https://iol2027.web.app' || 'https://iol2027-dev.web.app' }}
+          VITE_PORTAL_URL: ${{ github.base_ref == 'main' && 'https://iol2027-portal.web.app' || 'https://iol2027-portal-dev.web.app' }}
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
