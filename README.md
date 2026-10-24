@@ -68,9 +68,8 @@ Mandarin Hotel Bangkok images come from the hotel's official website.
 | Site | URL | Deploys from |
 | --- | --- | --- |
 | Public website (`prod` target) | https://iol2027.web.app | push to `main` |
-| Registration portal (`portal` target) | https://iol2027-portal.web.app | push to `main`; says when registration opens until then, and has no API behind it yet |
+| Registration portal (`portal` target) | https://iol2027-portal.web.app | push to `development` until launch, with the test API behind it (`/api/**` → Cloud Run `iol2027-api`). The public website does not link to it before registration opens |
 | Development website (`dev` target) | https://iol2027-dev.web.app | push to `development` (not indexed by search engines) |
-| Development portal (`portal-dev` target) | https://iol2027-portal-dev.web.app | push to `development`; `/api/**` goes to the Cloud Run API (`iol2027-api`) |
 | Pull request previews | posted as a PR comment | every PR (public website only), expires after 7 days |
 
 Custom domains: the IOL Board, which manages `ioling.org`, adds the DNS records Firebase gives for each name (one A and one TXT record per name), for example `iol2027.ioling.org` for the website and `iol2027-portal.ioling.org` for the portal. Each name needs its own records. Until then the `web.app` addresses are used, and `VITE_PORTAL_URL` / `VITE_PUBLIC_SITE_URL` in the workflows (and `PORTAL_URL` on the API) say which addresses link to each other.
@@ -82,11 +81,11 @@ development  ──merge──▶  prelaunch  ──PR──▶  main (public si
 ```
 
 - `development` is the full system, registration included. Build features here, and start new branches from `development`, never from `main`.
-- Registration stays closed on the public sites because of how they are **built**, not because of their code: the workflow that deploys `main` (`.github/workflows/firebase-hosting-merge.yml`) builds both apps with `VITE_REGISTRATION_OPEN=false`, and so do pull-request previews into `main`. `src/launch.ts` reads that setting. The website then shows no link to the portal, and the public portal only says that registration opens on 18 January 2027. Every other build, including the dev sites and local development, has registration open.
+- Registration stays closed on the public website because of how it is **built**, not because of its code: the workflow that deploys `main` (`.github/workflows/firebase-hosting-merge.yml`) builds with `VITE_REGISTRATION_OPEN=false`, and so do pull-request previews into `main`. `src/launch.ts` reads that setting, and the website then shows no link to the portal. The portal itself is deployed from `development` until launch (it is the test environment and says so); a portal built with `VITE_REGISTRATION_OPEN=false` only says that registration opens on 18 January 2027. Every other build, including local development, has registration open.
 - `prelaunch` carries the same code as `development`; it is the staging step before the public site.
 - To publish public-site changes: merge `development` into `prelaunch`, then open a PR from `prelaunch` to `main` and check its preview. Do not commit to `main` directly.
 - The placeholder pages (Gallery, People, Sponsors, and the sponsor block on the home page) are hidden the same way, with `VITE_SHOW_PLACEHOLDER_PAGES=false`; their addresses show the not-found page on the public site.
-- To see the public versions locally: `VITE_REGISTRATION_OPEN=false VITE_SHOW_PLACEHOLDER_PAGES=false npm run build && npm run preview` (and `VITE_REGISTRATION_OPEN=false npm run build:portal && npm run preview:portal`).
+- To see the public website locally: `VITE_REGISTRATION_OPEN=false VITE_SHOW_PLACEHOLDER_PAGES=false npm run build && npm run preview`.
 - When registration opens (or a placeholder section is ready): delete its `VITE_...` line from `firebase-hosting-merge.yml` and from `firebase-hosting-pull-request.yml`, then merge as usual.
 
 ## Useful Thai audio

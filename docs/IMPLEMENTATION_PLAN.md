@@ -239,7 +239,7 @@ Source §9.1.
 | Database: `iol2027` on Cloud SQL `papertrend-pg` | ✅ | Shared instance (Architecture.md §12) |
 | Secrets in Secret Manager | ✅ | |
 | Budget alert (THB 350 / month) | ✅ | |
-| Registration portal on its own site | ✅ | 24 Oct 2026: https://iol2027-portal.web.app (dev: https://iol2027-portal-dev.web.app), like IOL 2026's iol2026-regsy.ioling.org. Team Leaders at `/`, organisers at `/staff`, scanner at `/check-in`. The public website's `/registration` is now an information page with a button to the portal |
+| Registration portal on its own site | ✅ | 24 Oct 2026: https://iol2027-portal.web.app, deployed from `development` (test API) until launch, like IOL 2026's iol2026-regsy.ioling.org. Team Leaders at `/`, organisers at `/staff`, scanner at `/check-in`. The public website's `/registration` is now an information page with a button to the portal |
 | Custom domains `iol2027.ioling.org` (website) and `iol2027-portal.ioling.org` (portal) | ⬜ | ⚠️ D4: Firebase gives one A and one TXT record per name; the IOL Board adds them for both names in one request. The web.app addresses work until then |
 | Monitoring and uptime alerts | ⬜ | Sprint 4 |
 | Load test for deadline peaks (~60 countries, 300+ people) | ⬜ | Sprint 4 |

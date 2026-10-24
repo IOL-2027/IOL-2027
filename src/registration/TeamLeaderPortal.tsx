@@ -15,8 +15,8 @@ type PageState =
   | { status: 'unavailable'; message: string }
   | { status: 'ready'; user: User | null }
 
-// The dev portal and local development hold test data that may be reset; the public portal never shows this note.
-const testEnvironment = /-dev\.web\.app$|^localhost$|^127\.0\.0\.1$/.test(window.location.hostname)
+// Until launch the portal runs on test data that may be reset; its build (VITE_TEST_ENVIRONMENT) and local development say so.
+const testEnvironment = import.meta.env.VITE_TEST_ENVIRONMENT === 'true' || /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
 
 export default function TeamLeaderPortal({ door = 'team' }: { door?: 'team' | 'staff' }) {
   const [state, setState] = useState<PageState>({ status: 'loading' })
