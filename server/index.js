@@ -21,7 +21,7 @@ import {
 import { calculateFees, loadSettings, needsGuardianConsent } from './fees.js'
 import {
   asyncHandler, buildUpdate, camelizeRow, camelizeRows, hashToken, insertAudit, isEmail, missingMemberDetails,
-  optionalNumber, optionalString, pool, query, requireDb, requiredString, siteUrl, withTransaction,
+  optionalNumber, optionalString, pool, query, requireDb, requiredString, portalUrl, withTransaction,
 } from './lib.js'
 import { issuePasswordCode, issueVerificationCode } from './codes.js'
 import { registerAdminRoutes } from './admin.js'
@@ -697,7 +697,7 @@ async function notifySubmitted(d) {
   const invoice = await invoicePdf({ delegation: d, payment, fees })
   const { subject, html } = buildRegistrationSubmittedEmail({
     countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, numberOfTeams: d.number_of_teams, numberOfObservers: d.number_of_observers,
-    paymentConfirmed: payment?.status === 'approved', travelComplete: !travelGaps.length, travelUrl: `${siteUrl}/registration/team-leader?step=travel`,
+    paymentConfirmed: payment?.status === 'approved', travelComplete: !travelGaps.length, travelUrl: `${portalUrl}/?step=travel`,
   })
   const filename = `IOL2027-invoice-${d.country_territory.replace(/[^\w-]+/g, '-')}.pdf`
   await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, attachments: [{ filename, content: invoice, contentType: 'application/pdf' }], purpose: 'registration_submitted', delegationId: d.id })

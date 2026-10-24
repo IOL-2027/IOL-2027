@@ -1,6 +1,8 @@
-// /registration/team-leader: signs people in, then shows the Team Leader workspace or the staff back office.
+// The registration portal's sign-in (portal / for Team Leaders, /staff for organisers), then the Team Leader
+// workspace or the staff back office. Either door signs in any account; the role decides what opens.
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowRight, Info, LogOut } from 'lucide-react'
+import { publicSiteUrl } from '../launch'
 import { api, ApiError, roleLabel, type User } from './api'
 import { Entry, VerifyEmail } from './AuthForms'
 import StaffHome from './StaffHome'
@@ -13,8 +15,12 @@ type PageState =
   | { status: 'unavailable'; message: string }
   | { status: 'ready'; user: User | null }
 
-export default function TeamLeaderPortal() {
+// The dev portal and local development hold test data that may be reset; the public portal never shows this note.
+const testEnvironment = /-dev\.web\.app$|^localhost$|^127\.0\.0\.1$/.test(window.location.hostname)
+
+export default function TeamLeaderPortal({ door = 'team' }: { door?: 'team' | 'staff' }) {
   const [state, setState] = useState<PageState>({ status: 'loading' })
+  const [inviteCode] = useState(() => new URLSearchParams(window.location.search).get('invite') ?? undefined)
   const [devCode, setDevCode] = useState<string>()
   const [fromSignup, setFromSignup] = useState(false)
   const [notice, setNotice] = useState<string>()
@@ -42,16 +48,19 @@ export default function TeamLeaderPortal() {
 
   const user = state.status === 'ready' ? state.user : null
   const isTeamLeader = user?.role === 'team_leader'
-  const title = !user || isTeamLeader ? 'Set up your team.' : user.role === 'participant' ? 'Your registration.' : 'Registration back office.'
-  const intro = !user || isTeamLeader
-    ? 'Verify your invitation, create the Team Leader account, then register your teams in stages. Personal details can come later.'
-    : user.role === 'participant' ? 'What your Team Leader has registered for you.' : `Signed in as ${roleLabel[user.role]}. You see only what this role needs.`
+  const organiserDoor = door === 'staff' && !user
+  const title = organiserDoor ? 'Organiser sign-in.' : !user || isTeamLeader ? 'Set up your team.' : user.role === 'participant' ? 'Your registration.' : 'Registration back office.'
+  const intro = organiserDoor
+    ? 'For the IOL 2027 organising team. A super admin creates your account; set your password with the code from that email under “Forgot your password?”.'
+    : !user || isTeamLeader
+      ? 'Verify your invitation, create the Team Leader account, then register your teams in stages. Personal details can come later.'
+      : user.role === 'participant' ? 'What your Team Leader has registered for you.' : `Signed in as ${roleLabel[user.role]}. You see only what this role needs.`
 
   return (
     <div className="reg-page">
       <header className="reg-intro">
         <div className="wrap">
-          <nav aria-label="Breadcrumb" className="reg-breadcrumb"><a href="/registration">Registration</a><span aria-hidden="true">/</span><span aria-current="page">{isTeamLeader || !user ? 'Team Leader' : 'Back office'}</span></nav>
+          <nav aria-label="Breadcrumb" className="reg-breadcrumb"><a href={`${publicSiteUrl}/registration`}>Registration</a><span aria-hidden="true">/</span><span aria-current="page">{organiserDoor ? 'Organisers' : isTeamLeader || !user ? 'Team Leader' : 'Back office'}</span></nav>
           <h1>{title}</h1>
           <p>{intro}</p>
         </div>
@@ -59,7 +68,7 @@ export default function TeamLeaderPortal() {
       <div className="reg-shell wrap">
         {state.status === 'ready' && (
           <div className="reg-session">
-            <p className="reg-proto"><Info size={16} aria-hidden="true" />Test environment: data here is for testing and may be reset.</p>
+            {testEnvironment && <p className="reg-proto"><Info size={16} aria-hidden="true" />Test environment: data here is for testing and may be reset.</p>}
             {user && <p className="reg-who"><span>Signed in as <strong>{user.fullName}</strong> · {roleLabel[user.role]}</span>
               <button type="button" className="reg-btn-link" onClick={signOut}><LogOut size={16} aria-hidden="true" />Sign out</button></p>}
           </div>
@@ -71,13 +80,13 @@ export default function TeamLeaderPortal() {
           <div className="reg-account"><div className="reg-account-card">
             <h2>Registration opens on 18 January 2027</h2>
             <p className="reg-lede">Team Leader accounts are created with the invitation code each country receives by email. Until then, you can read how registration works.</p>
-            <div className="reg-account-actions"><a className="reg-btn reg-btn-primary" href="/registration/how-to-register">How to register <ArrowRight size={18} aria-hidden="true" /></a></div>
+            <div className="reg-account-actions"><a className="reg-btn reg-btn-primary" href={`${publicSiteUrl}/registration`}>How registration works <ArrowRight size={18} aria-hidden="true" /></a></div>
             {state.message && <p className="reg-hint">{state.message}</p>}
           </div></div>
         )}
 
         {state.status === 'ready' && !user && (
-          <Entry notice={notice} onSignedIn={(u) => { setNotice(undefined); setState({ status: 'ready', user: u }) }}
+          <Entry notice={notice} allowSignup={door === 'team'} initialCode={inviteCode} onSignedIn={(u) => { setNotice(undefined); setState({ status: 'ready', user: u }) }}
             onCreated={(u, code) => { setDevCode(code); setFromSignup(true); setState({ status: 'ready', user: u }) }} />
         )}
 

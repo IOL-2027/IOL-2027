@@ -42,7 +42,7 @@ function ComingPanel({ role }: { role: Role }) {
 function CheckinPanel() {
   return (
     <Panel id="checkin" title="Check-in" intro="Scan badges at the arrival desk and event checkpoints. To look someone up by name, use People.">
-      <a className="reg-btn reg-btn-primary" href="/registration/check-in"><QrCode size={18} aria-hidden="true" />Open the badge scanner</a>
+      <a className="reg-btn reg-btn-primary" href="/check-in"><QrCode size={18} aria-hidden="true" />Open the badge scanner</a>
     </Panel>
   )
 }

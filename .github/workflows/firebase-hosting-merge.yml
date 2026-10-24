@@ -11,12 +11,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Until launch the public site hides registration (opens 18 January 2027) and the placeholder pages:
-      # Gallery, People, Sponsors (src/launch.ts). Delete each line when its part goes live.
-      - run: npm ci && npm run build
+      # Until launch the public site shows no link to the registration portal (registration opens 18 January 2027),
+      # the public portal only says when it opens, and the placeholder pages (Gallery, People, Sponsors) are hidden
+      # (src/launch.ts). Delete VITE_REGISTRATION_OPEN or VITE_SHOW_PLACEHOLDER_PAGES when that part goes live.
+      - run: npm ci && npm run build && npm run build:portal
         env:
           VITE_REGISTRATION_OPEN: 'false'
           VITE_SHOW_PLACEHOLDER_PAGES: 'false'
+          VITE_PUBLIC_SITE_URL: https://iol2027.web.app
+          VITE_PORTAL_URL: https://iol2027-portal.web.app
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
@@ -24,3 +27,10 @@ jobs:
           channelId: live
           projectId: iol2027
           target: prod
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_IOL2027 }}
+          channelId: live
+          projectId: iol2027
+          target: portal
