@@ -61,7 +61,7 @@ The API enforces this matrix on every request (`server/auth.js`). Hiding a butto
 
 ## Test accounts
 
-These exist **only on the development environment**. Sign in at https://iol2027-dev.web.app/registration/team-leader. They use the reserved `.test` domain, so no real email is ever sent to them.
+These exist **only on the development environment**. Team Leaders sign in at https://iol2027-portal-dev.web.app and staff at https://iol2027-portal-dev.web.app/staff (either page works for any account; the role decides what opens). The badge scanner is at https://iol2027-portal-dev.web.app/check-in. They use the reserved `.test` domain, so no real email is ever sent to them.
 
 | Role | Email | Linked to |
 | --- | --- | --- |
