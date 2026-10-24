@@ -254,7 +254,7 @@ export function buildBadgesEmail({ countryTerritory, fullName, people, newCount 
   return { subject, html: layout(preview, body) }
 }
 
-export function buildPasswordCodeEmail({ fullName, code, setup }) {
+export function buildPasswordCodeEmail({ fullName, code, setup, portalUrl }) {
   const subject = setup ? 'Set up your IOL 2027 staff account' : 'Reset your IOL 2027 password'
   const expiry = setup ? 'Expires in 7 days' : 'Expires in 30 minutes'
   const preview = `Your code is ${code}. ${expiry}.`
@@ -262,15 +262,16 @@ export function buildPasswordCodeEmail({ fullName, code, setup }) {
     ${h1(setup ? 'Set your password' : 'Reset your password')}
     ${p(`Hi ${esc(fullName)},`)}
     ${p(setup
-      ? 'An IOL 2027 organiser created a staff account for you. Open the registration page, choose “Forgot your password?”, and enter this code with your email address to set a password.'
+      ? 'An IOL 2027 organiser created a staff account for you. Open the organiser sign-in, choose “Forgot your password?”, and enter this code with your email address to set a password.'
       : 'Someone asked to reset the password for your IOL 2027 account. Enter this code on the sign-in page to choose a new password.')}
     ${codeBlock(code, expiry)}
+    ${setup && portalUrl ? button('Open the organiser sign-in', `${portalUrl}/staff`) : ''}
     ${p('If you did not ask for this, you can ignore this email. Your password stays the same.', SMALL)}
   `
   return { subject, html: layout(preview, body) }
 }
 
-export function buildInviteEmail({ countryTerritory, organisation, code, siteUrl }) {
+export function buildInviteEmail({ countryTerritory, organisation, code, portalUrl }) {
   const subject = `Your IOL 2027 registration invitation — ${countryTerritory}`
   const preview = `Your invitation code for ${countryTerritory} is ${code}.`
   const body = `
@@ -278,7 +279,7 @@ export function buildInviteEmail({ countryTerritory, organisation, code, siteUrl
     ${p(`You are receiving this as the official contact for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong>${organisation ? ` (${esc(organisation)})` : ''}. The 24th International Linguistics Olympiad takes place in Bangkok, Thailand, from 21 to 28 July 2027.`)}
     ${p('Use this code once to create the Team Leader account. It links the account to your country and its team allowance.')}
     ${infoTable([['Country or territory', countryTerritory], ['Invitation code', code]])}
-    ${button('Create the Team Leader account', `${siteUrl}/registration/team-leader`)}
+    ${button('Create the Team Leader account', `${portalUrl}/?invite=${encodeURIComponent(code)}`)}
     ${notice('Registration happens in stages: team numbers and payment first, then people, then travel once flights are booked.')}
     ${p('Please do not forward this code outside your national organisation. If you are not the right contact, reply to this email.', SMALL)}
   `

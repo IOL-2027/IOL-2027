@@ -159,7 +159,7 @@ function ResetPassword({ initialEmail, onDone, onBack }: { initialEmail: string;
   )
 }
 
-function SignUp({ onCreated }: { onCreated: (user: User, developmentCode?: string) => void }) {
+function SignUp({ onCreated, initialCode }: { onCreated: (user: User, developmentCode?: string) => void; initialCode?: string }) {
   const [step, setStep] = useState(0)
   const [invite, setInvite] = useState<{ code: string; countryTerritory: string; accreditedOrganisation: string | null } | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -206,7 +206,7 @@ function SignUp({ onCreated }: { onCreated: (user: User, developmentCode?: strin
         {step === 0 && <>
           <h2 ref={headingRef} tabIndex={-1}>Enter your invitation code</h2>
           <p className="reg-lede">Each country or territory receives one code by email. It links your account to the right country and team allowance.</p>
-          <TextField name="code" label="Invitation code" hint="Example: IOL2027-ABC-1234" error={errors.code} className="reg-control reg-control-code" autoComplete="off" spellCheck={false} defaultValue={invite?.code} />
+          <TextField name="code" label="Invitation code" hint="Example: IOL2027-ABC-1234" error={errors.code} className="reg-control reg-control-code" autoComplete="off" spellCheck={false} defaultValue={invite?.code ?? initialCode} />
           <p className="reg-reassure"><ShieldCheck size={18} aria-hidden="true" />Only the official contact for each country receives a code.</p>
           <div className="reg-account-actions"><button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{busy ? 'Checking…' : 'Check code'} <ArrowRight size={18} aria-hidden="true" /></button></div>
         </>}
@@ -276,19 +276,25 @@ export function VerifyEmail({ user, developmentCode, showStepper, onVerified, on
   )
 }
 
-export function Entry({ onSignedIn, onCreated, notice }: { onSignedIn: (user: User) => void; onCreated: (user: User, code?: string) => void; notice?: string }) {
-  const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>('signin')
+/**
+ * Sign in, or create a Team Leader account with an invitation code. The organisers' door (allowSignup false)
+ * offers only sign-in and password reset. initialCode (from an invitation email link) opens the sign-up with it filled in.
+ */
+export function Entry({ onSignedIn, onCreated, notice, allowSignup = true, initialCode }: {
+  onSignedIn: (user: User) => void; onCreated: (user: User, code?: string) => void; notice?: string; allowSignup?: boolean; initialCode?: string
+}) {
+  const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>(allowSignup && initialCode ? 'signup' : 'signin')
   const [resetEmail, setResetEmail] = useState('')
   return (
     <div className="reg-account">
-      {mode !== 'reset' && (
+      {mode !== 'reset' && allowSignup && (
         <div className="reg-switch" role="group" aria-label="How do you want to start?">
           <button type="button" aria-pressed={mode === 'signin'} className={mode === 'signin' ? 'active' : undefined} onClick={() => setMode('signin')}>Sign in</button>
           <button type="button" aria-pressed={mode === 'signup'} className={mode === 'signup' ? 'active' : undefined} onClick={() => setMode('signup')}>I have an invitation code</button>
         </div>
       )}
       {mode === 'signin' && <SignIn onSignedIn={onSignedIn} notice={notice} onForgot={(email) => { setResetEmail(email); setMode('reset') }} />}
-      {mode === 'signup' && <SignUp onCreated={onCreated} />}
+      {mode === 'signup' && <SignUp onCreated={onCreated} initialCode={initialCode} />}
       {mode === 'reset' && <ResetPassword initialEmail={resetEmail} onDone={onSignedIn} onBack={() => setMode('signin')} />}
     </div>
   )

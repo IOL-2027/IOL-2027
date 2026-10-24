@@ -1,16 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, ArrowUpRight, Building2, Camera, Car, CheckCircle, ChevronLeft, ChevronRight, ExternalLink, Footprints, Landmark, Languages, MapPin, Menu, PenTool, Scale, ShieldCheck, User, Users, Volume2, X } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Building2, Car, ChevronLeft, ChevronRight, ExternalLink, Footprints, Landmark, Languages, MapPin, Menu, PenTool, Scale, User, Users, Volume2, X } from 'lucide-react'
 import { event, homeBaseRoute, schedule, venues } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
 import thaiPhrases from './thaiPhrases.json'
-import TeamLeaderPortal from './registration/TeamLeaderPortal'
-import { placeholderPagesShown, registrationOpen } from './launch'
+import { placeholderPagesShown, portalUrl, registrationOpen } from './launch'
 import { olympiads, socialLinks, workingLanguages } from './aboutData'
 import { GrowthChart, HostMap } from './AboutVisuals'
 
 type NavItem = { label: string; href: string; external?: boolean; children?: { label: string; href: string }[] }
-const badgeScannerMode = import.meta.env.VITE_BADGE_SCANNER_MODE === 'live' ? 'live' : 'demo'
-const demoBadgeCode = 'IOL2027-POC-DEMO'
 
 // Sections that are still placeholders; hidden on the public site until launch (src/launch.ts).
 const placeholderSections = ['/sponsors', '/gallery', '/people']
@@ -28,7 +25,7 @@ const navigation: NavItem[] = [
     { label: 'How to register', href: '/registration/how-to-register' },
     { label: 'Fees & deadlines', href: '/registration/fees-deadlines' },
     { label: 'Visa & invitation letters', href: '/registration/visas' },
-    ...(registrationOpen ? [{ label: 'Team Leader account', href: '/registration/team-leader' }] : []),
+    ...(registrationOpen ? [{ label: 'Registration portal', href: portalUrl }] : []),
   ] },
   { label: 'Event guide', href: '/event-guide', children: [
     { label: 'Schedule & venues', href: '/programme' },
@@ -179,7 +176,7 @@ function Home() {
         <div className="hero-kicker"><p className="system-label">[ BANGKOK · THAILAND · 2027 ]</p><HeroHostedBy /></div>
         <h1><span className="hero-title-small">THE 24TH</span><span className="hero-title-serif">INTERNATIONAL</span><span className="hero-title-main">LINGUISTICS OLYMPIAD</span></h1>
         <p className="hero-deck">Eight days. Two contests. Dozens of languages and hundreds of ways to see the world differently.</p>
-        <div className="hero-actions"><LinkButton href="/registration" light>Registration preview</LinkButton><a href="/programme" className="text-link">View the programme <ChevronRight size={16} /></a></div>
+        <div className="hero-actions"><LinkButton href="/registration" light>Registration details</LinkButton><a href="/programme" className="text-link">View the programme <ChevronRight size={16} /></a></div>
         <div className="hero-event-row"><Countdown /><div className="hero-event-place"><strong>21-28 JULY 2027</strong><span>BANGKOK, THAILAND</span></div></div>
       </div>
       <div className="hero-mark"><img src="/assets/iol-mark.png" alt="Official IOL 2027 Thailand mark" /></div>
@@ -335,7 +332,49 @@ function Sponsors() {
 }
 
 function Registration() {
-  return <><section className="coming-soon grain"><div className="coming-mark"><img src="/assets/iol-mark.png" alt="IOL 2027 Thailand mark" /></div><div><p className="system-label">REGISTRATION CHANNEL / PREPARING</p><h1>OPENS<br /><em>18 JAN 2027.</em></h1><p>Registration is not open yet. The planned flow uses one team leader per country, an invitation code, staged participant data, bank-transfer instructions, proof upload and later travel updates.</p><div className="hero-actions">{registrationOpen ? <><LinkButton href="/registration/team-leader" light>Create Team Leader Account</LinkButton><a href="/registration/how-to-register" className="text-link">See the registration flow <ArrowRight size={16} /></a><a href="/registration/check-in" className="text-link">Badge scanner demo <ArrowRight size={16} /></a></> : <><LinkButton href="/registration/how-to-register" light>See the registration flow</LinkButton><a href="/registration/fees-deadlines" className="text-link">Fees and deadlines <ArrowRight size={16} /></a></>}</div></div><aside><span>FEE RELEASE</span><strong>18 JAN 2027</strong><span>EARLY BIRD</span><strong>18 JAN-12 MAR</strong><span>REGULAR</span><strong>13 MAR-30 APR</strong><span>STATUS</span><strong>PREPARING</strong></aside></section></>
+  const portalHost = portalUrl.replace(/^https?:\/\//, '')
+  const stages = [
+    'Team and observer numbers, which set the fees',
+    'Invoice details, bank transfer and proof of payment',
+    'Teams, their working language, and each person’s details',
+    'Rooms and welfare',
+    'Travel: stay dates now, flights once they are booked',
+    'Review and submit',
+  ]
+  return <>
+    <section className="coming-soon grain"><div className="coming-mark"><img src="/assets/iol-mark.png" alt="IOL 2027 Thailand mark" /></div><div>
+      <p className="system-label">{registrationOpen ? 'REGISTRATION / OPEN' : 'REGISTRATION / OPENS 18 JANUARY 2027'}</p>
+      {registrationOpen ? <h1>REGISTER<br /><em>YOUR TEAM.</em></h1> : <h1>OPENS<br /><em>18 JAN 2027.</em></h1>}
+      <p>{registrationOpen
+        ? 'Team Leaders register their country in the IOL 2027 registration portal, using the invitation code their national organisation received by email.'
+        : 'Registration happens in the IOL 2027 registration portal. Each accredited country’s official contact receives an invitation code by email before it opens.'}</p>
+      <div className="hero-actions">{registrationOpen
+        ? <><a className="pill pill-light" href={portalUrl}>Go to the registration portal <span><ArrowUpRight size={16} /></span></a><a href="/registration/how-to-register" className="text-link">How to register <ArrowRight size={16} /></a></>
+        : <><LinkButton href="/registration/how-to-register" light>How registration works</LinkButton><a href="/registration/fees-deadlines" className="text-link">Fees and deadlines <ArrowRight size={16} /></a></>}</div>
+    </div><aside><span>FEE RELEASE</span><strong>18 JAN 2027</strong><span>EARLY BIRD</span><strong>18 JAN-12 MAR</strong><span>REGULAR</span><strong>13 MAR-30 APR</strong><span>STATUS</span><strong>{registrationOpen ? 'OPEN' : 'PREPARING'}</strong></aside></section>
+    <section className="two-col wrap"><div><p className="eyebrow">How to register</p><h2>One Team Leader account per country.</h2></div><div className="prose">
+      <p>The official contact for each accredited country or territory receives an invitation code by email. The Team Leader uses it to create the country’s account in the registration portal{registrationOpen ? <> at <a className="inline-link" href={portalUrl}>{portalHost}</a></> : null}, then registers in stages:</p>
+      <ol className="registration-stages">{stages.map((stage) => <li key={stage}>{stage}</li>)}</ol>
+      <p>Each stage can be saved and finished later. Once the registration is submitted, the payment is confirmed and everyone’s travel is in, the Team Leader receives a QR badge for each person by email.</p>
+      <a className="text-link" href="/registration/how-to-register">The registration flow, step by step <ArrowRight size={16} /></a>
+    </div></section>
+    <section className="two-col wrap registration-block"><div><p className="eyebrow">Who can register</p><h2>Countries accredited by the IOL.</h2></div><div className="prose">
+      <p>Teams come through their country’s national linguistics olympiad, run by an organisation accredited by the International Linguistics Olympiad. The list of accredited countries and territories is on <a className="inline-link" href="https://ioling.org/countries/" target="_blank" rel="noreferrer">ioling.org</a>.</p>
+      <p>Not accredited yet? Write to the IOL Board at <a className="inline-link" href="mailto:contact@ioling.org">contact@ioling.org</a>. Under the IOL regulations, applications made by 1 January are guaranteed a place at that year’s olympiad.</p>
+    </div></section>
+    <section className="fee-grid wrap"><article><span>FEE RELEASE</span><strong>18 JAN 2027</strong><p>Fee amounts and the approved transfer instructions are published.</p></article><article><span>EARLY BIRD</span><strong>18 JAN-12 MAR</strong><p>Early bird registration period.</p></article><article><span>REGULAR</span><strong>13 MAR-30 APR</strong><p>Regular registration period.</p></article></section>
+    <section className="two-col wrap registration-block"><div><p className="eyebrow">Working languages</p><h2>Problems in your team’s language.</h2></div><div className="prose">
+      <p>Contestants read the problems and answer in a working language of their choice. A language that has not been used before must be requested before 31 January 2027.</p>
+      <a className="text-link" href="https://ioling.org/upcoming/" target="_blank" rel="noreferrer">IOL 2027 dates on ioling.org <ExternalLink size={14} /></a>
+    </div></section>
+    <SectionLinks links={[{ href: '/registration/how-to-register', label: 'How to register', detail: 'Every step of the registration flow.' }, { href: '/registration/fees-deadlines', label: 'Fees & deadlines', detail: 'Registration periods and how payment works.' }, { href: '/registration/visas', label: 'Visa & invitation letters', detail: 'Check the requirements for your country.' }]} />
+    <section className="contact-panel wrap"><div><p className="eyebrow">Questions about registration</p><a className="contact-email" href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a></div><div className="prose"><p>Please include your country or territory in the subject line so your message reaches the registration team.</p></div></section>
+  </>
+}
+
+function PortalRedirect({ to }: { to: string }) {
+  useEffect(() => { window.location.replace(to) }, [to])
+  return <PageIntro eyebrow="Registration portal" title="Opening the registration portal." body="The registration portal is its own site. If it does not open, use the Registration portal link in the menu." />
 }
 
 function RegistrationHow() {
@@ -349,80 +388,7 @@ function RegistrationHow() {
     { title: 'Return later with travel details.', detail: 'Arrival and departure remain open after initial registration because itineraries can change.' },
     { title: 'Use individual QR badges during the event.', detail: 'Every person brings their badge for scanning at arrival and approved checkpoints.' },
   ]
-  return <><PageIntro eyebrow="Registration / How to register" title="One clear path for every team." body="One team leader coordinates the entire process, from registration and payment confirmation to travel information and document delivery." /><section className="steps wrap">{steps.map((step, index) => <article key={step.title}><span>{String(index + 1).padStart(2, '0')}</span><div><h2>{step.title}</h2><p>{step.detail}</p></div></article>)}</section><section className="notice-panel wrap">{registrationOpen ? <><p className="eyebrow">Team Leader entry</p><h2>Start with the invitation code. You only need headcounts and room preference for the initial setup.</h2><a className="text-link" href="/registration/team-leader">Create Team Leader Account <ArrowRight size={16} /></a></> : <><p className="eyebrow">Opens 18 January 2027</p><h2>Each country's official contact will receive an invitation code by email.</h2><a className="text-link" href="/registration/fees-deadlines">Fees and deadlines <ArrowRight size={16} /></a></>}</section></>
-}
-
-function BadgeCheckIn() {
-  const [checkpoint, setCheckpoint] = useState('Arrival desk')
-  const [manualCode, setManualCode] = useState(badgeScannerMode === 'demo' ? demoBadgeCode : '')
-  const [cameraState, setCameraState] = useState<'starting' | 'ready' | 'unavailable'>('starting')
-  const [scanState, setScanState] = useState<{ tone: 'idle' | 'working' | 'accepted' | 'rejected'; title: string; detail: string }>({ tone: 'idle', title: 'Ready to scan', detail: 'Hold one badge inside the camera frame.' })
-  const scanLock = useRef(false)
-
-  const submitScan = async (payload: string) => {
-    if (!payload.trim() || scanLock.current) return
-    scanLock.current = true
-    setScanState({ tone: 'working', title: badgeScannerMode === 'demo' ? 'Running simulation' : 'Checking badge', detail: checkpoint })
-    try {
-      if (badgeScannerMode === 'demo') {
-        await new Promise((resolve) => window.setTimeout(resolve, 450))
-        if (payload.trim() !== demoBadgeCode) throw new Error(`For this prototype, use the sample badge code ${demoBadgeCode}.`)
-        setScanState({ tone: 'accepted', title: 'Narin Chaiwat', detail: `Contestant · ${checkpoint} simulated · Nothing was saved` })
-        setManualCode(demoBadgeCode)
-      } else {
-        const response = await fetch('/api/registration/check-in/scan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ payload: payload.trim(), checkpoint }),
-        })
-        const result = await response.json()
-        if (!response.ok || !result.accepted) throw new Error(result.error || 'Badge is not active.')
-        setScanState({ tone: 'accepted', title: result.member.badgeName || result.member.displayName, detail: `${result.member.role.replaceAll('_', ' ')} · ${checkpoint} recorded` })
-        setManualCode('')
-      }
-    } catch (error) {
-      setScanState({ tone: 'rejected', title: 'Badge not accepted', detail: error instanceof Error ? error.message : 'Please ask registration staff for help.' })
-    } finally {
-      window.setTimeout(() => { scanLock.current = false }, 1800)
-    }
-  }
-
-  useEffect(() => {
-    let scanner: { stop: () => Promise<void> } | null = null
-    let active = true
-    void import('html5-qrcode').then(({ Html5Qrcode }) => {
-      if (!active) return
-      const reader = new Html5Qrcode('iol-badge-reader')
-      scanner = reader
-      return reader.start(
-        { facingMode: { ideal: 'environment' } },
-        { fps: 24, qrbox: { width: 280, height: 280 } },
-        (decodedText) => { if (active) void submitScan(decodedText) },
-        () => undefined,
-      ).then(() => { if (active) setCameraState('ready') })
-    }).catch(() => { if (active) setCameraState('unavailable') })
-    return () => {
-      active = false
-      scanner?.stop().catch(() => undefined)
-    }
-  }, [checkpoint])
-
-  return <>
-    <PageIntro eyebrow="Event operations / Check-in" title="Scan every badge." body={badgeScannerMode === 'demo' ? 'Preview the planned staff check-in journey with a simulated badge. No check-in or participant information is submitted or saved.' : "Use the participant's QR badge at arrival and approved event checkpoints. The QR contains only a secure random reference."} />
-    {badgeScannerMode === 'demo' && <section className="poc-notice wrap" role="note"><strong>Scanner simulation</strong><p>This is a static PoC. Use <code>{demoBadgeCode}</code> to demonstrate an accepted badge. Camera scans and manual entries are evaluated locally and never sent to the registration API.</p></section>}
-    <section className="checkin-shell wrap">
-      <div className="checkin-controls">
-        <div><p className="eyebrow">Current checkpoint</p><h2>Where are you scanning?</h2></div>
-        <label className="reg-label checkin-label">Checkpoint<select className="reg-input" value={checkpoint} onChange={(event) => setCheckpoint(event.target.value)}><option>Arrival desk</option><option>Hotel departure</option><option>Contest venue entry</option><option>Cultural night</option><option>Awards ceremony</option></select></label>
-        <div className={`checkin-result checkin-result-${scanState.tone}`}><span>{scanState.tone === 'accepted' ? <CheckCircle /> : scanState.tone === 'rejected' ? <X /> : <ShieldCheck />}</span><div><strong>{scanState.title}</strong><p>{scanState.detail}</p></div></div>
-      </div>
-      <div className="checkin-camera">
-        <div className="checkin-camera-head"><Camera size={18} /><strong>Badge camera</strong><span>{badgeScannerMode === 'demo' ? cameraState === 'unavailable' ? 'Demo · camera unavailable' : 'Demo mode' : cameraState === 'ready' ? 'Live' : cameraState === 'starting' ? 'Starting' : 'Camera unavailable'}</span></div>
-        <div id="iol-badge-reader" className="checkin-reader" />
-        <div className="checkin-manual"><span>{badgeScannerMode === 'demo' ? `Sample badge: ${demoBadgeCode}` : 'Camera cannot read it?'}</span><div><input className="reg-input" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Enter badge code" /><button type="button" className="reg-btn-save" onClick={() => void submitScan(manualCode)}>{badgeScannerMode === 'demo' ? 'Simulate check-in' : 'Check badge'}</button></div></div>
-      </div>
-    </section>
-  </>
+  return <><PageIntro eyebrow="Registration / How to register" title="One clear path for every team." body="One team leader coordinates the entire process, from registration and payment confirmation to travel information and document delivery." /><section className="steps wrap">{steps.map((step, index) => <article key={step.title}><span>{String(index + 1).padStart(2, '0')}</span><div><h2>{step.title}</h2><p>{step.detail}</p></div></article>)}</section><section className="notice-panel wrap">{registrationOpen ? <><p className="eyebrow">Team Leader entry</p><h2>Start with the invitation code. You only need headcounts and room preference for the initial setup.</h2><a className="text-link" href={portalUrl}>Go to the registration portal <ArrowUpRight size={16} /></a></> : <><p className="eyebrow">Opens 18 January 2027</p><h2>Each country's official contact will receive an invitation code by email.</h2><a className="text-link" href="/registration/fees-deadlines">Fees and deadlines <ArrowRight size={16} /></a></>}</section></>
 }
 
 function RegistrationFees() {
@@ -536,7 +502,7 @@ function App() {
     if (document.readyState !== 'complete') window.addEventListener('load', () => target.scrollIntoView(), { once: true })
   }, [])
   const requested = window.location.pathname.replace(/\/$/, '') || '/'
-  // While registration is closed, the portal and scanner addresses show the registration page.
+  // The portal is its own site now: its old addresses here send people there, or to this page while registration is closed.
   const path = !registrationOpen && ['/registration/team-leader', '/registration/check-in'].includes(requested) ? '/registration' : requested
   // Placeholder sections show the not-found page on the public site until launch (/media/press is the contact page, so it stays).
   const hidden = !placeholderPagesShown && (placeholderSections.some((section) => path === section || path.startsWith(`${section}/`)) || path === '/media' || path === '/media/gallery')
@@ -544,7 +510,7 @@ function App() {
     '/': <Home />,
     '/about': <About />, '/about/the-iol': <About />, '/about/thailand': <Thailand />, '/about/thai-language': <ThaiLanguage />, '/about/important-dates': <ImportantDates />, '/thailand': <Thailand />,
     '/hosts': <Hosts />, '/sponsors': <Sponsors />,
-    '/registration': <Registration />, '/registration/how-to-register': <RegistrationHow />, '/registration/team-leader': <TeamLeaderPortal />, '/registration/check-in': <BadgeCheckIn />, '/registration/fees-deadlines': <RegistrationFees />, '/registration/payment': <RegistrationFees />, '/registration/visas': <Visas />, '/registration/accredited-countries': <Registration />, '/registration/working-languages': <Registration />,
+    '/registration': <Registration />, '/registration/how-to-register': <RegistrationHow />, '/registration/team-leader': <PortalRedirect to={`${portalUrl}/${window.location.search}`} />, '/registration/check-in': <PortalRedirect to={`${portalUrl}/check-in`} />, '/registration/fees-deadlines': <RegistrationFees />, '/registration/payment': <RegistrationFees />, '/registration/visas': <Visas />, '/registration/accredited-countries': <Registration />, '/registration/working-languages': <Registration />,
     '/event-guide': <EventGuide />, '/programme': <Programme />, '/event-guide/accommodation': <Accommodation />, '/event-guide/transportation': <Transportation />, '/event-guide/guidebook': <Guidebook />,
     '/logistics': <EventGuide />, '/logistics/accommodation': <Accommodation />, '/logistics/transportation': <Transportation />, '/logistics/important-dates': <ImportantDates />, '/logistics/guidebook': <Guidebook />,
     '/explore': <Thailand />, '/explore/excursions': <Thailand />, '/explore/culture': <Thailand />, '/explore/city-guide': <Thailand />,
@@ -553,8 +519,7 @@ function App() {
     '/results': <ExternalResultsRedirect />, '/results/individual': <ExternalResultsRedirect />, '/results/team': <ExternalResultsRedirect />,
     '/contact': <Contact />, '/privacy': <Privacy />,
   }
-  const isRegistration = path === '/registration'
-  return <div className="app"><Header /><main>{(!hidden && pages[path]) || <NotFound />}</main>{!isRegistration && <Footer />}</div>
+  return <div className="app"><Header /><main>{(!hidden && pages[path]) || <NotFound />}</main><Footer /></div>
 }
 
 export default App

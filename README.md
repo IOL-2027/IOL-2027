@@ -1,19 +1,23 @@
-# IOL 2027 Thailand — information site
+# IOL 2027 Thailand — website and registration portal
 
-Public information site and interactive registration proof of concept for the 24th International Linguistics Olympiad in Thailand. The registration portal demonstrates the planned user journey with fictional data; it does not submit or save registration information.
+Two apps for the 24th International Linguistics Olympiad in Thailand, built from one repository:
+
+- the **public website** (`index.html`, `src/App.tsx`), and
+- the **registration portal** (`portal/index.html`, `src/portal/`), where Team Leaders register and organisers work in the back office. It reuses the screens in `src/registration/` and talks to the API in `server/` (see `server/README.md`).
 
 ## Local development
 
 ```bash
 npm install
-npm run dev
+npm run dev          # public website, http://localhost:5180
+npm run dev:portal   # registration portal, http://localhost:5181 (needs the API: npm run dev:api)
 ```
 
 Production validation:
 
 ```bash
-npm run build
-npm run preview
+npm run build && npm run preview                  # public website (dist)
+npm run build:portal && npm run preview:portal    # registration portal (dist-portal)
 ```
 
 ## Site routes
@@ -28,9 +32,14 @@ npm run preview
 - `/people/jury` — jury (placeholder)
 - `/people/problem-committee` — problem committee (placeholder)
 - `/news` — chronological announcements
-- `/registration` — registration timeline and PoC entry
-- `/registration/team-leader` — static Team Leader journey prototype
-- `/registration/check-in` — badge scanner simulation
+- `/registration` — how to register, who can register, key dates, working languages, and the button to the registration portal
+- `/registration/team-leader`, `/registration/check-in` — old addresses; they forward to the portal (or show `/registration` before it opens)
+
+Registration portal routes:
+
+- `/` — sign in, or create a Team Leader account with an invitation code (`?invite=CODE` fills it in; `?step=travel` opens a step after sign-in)
+- `/staff` — organiser sign-in (no invitation-code option); every role lands on what it may see
+- `/check-in` — badge scanner for check-in staff, registration admins and super admins
 - `/resources` — source and editorial notes
 
 ## Content sources
@@ -40,10 +49,6 @@ The copy and structure are based only on the project files supplied in this repo
 ## Deployment direction
 
 The included multi-stage `Dockerfile` serves the Vite build through Nginx on port 8080 and includes the SPA fallback required for direct route access. This is compatible with a future Google Cloud Run deployment without committing the project to a registration backend.
-
-## Registration PoC mode
-
-The badge scanner defaults to a fully static simulation. It accepts the sample code `IOL2027-POC-DEMO` and does not call the API or save a check-in. The existing live API integration remains in place for future development. Set `VITE_BADGE_SCANNER_MODE=live` only after the registration API, database, authentication and staff authorization are ready in the target environment.
 
 ## Image credits
 
@@ -62,9 +67,12 @@ Mandarin Hotel Bangkok images come from the hotel's official website.
 
 | Site | URL | Deploys from |
 | --- | --- | --- |
-| Public (`prod` target) | https://iol2027.web.app | push to `main` |
-| Development (`dev` target) | https://iol2027-dev.web.app | push to `development` (not indexed by search engines) |
-| Pull request previews | posted as a PR comment | every PR, expires after 7 days |
+| Public website (`prod` target) | https://iol2027.web.app | push to `main` |
+| Registration portal (`portal` target) | https://iol2027-portal.web.app | push to `development` until launch, with the test API behind it (`/api/**` → Cloud Run `iol2027-api`). The public website does not link to it before registration opens |
+| Development website (`dev` target) | https://iol2027-dev.web.app | push to `development` (not indexed by search engines) |
+| Pull request previews | posted as a PR comment | every PR (public website only), expires after 7 days |
+
+Custom domains: the IOL Board, which manages `ioling.org`, adds the DNS records Firebase gives for each name (one A and one TXT record per name), for example `iol2027.ioling.org` for the website and `iol2027-portal.ioling.org` for the portal. Each name needs its own records. Until then the `web.app` addresses are used, and `VITE_PORTAL_URL` / `VITE_PUBLIC_SITE_URL` in the workflows (and `PORTAL_URL` on the API) say which addresses link to each other.
 
 ### Branches until registration opens (18 January 2027)
 
@@ -73,11 +81,11 @@ development  ──merge──▶  prelaunch  ──PR──▶  main (public si
 ```
 
 - `development` is the full system, registration included. Build features here, and start new branches from `development`, never from `main`.
-- The public site hides registration because of how it is **built**, not because of its code: the workflow that deploys `main` (`.github/workflows/firebase-hosting-merge.yml`) builds with `VITE_REGISTRATION_OPEN=false`, and so do pull-request previews into `main`. `src/launch.ts` reads that setting. It hides the Team Leader portal, staff back office and badge scanner; their addresses show the "opens 18 January 2027" page. Every other build, including the dev site and local development, has registration open.
+- Registration stays closed on the public website because of how it is **built**, not because of its code: the workflow that deploys `main` (`.github/workflows/firebase-hosting-merge.yml`) builds with `VITE_REGISTRATION_OPEN=false`, and so do pull-request previews into `main`. `src/launch.ts` reads that setting, and the website then shows no link to the portal. The portal itself is deployed from `development` until launch (it is the test environment and says so); a portal built with `VITE_REGISTRATION_OPEN=false` only says that registration opens on 18 January 2027. Every other build, including local development, has registration open.
 - `prelaunch` carries the same code as `development`; it is the staging step before the public site.
 - To publish public-site changes: merge `development` into `prelaunch`, then open a PR from `prelaunch` to `main` and check its preview. Do not commit to `main` directly.
 - The placeholder pages (Gallery, People, Sponsors, and the sponsor block on the home page) are hidden the same way, with `VITE_SHOW_PLACEHOLDER_PAGES=false`; their addresses show the not-found page on the public site.
-- To see the public version locally: `VITE_REGISTRATION_OPEN=false VITE_SHOW_PLACEHOLDER_PAGES=false npm run build && npm run preview`.
+- To see the public website locally: `VITE_REGISTRATION_OPEN=false VITE_SHOW_PLACEHOLDER_PAGES=false npm run build && npm run preview`.
 - When registration opens (or a placeholder section is ready): delete its `VITE_...` line from `firebase-hosting-merge.yml` and from `firebase-hosting-pull-request.yml`, then merge as usual.
 
 ## Useful Thai audio

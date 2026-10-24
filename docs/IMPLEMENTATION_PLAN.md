@@ -201,7 +201,7 @@ Source §8.
 | Task | Status | Notes |
 | --- | --- | --- |
 | QR holds only a random reference, never personal data | ✅ | Signed badge credential |
-| Scan from phone camera or webcam, no app install | ✅ | `/registration/check-in` prototype |
+| Scan from phone camera or webcam, no app install | ✅ | `/check-in` on the registration portal, for signed-in check-in staff (24 Oct 2026) |
 | Fallback search by name or passport | 🟡 | Check-in staff can search People by name; marking someone checked in by hand is not built |
 | Offline or cached mode for weak venue Wi-Fi | ⬜ | Q8 with LOC |
 | Printed badges with QR from a vendor | ⬜ | Source §12.1; LOC procurement |
@@ -239,7 +239,8 @@ Source §9.1.
 | Database: `iol2027` on Cloud SQL `papertrend-pg` | ✅ | Shared instance (Architecture.md §12) |
 | Secrets in Secret Manager | ✅ | |
 | Budget alert (THB 350 / month) | ✅ | |
-| Custom domain `iol2027.ioling.org` | ⬜ | ⚠️ D4: Firebase gives DNS records, which the IOL central team must add |
+| Registration portal on its own site | ✅ | 24 Oct 2026: https://iol2027-portal.web.app, deployed from `development` (test API) until launch, like IOL 2026's iol2026-regsy.ioling.org. Team Leaders at `/`, organisers at `/staff`, scanner at `/check-in`. The public website's `/registration` is now an information page with a button to the portal |
+| Custom domains `iol2027.ioling.org` (website) and `iol2027-portal.ioling.org` (portal) | ⬜ | ⚠️ D4: Firebase gives one A and one TXT record per name; the IOL Board adds them for both names in one request. The web.app addresses work until then |
 | Monitoring and uptime alerts | ⬜ | Sprint 4 |
 | Load test for deadline peaks (~60 countries, 300+ people) | ⬜ | Sprint 4 |
 
