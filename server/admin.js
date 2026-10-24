@@ -8,7 +8,7 @@ import { calculateFees, cleanFees, cleanGuardianConsent, loadSettings, needsGuar
 import { issuePasswordCode } from './codes.js'
 import {
   asyncHandler, camelizeRow, camelizeRows, insertAudit, isEmail, missingMemberDetails, optionalString, query,
-  requireDb, requiredString, siteUrl, withTransaction,
+  requireDb, requiredString, portalUrl, withTransaction,
 } from './lib.js'
 
 /** Roles an organiser can give out directly. Team Leaders come from invitation codes, participants from their Team Leader. */
@@ -82,7 +82,7 @@ function newInviteCode(country) {
 async function sendInvite(invite, actorId) {
   if (invite.status !== 'active') throw new HttpError(409, 'Only active, unused codes can be sent.')
   if (!invite.contact_email) throw new HttpError(400, 'Add a contact email before sending.')
-  const { subject, html } = buildInviteEmail({ countryTerritory: invite.country_territory, organisation: invite.accredited_organisation, code: invite.code, siteUrl })
+  const { subject, html } = buildInviteEmail({ countryTerritory: invite.country_territory, organisation: invite.accredited_organisation, code: invite.code, portalUrl })
   let emailSent = false
   try {
     emailSent = (await sendEmail({ pool: requireDb(), to: invite.contact_email, subject, html, purpose: 'invite_code' })).configured
@@ -164,7 +164,7 @@ export function registerAdminRoutes(app, { signedIn }) {
     const { subject, html } = buildPaymentConfirmedEmail({
       countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, paymentReference: approved.payment_reference,
       amountPaid: approved.amount_due, currency: approved.currency || 'USD', receiptNumber: approved.receipt_number,
-      travelUrl: `${siteUrl}/registration/team-leader?step=travel`, paymentUrl: `${siteUrl}/registration/team-leader?step=payment`,
+      travelUrl: `${portalUrl}/?step=travel`, paymentUrl: `${portalUrl}/?step=payment`,
     })
     // Awaited so Cloud Run does not slow it down after the response; a failure is logged, not shown.
     await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_confirmed', delegationId: approved.delegation_id })

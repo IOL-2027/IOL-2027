@@ -11,6 +11,12 @@
         ],
         "dev": [
           "iol2027-dev"
+        ],
+        "portal": [
+          "iol2027-portal"
+        ],
+        "portal-dev": [
+          "iol2027-portal-dev"
         ]
       }
     }
