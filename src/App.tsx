@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowRight, ArrowUpRight, Building2, Bus, Car, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, ExternalLink, Footprints, Hotel, Landmark, Languages, Mail, MapPin, Menu, PenTool, PlaneLanding, PlaneTakeoff, Scale, Search, Stamp, User, Users, Volume2, X } from 'lucide-react'
+import { ArrowDown, ArrowRight, ArrowUpRight, Building2, Bus, Camera, Car, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Compass, ExternalLink, Footprints, Hotel, Landmark, Languages, Mail, MapPin, Maximize2, Menu, PenTool, PlaneLanding, PlaneTakeoff, Scale, Search, Sparkles, Stamp, Trophy, User, Users, Volume2, X } from 'lucide-react'
 import { event, homeBaseRoute, schedule, venues } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
 import thaiPhrases from './thaiPhrases.json'
@@ -693,8 +693,108 @@ function Guidebook() {
   return <><PageIntro eyebrow="Event guide / Guidebook" title="Your practical guide to the week." body="The official programme booklet will be provided later as a downloadable PDF." /><section className="guidebook-panel wrap"><div><p className="eyebrow">Coming later</p><h2>One document for the whole week.</h2><p className="prose">The final PDF will gather the confirmed schedule, venue, accommodation, transportation, safety, emergency contact and participant instructions. No placeholder download is provided until the approved file is ready.</p></div><div className="guidebook-placeholder"><span>PDF</span><strong>Guidebook<br />2027</strong><small>Not yet published</small></div></section></>
 }
 
+type GalleryPhoto = { src: string; thumb: string; alt: string; caption: string; credit: string; creditUrl: string; size?: 'feature' | 'wide' }
+
+const hotelPhoto = (file: string, size?: GalleryPhoto['size']): GalleryPhoto => {
+  const image = hotelImages.find((item) => item.src.endsWith(file)) ?? hotelImages[0]
+  return { ...image, thumb: `/assets/gallery/thumbs/hotel-${file}`, size, credit: 'Mandarin Hotel Bangkok', creditUrl: 'https://www.mandarin-bkk.com/' }
+}
+const hostDaysOf = (id: string) => datesLabel((hostDetails.find((host) => host.id === id)?.days ?? []).map(dateOf))
+
+// Until the Olympiad has photographs of its own, the gallery shows the three venues. Campus photos come from
+// Wikimedia Commons under CC BY or CC BY-SA, which require the author, licence and source wherever they are shown.
+const galleryPlaces: { id: string; venue: string; when: string; about: { href: string; label: string }; photos: GalleryPhoto[] }[] = [
+  { id: 'hotel', venue: 'Mandarin Hotel Bangkok', when: `${dateOf('Day 01').split(' ')[0]}–${dateOf('Day 08')}`, about: { href: '/event-guide/accommodation', label: 'Accommodation' }, photos: [
+    hotelPhoto('01-lobby-atrium.jpg', 'feature'), hotelPhoto('03-lobby-lounge.jpg'), hotelPhoto('10-thai-artwork.jpg'), hotelPhoto('02-reception.jpg'), hotelPhoto('04-pool-garden.jpg'),
+    hotelPhoto('05-grand-ballroom.jpg', 'wide'), hotelPhoto('06-ballroom-stage.jpg'), hotelPhoto('08-conference-hall.jpg'),
+  ] },
+  { id: 'kasetsart', venue: 'Kasetsart University', when: hostDaysOf('kasetsart'), about: { href: '/hosts#kasetsart', label: 'About Kasetsart University' }, photos: [
+    { src: '/assets/venues/kasetsart-main-auditorium.jpg', thumb: '/assets/gallery/thumbs/ku-main-auditorium.jpg', alt: 'Main Auditorium of Kasetsart University, Bangkhen campus', caption: 'Main Auditorium', credit: 'David Supervid, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Kasetsart_University_Auditorium.jpg', size: 'feature' },
+    { src: '/assets/gallery/ku-sign.jpg', thumb: '/assets/gallery/thumbs/ku-sign.jpg', alt: 'Large KASETSART letters on a lawn below a row of coloured flags', caption: 'The Kasetsart sign, Bangkhen campus', credit: 'กสิณธร ราชโอรส, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:มหาวิทยาลัยเกษตรศาสตร์_วิทยาเขตบางเขน_เขตจตุจักร_กรุงเทพมหานคร_(3).jpg', size: 'wide' },
+    { src: '/assets/gallery/ku-pond.jpg', thumb: '/assets/gallery/thumbs/ku-pond.jpg', alt: 'A tall curved sculpture rising from a pond, with a Thai-style pavilion behind it', caption: 'By the pond, Bangkhen campus', credit: 'กสิณธร ราชโอรส, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:มหาวิทยาลัยเกษตรศาสตร์_วิทยาเขตบางเขน_เขตจตุจักร_กรุงเทพมหานคร_(7).jpg', size: 'wide' },
+  ] },
+  { id: 'chulalongkorn', venue: 'Chulalongkorn University', when: hostDaysOf('chulalongkorn'), about: { href: '/hosts#chulalongkorn', label: 'About Chulalongkorn University' }, photos: [
+    { src: '/assets/gallery/chula-maha-vajiravudh.jpg', thumb: '/assets/gallery/thumbs/chula-maha-vajiravudh.jpg', alt: 'Maha Vajiravudh Building, a white Thai-style building with red roofs, Faculty of Arts, Chulalongkorn University', caption: 'Maha Vajiravudh Building, Faculty of Arts', credit: 'Supanut Arunoprayote, CC BY 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Mahavajiravut_Building_06.23.jpg', size: 'feature' },
+    { src: '/assets/gallery/chula-arts-courtyard.jpg', thumb: '/assets/gallery/thumbs/chula-arts-courtyard.jpg', alt: 'Faculty of Arts courtyard and lotus pond at dusk, Chulalongkorn University', caption: 'Faculty of Arts courtyard at dusk', credit: 'BerryJ, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:01-อาคารคณะอักษรศาสตร์-จุฬาลงกรณ์มหาวิทยาลัย.jpg' },
+    { src: '/assets/gallery/chula-boromrajakumari.jpg', thumb: '/assets/gallery/thumbs/chula-boromrajakumari.jpg', alt: 'Boromrajakumari Building, Faculty of Arts, Chulalongkorn University', caption: 'Boromrajakumari Building', credit: 'Supanut Arunoprayote, CC BY 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Baromratchakumari_Building_06.23.jpg' },
+    { src: '/assets/gallery/chula-maha-chulalongkorn.jpg', thumb: '/assets/gallery/thumbs/chula-maha-chulalongkorn.jpg', alt: 'Maha Chulalongkorn Building and its garden, seen from the Maha Vajiravudh Building', caption: 'Maha Chulalongkorn Building', credit: 'BunBn, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Mahachulalongkorn.jpg' },
+    { src: '/assets/gallery/chula-arts-library.jpg', thumb: '/assets/gallery/thumbs/chula-arts-library.jpg', alt: 'Bookshelves in the Faculty of Arts Library, Chulalongkorn University', caption: 'Faculty of Arts Library', credit: 'Geonuch, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Bookshelves_in_Faculty_of_Arts_Library,_Chulalongkorn_University.jpg' },
+  ] },
+]
+const galleryPhotos = galleryPlaces.flatMap((place) => place.photos.map((photo) => ({ ...photo, venue: place.venue })))
+const albumIcons: Record<string, typeof Camera> = { 'Day 01': PlaneLanding, 'Day 02': Sparkles, 'Day 03': PenTool, 'Day 04': Compass, 'Day 05': Landmark, 'Day 06': Users, 'Day 07': Trophy, 'Day 08': PlaneTakeoff }
+
+function GalleryCredits({ photos }: { photos: GalleryPhoto[] }) {
+  const [first] = photos
+  if (photos.every((photo) => photo.creditUrl === first.creditUrl)) return <p className="gallery-credits">Photos: <a href={first.creditUrl} target="_blank" rel="noreferrer">{first.credit}</a></p>
+  return <p className="gallery-credits">Photos from Wikimedia Commons: {photos.map((photo, index) => <span key={photo.src}>{index > 0 && ' · '}{photo.caption}, <a href={photo.creditUrl} target="_blank" rel="noreferrer">{photo.credit}</a></span>)}</p>
+}
+
+function GalleryViewer({ index, onIndex }: { index: number; onIndex: (index: number | null) => void }) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
+  const photo = galleryPhotos[index]
+  const step = (delta: number) => onIndex((index + delta + galleryPhotos.length) % galleryPhotos.length)
+  useEffect(() => {
+    dialog.current?.showModal()
+    document.documentElement.classList.add('viewer-open')
+    return () => document.documentElement.classList.remove('viewer-open')
+  }, [])
+  // Load the photos either side, so stepping through feels instant.
+  useEffect(() => { for (const delta of [-1, 1]) new Image().src = galleryPhotos[(index + delta + galleryPhotos.length) % galleryPhotos.length].src }, [index])
+  const swipe = (x: number, y: number) => {
+    const start = touchStart.current
+    touchStart.current = null
+    if (start && Math.abs(x - start.x) > 50 && Math.abs(x - start.x) > Math.abs(y - start.y)) step(x < start.x ? 1 : -1)
+  }
+  // A click on the dark area around the photo (the dialog itself) closes the viewer; Escape closes it natively.
+  return <dialog ref={dialog} className="gallery-viewer" aria-label="Photo viewer" onClose={() => onIndex(null)}
+    onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close() }}
+    onKeyDown={(event) => { if (event.key === 'ArrowLeft') step(-1); if (event.key === 'ArrowRight') step(1) }}>
+    <button type="button" className="gallery-viewer-close" onClick={() => dialog.current?.close()} aria-label="Close photo viewer"><X size={22} /></button>
+    <figure onTouchStart={(event) => { touchStart.current = { x: event.touches[0].clientX, y: event.touches[0].clientY } }} onTouchEnd={(event) => swipe(event.changedTouches[0].clientX, event.changedTouches[0].clientY)}>
+      <img key={photo.src} src={photo.src} alt={photo.alt} />
+      <figcaption aria-live="polite">
+        <div><span>{photo.venue}</span><strong>{photo.caption}</strong></div>
+        <div><a href={photo.creditUrl} target="_blank" rel="noreferrer">Photo: {photo.credit}</a><span className="gallery-viewer-count">{index + 1} / {galleryPhotos.length}</span></div>
+      </figcaption>
+    </figure>
+    <button type="button" className="gallery-viewer-step gallery-viewer-prev" onClick={() => step(-1)} aria-label="Previous photo"><ChevronLeft size={26} /></button>
+    <button type="button" className="gallery-viewer-step gallery-viewer-next" onClick={() => step(1)} aria-label="Next photo"><ChevronRight size={26} /></button>
+  </dialog>
+}
+
 function Gallery() {
-  return <><PageIntro eyebrow="Gallery" title="The week in pictures." body="The gallery will become a living record of the contest, host programme and people who make IOL feel like a community." /><section className="gallery-grid wrap">{['Opening', 'Contest rooms', 'Bangkok', 'Cultural night', 'Awards', 'Friends'].map((label, index) => <article key={label} className={`gallery-tile gallery-${index + 1}`}><h2>{label}</h2><small>Event photographs will be added after the July 2027 programme.</small></article>)}</section></>
+  const [open, setOpen] = useState<number | null>(null)
+  return <><PageIntro eyebrow="Gallery" title="The week in pictures." body="Photographs from IOL 2027 will be added after the July 2027 programme. Until then, look around the hotel and the two campuses where the week takes place." />
+    <nav className="gallery-jump wrap" aria-label="Gallery sections">
+      {galleryPlaces.map((place) => <a key={place.id} href={`#${place.id}`}><img src={place.photos[0].thumb} alt="" /><span><strong>{place.venue}</strong>{place.photos.length} photos</span></a>)}
+      <a href="#albums" className="gallery-jump-albums"><span className="gallery-jump-icon"><Camera size={22} aria-hidden="true" /></span><span><strong>July 2027</strong>{schedule.length} albums, one for each day</span></a>
+    </nav>
+    {galleryPlaces.map((place, index) => {
+      const venue = venues.find((item) => item.name === place.venue)
+      return <section key={place.id} id={place.id} className="gallery-place wrap">
+        <header className="gallery-place-head">
+          <span className="gallery-place-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+          <div><p className="eyebrow">{venue?.role} · {place.when}</p><h2>{place.venue}</h2></div>
+          <div><p>{venue?.detail}</p><a className="text-link" href={place.about.href}>{place.about.label} <ArrowRight size={15} /></a></div>
+        </header>
+        <div className="gallery-photos">{place.photos.map((photo) => <button key={photo.src} type="button" className={`gallery-photo${photo.size ? ` gallery-photo-${photo.size}` : ''}`} aria-haspopup="dialog" aria-label={`View photo: ${photo.caption}`} onClick={() => setOpen(galleryPhotos.findIndex((item) => item.src === photo.src))}>
+          <img src={photo.thumb} alt="" loading="lazy" decoding="async" /><span className="gallery-photo-caption">{photo.caption}</span><span className="gallery-photo-zoom" aria-hidden="true"><Maximize2 size={16} /></span>
+        </button>)}</div>
+        <GalleryCredits photos={place.photos} />
+      </section>
+    })}
+    <section id="albums" className="gallery-albums"><div className="wrap">
+      <header className="gallery-albums-head"><div><p className="eyebrow">July 2027</p><h2 className="mixed-heading">One album <em>for every day.</em></h2></div><p>Photographs from the Olympiad will be added after the July 2027 programme, sorted by day, from the first arrivals to the last departures.</p></header>
+      <ol className="gallery-albums-list">{schedule.map((item) => {
+        const Icon = albumIcons[item.day] ?? Camera
+        return <li key={item.day}><div className="gallery-album-cover" aria-hidden="true"><Icon size={24} /><strong>{item.date.split(' ')[0]}<small>{item.date.split(' ')[1]}</small></strong></div><p>{item.day}</p><h3>{item.title}</h3></li>
+      })}</ol>
+    </div></section>
+    <SectionLinks links={[{ href: '/programme', label: 'Schedule & venues', detail: 'What happens on each day, and where.' }, { href: '/event-guide/accommodation', label: 'Accommodation', detail: 'Mandarin Hotel Bangkok, the home base for the week.' }, { href: '/hosts', label: 'Hosts', detail: 'POSN, Chulalongkorn University and Kasetsart University.' }]} />
+    {open !== null && <GalleryViewer index={open} onIndex={setOpen} />}
+  </>
 }
 
 function People() {
