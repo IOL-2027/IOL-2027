@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, ArrowUpRight, Building2, Car, ChevronLeft, ChevronRight, ExternalLink, Footprints, Landmark, Languages, MapPin, Menu, PenTool, Scale, User, Users, Volume2, X } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Building2, Car, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Footprints, Landmark, Languages, MapPin, Menu, PenTool, Scale, User, Users, Volume2, X } from 'lucide-react'
 import { event, homeBaseRoute, schedule, venues } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
 import thaiPhrases from './thaiPhrases.json'
@@ -331,6 +331,47 @@ function Sponsors() {
   return <><PageIntro eyebrow="Sponsors" title="A clear place for every sponsor." body="This page demonstrates how approved sponsors can be presented without confusing them with the official hosts." /><SponsorPreview full /><section className="sponsor-thanks"><p className="eyebrow">Sponsor IOL 2027</p><h2>Help young minds look closer.</h2><a className="text-link" href="mailto:iol2027.th@gmail.com?subject=IOL%202027%20sponsorship">Contact the organising team <ArrowRight size={16} /></a></section></>
 }
 
+// A full-screen hero hides that the page continues. The cue sits at the bottom of the window until the visitor scrolls:
+// centred where the hero leaves room, as a small corner button on short screens, and not at all if it would cover a link.
+function ScrollCue({ target, label }: { target: string; label: string }) {
+  const ref = useRef<HTMLAnchorElement>(null)
+  const [atTop, setAtTop] = useState(true)
+  const [placement, setPlacement] = useState<'centre' | 'corner' | 'none'>('centre')
+  useEffect(() => {
+    const update = () => setAtTop(window.scrollY < 40)
+    update()
+    window.addEventListener('scroll', update, { passive: true })
+    return () => window.removeEventListener('scroll', update)
+  }, [])
+  useEffect(() => {
+    const cue = ref.current
+    const hero = cue?.parentElement
+    if (!cue || !hero) return
+    const covered = (selector: string) => {
+      const c = cue.getBoundingClientRect()
+      return [...hero.querySelectorAll(selector)].some((el) => {
+        if (cue.contains(el)) return false
+        const r = el.getBoundingClientRect()
+        return r.width > 0 && r.left < c.right && r.right > c.left && r.top < c.bottom && r.bottom > c.top
+      })
+    }
+    const place = () => {
+      if (window.scrollY >= 40) return
+      cue.classList.remove('scroll-cue-corner')
+      if (!covered('h1, p, a, span, strong, img')) return setPlacement('centre')
+      cue.classList.add('scroll-cue-corner')
+      setPlacement(covered('a, button') ? 'none' : 'corner')
+    }
+    place()
+    document.fonts?.ready.then(place)
+    window.addEventListener('resize', place)
+    window.addEventListener('load', place)
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('load', place) }
+  }, [])
+  const shown = atTop && placement !== 'none'
+  return <a ref={ref} className={`scroll-cue${placement === 'corner' ? ' scroll-cue-corner' : ''}${shown ? '' : ' scroll-cue-hidden'}`} href={`#${target}`} title={label} tabIndex={shown ? undefined : -1} aria-hidden={shown ? undefined : true}><span>{label}</span><ChevronDown size={18} aria-hidden="true" /></a>
+}
+
 function Registration() {
   const portalHost = portalUrl.replace(/^https?:\/\//, '')
   const stages = [
@@ -351,8 +392,10 @@ function Registration() {
       <div className="hero-actions">{registrationOpen
         ? <><a className="pill pill-light" href={portalUrl}>Go to the registration portal <span><ArrowUpRight size={16} /></span></a><a href="/registration/how-to-register" className="text-link">How to register <ArrowRight size={16} /></a></>
         : <><LinkButton href="/registration/how-to-register" light>How registration works</LinkButton><a href="/registration/fees-deadlines" className="text-link">Fees and deadlines <ArrowRight size={16} /></a></>}</div>
-    </div><aside><span>FEE RELEASE</span><strong>18 JAN 2027</strong><span>EARLY BIRD</span><strong>18 JAN-12 MAR</strong><span>REGULAR</span><strong>13 MAR-30 APR</strong><span>STATUS</span><strong>{registrationOpen ? 'OPEN' : 'PREPARING'}</strong></aside></section>
-    <section className="two-col wrap"><div><p className="eyebrow">How to register</p><h2>One Team Leader account per country.</h2></div><div className="prose">
+    </div><aside><span>FEE RELEASE</span><strong>18 JAN 2027</strong><span>EARLY BIRD</span><strong>18 JAN-12 MAR</strong><span>REGULAR</span><strong>13 MAR-30 APR</strong><span>STATUS</span><strong>{registrationOpen ? 'OPEN' : 'PREPARING'}</strong></aside>
+      <ScrollCue target="registration-details" label="Details below" />
+    </section>
+    <section className="two-col wrap" id="registration-details"><div><p className="eyebrow">How to register</p><h2>One Team Leader account per country.</h2></div><div className="prose">
       <p>The official contact for each accredited country or territory receives an invitation code by email. The Team Leader uses it to create the country’s account in the registration portal{registrationOpen ? <> at <a className="inline-link" href={portalUrl}>{portalHost}</a></> : null}, then registers in stages:</p>
       <ol className="registration-stages">{stages.map((stage) => <li key={stage}>{stage}</li>)}</ol>
       <p>Each stage can be saved and finished later. Once the registration is submitted, the payment is confirmed and everyone’s travel is in, the Team Leader receives a QR badge for each person by email.</p>
