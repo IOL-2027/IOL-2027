@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowRight, ArrowUpRight, Building2, Car, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Footprints, Landmark, Languages, MapPin, Menu, PenTool, Scale, User, Users, Volume2, X } from 'lucide-react'
+import { ArrowDown, ArrowRight, ArrowUpRight, Building2, Bus, Car, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, ExternalLink, Footprints, Hotel, Landmark, Languages, Mail, MapPin, Menu, PenTool, PlaneLanding, PlaneTakeoff, Scale, Search, Stamp, User, Users, Volume2, X } from 'lucide-react'
 import { event, homeBaseRoute, schedule, venues } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
 import thaiPhrases from './thaiPhrases.json'
@@ -104,10 +104,6 @@ function Footer() {
 
 function PageIntro({ eyebrow, title, body }: { eyebrow?: string; title: string; body: string }) {
   return <section className="page-intro grain">{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h1>{title}</h1><p className="lede">{body}</p></section>
-}
-
-function ContentCards({ cards }: { cards: { label: string; title: string; body: string }[] }) {
-  return <section className="content-cards wrap">{cards.map((card) => <article key={card.title}><span>{card.label}</span><h2>{card.title}</h2><p>{card.body}</p></article>)}</section>
 }
 
 function SectionLinks({ links }: { links: { href: string; label: string; detail: string }[] }) {
@@ -556,26 +552,74 @@ function PortalRedirect({ to }: { to: string }) {
   return <PageIntro eyebrow="Registration portal" title="Opening the registration portal." body="The registration portal is its own site. If it does not open, use the Registration portal link in the menu." />
 }
 
+// In the order the registration portal asks for things (src/registration/portalData.ts).
+const registrationReady = [
+  'The invitation code, sent to your country’s official contact',
+  'How many teams (up to two) and observers you are bringing',
+  'Invoice details: the organisation to invoice, and how many invoices',
+  'A bank that can make an international transfer, with its charges paid by the sender',
+  'For each person: official and passport names, passport number and nationality, date of birth, shirt sizes',
+  'Everyone’s stay dates. Flight details can follow later.',
+]
+const registrationJourney: { phase: string; steps: { title: string; detail: string; tag?: string; href?: string }[] }[] = [
+  { phase: 'Before the portal', steps: [
+    { title: 'Invitation code', detail: 'Each accredited country’s official contact receives an invitation code by email. The code sets the country, so it is never typed in.' },
+    { title: 'Team Leader account', detail: 'The Team Leader creates the country’s account with the code and verifies their email address.' },
+  ] },
+  { phase: 'In the portal', steps: [
+    { title: 'Team and observers', detail: 'How many teams (up to two) and how many observers. These two numbers set the fees; names are not needed yet.', tag: 'Sets the fees' },
+    { title: 'Payment', detail: 'Give the invoice details, transfer the full amount, then upload the bank’s proof of transfer. Finance checks it and issues an e-receipt.', tag: 'Bank transfer only' },
+    { title: 'Teams', detail: 'Choose each team’s working language for the team contest.' },
+    { title: 'People', detail: 'Each contestant’s and observer’s details: names, passport details, exam language, shirt sizes, and any food, medical or accessibility notes. It can be filled in over several sittings.', tag: 'Opens after proof of payment' },
+    { title: 'Rooms and welfare', detail: 'A summary built from everyone’s details, to check that it reads correctly.' },
+    { title: 'Travel', detail: 'Stay dates now, because they set the hotel nights. Flights can be added once they are booked.', tag: 'Flights can wait' },
+    { title: 'Review and submit', detail: 'Check everything and submit. People and travel can still be updated afterwards.' },
+  ] },
+  { phase: 'Before the Olympiad', steps: [
+    { title: 'Invitation letters', detail: 'Once the payment is confirmed, an invitation letter is sent for each person to support their visa application.', href: '/registration/visas' },
+    { title: 'QR badges', detail: 'When the payment is confirmed and everyone’s arrival and departure are in, the Team Leader receives each person’s badge QR code by email. Badges are scanned on arrival and at checkpoints during the week.' },
+  ] },
+]
+
 function RegistrationHow() {
-  const steps = [
-    { title: 'Verify the official invitation.', detail: 'The invitation code identifies the country or territory automatically. Country is not entered manually.' },
-    { title: 'Create and verify the Team Leader account.', detail: 'The verified name and email become the Team Leader record and are reused throughout registration.' },
-    { title: 'Reserve places with four planning fields.', detail: 'Enter team count, contestant count, observer count and adult room preference. Personal details can wait.' },
-    { title: 'Complete people and teams when ready.', detail: 'Add badge names, official details, exam language, shirt size and welfare needs. Each team chooses one team-contest language.' },
-    { title: 'Confirm invoices before transferring.', detail: 'State how many invoices are needed and any split details before making the bank transfer.' },
-    { title: 'Transfer outside the website and upload proof.', detail: 'The sender covers bank fees and currency conversion. The website accepts proof only; Finance reviews it manually.' },
-    { title: 'Return later with travel details.', detail: 'Arrival and departure remain open after initial registration because itineraries can change.' },
-    { title: 'Use individual QR badges during the event.', detail: 'Every person brings their badge for scanning at arrival and approved checkpoints.' },
-  ]
-  return <><PageIntro eyebrow="Registration / How to register" title="One clear path for every team." body="One team leader coordinates the entire process, from registration and payment confirmation to travel information and document delivery." /><section className="steps wrap">{steps.map((step, index) => <article key={step.title}><span>{String(index + 1).padStart(2, '0')}</span><div><h2>{step.title}</h2><p>{step.detail}</p></div></article>)}</section><section className="notice-panel wrap">{registrationOpen ? <><p className="eyebrow">Team Leader entry</p><h2>Start with the invitation code. You only need headcounts and room preference for the initial setup.</h2><a className="text-link" href={portalUrl}>Go to the registration portal <ArrowUpRight size={16} /></a></> : <><p className="eyebrow">Opens 18 January 2027</p><h2>Each country's official contact will receive an invitation code by email.</h2><a className="text-link" href="/registration/fees-deadlines">Fees and deadlines <ArrowRight size={16} /></a></>}</section></>
+  const firstStep = registrationJourney.map((_, index) => registrationJourney.slice(0, index).reduce((total, phase) => total + phase.steps.length, 1))
+  return <><PageIntro eyebrow="Registration / How to register" title="One clear path for every team." body="One Team Leader registers the whole country, from the invitation code and payment to each person’s details and travel. Everything saved in the portal is kept, so it can be done over several sittings." />
+    <section className="how-ready wrap"><div><p className="eyebrow">Before you start</p><h2>Have these ready.</h2></div><ul>{registrationReady.map((item) => <li key={item}><Check size={18} aria-hidden="true" />{item}</li>)}</ul></section>
+    <section className="how-journey wrap">{registrationJourney.map((phase, index) => <div className="how-phase" key={phase.phase}><h2>{phase.phase}</h2>
+      <ol start={firstStep[index]}>{phase.steps.map((step, stepIndex) => <li key={step.title}><span className="how-step-number" aria-hidden="true">{firstStep[index] + stepIndex}</span><div>
+        <h3>{step.title}</h3>{step.tag && <p className="how-step-tag">{step.tag}</p>}<p>{step.detail}</p>
+        {step.href && <a className="text-link" href={step.href}>Visa and invitation letters <ArrowRight size={15} /></a>}
+      </div></li>)}</ol>
+    </div>)}</section>
+    <section className="how-cta wrap">{registrationOpen
+      ? <><div><p className="eyebrow">Ready to start</p><h2>Begin with the invitation code.</h2></div><a className="pill pill-light" href={portalUrl}>Go to the registration portal <span><ArrowUpRight size={16} /></span></a></>
+      : <><div><p className="eyebrow">Opens 18 January 2027</p><h2>Each country’s official contact will receive an invitation code by email.</h2></div><a className="pill pill-light" href="/registration/fees-deadlines">Fees and deadlines <span><ArrowRight size={16} /></span></a></>}</section></>
 }
 
 function RegistrationFees() {
   return <><PageIntro eyebrow="Registration / Fees & deadlines" title="Transfer instructions, not online checkout." body="The confirmed registration windows come from the IOL 2027 fees and important dates notice. Final amounts and bank-account instructions will be published after Finance approval." /><section className="reg-dates-page wrap"><RegistrationDates /></section><section className="two-col wrap"><div><p className="eyebrow">Payment process</p><h2>Transfer outside the website, then upload proof.</h2></div><div className="prose"><p>Teams will use the bank-transfer instructions shown in the registration system. The website does not collect payment or card details.</p><p>After transfer, the team leader uploads proof of payment. Finance verifies the proof manually before registration is confirmed.</p></div></section></>
 }
 
+const visaSteps = [
+  { icon: Search, title: 'Check the rules for your passport', detail: 'Whether you need a visa depends on your nationality, your passport type and where you apply. The Royal Thai Embassy or Consulate responsible for your country can confirm the current rules.' },
+  { icon: Mail, title: 'Receive your invitation letter', detail: 'Once the registration payment is confirmed, an invitation letter for each registered person is sent by email.' },
+  { icon: Stamp, title: 'Apply for your visa', detail: 'Include the letter with your application. It supports the application, but the decision belongs to the Thai authorities.' },
+]
+
 function Visas() {
-  return <><PageIntro eyebrow="Registration / Visa & invitation letters" title="Check the requirements for your own country." body="Visa requirements and application conditions differ by nationality, passport type and country of application. Please confirm the current rules with the Royal Thai Embassy or Consulate responsible for your country." /><section className="two-col wrap"><div><p className="eyebrow">Before you travel</p><h2>Use the guidance issued for your country.</h2></div><div className="prose"><p>Please check the conditions directly with the Royal Thai Embassy or Consulate responsible for your country. The organising team cannot determine whether a participant needs a visa or guarantee the outcome of an application.</p><p>After payment is confirmed, the invitation letter will be sent to the participant's registered email address. The letter supports a visa application but does not replace the visa decision made by the relevant Thai authority.</p></div></section><ContentCards cards={[{ label: 'OFFICIAL SOURCE', title: 'Thai e-Visa', body: 'Check official Thai e-Visa information and whether online application is available for your location.' }, { label: 'INVITATION LETTER', title: 'Sent after confirmation.', body: "Once payment is confirmed, the invitation letter will be sent automatically through the system to the participant's registered email address." }, { label: 'LOCAL AUTHORITY', title: 'Check your Thai Consulate.', body: 'Application documents, timelines and procedures differ between countries.' }]} /><section className="visa-link wrap"><a className="pill" href="https://www.thaievisa.go.th/" target="_blank" rel="noreferrer">Visit thaievisa.go.th <span><ExternalLink size={16} /></span></a></section></>
+  return <><PageIntro eyebrow="Registration / Visa & invitation letters" title="Check the requirements for your own country." body="Visa requirements and application conditions differ by nationality, passport type and country of application. Please confirm the current rules with the Royal Thai Embassy or Consulate responsible for your country." />
+    <section className="visa-steps wrap"><header><p className="eyebrow">Three steps</p><h2 className="mixed-heading">From registration <em>to visa.</em></h2></header>
+      <ol>{visaSteps.map(({ icon: Icon, title, detail }, index) => <li key={title}><span className="visa-step-icon"><Icon size={22} aria-hidden="true" /></span><p className="visa-step-number">Step {index + 1}</p><h3>{title}</h3><p>{detail}</p></li>)}</ol>
+    </section>
+    <section className="visa-notes wrap">
+      <div><p className="eyebrow">Good to know</p><ul>
+        <li>The organising team cannot tell whether a participant needs a visa, or guarantee the outcome of an application.</li>
+        <li>Letters are sent once the payment is confirmed, so registering and paying early leaves more time to apply.</li>
+        <li>Documents, timelines and procedures differ between countries. Check the ones for the place you apply from.</li>
+      </ul></div>
+      <a className="visa-source" href="https://www.thaievisa.go.th/" target="_blank" rel="noreferrer"><span>Official source</span><strong>Thai e-Visa</strong><p>The official website of Thailand Electronic Visa: check whether you can apply online from your location.</p><em>thaievisa.go.th <ExternalLink size={15} /></em></a>
+    </section>
+    <SectionLinks links={[{ href: '/registration/how-to-register', label: 'How to register', detail: 'Every step, from the invitation code to the QR badges.' }, { href: '/registration/fees-deadlines', label: 'Fees & deadlines', detail: 'Registration periods and how payment works.' }, { href: '/contact', label: 'Contact', detail: 'Questions for the organising team.' }]} /></>
 }
 
 function EventGuide() {
@@ -589,17 +633,60 @@ function Accommodation() {
 }
 
 function Transportation() {
-  return <><PageIntro eyebrow="Event guide / Transportation" title="Arrive, move and depart with us." body="Official airport pick-up and drop-off services will be provided at Suvarnabhumi Airport (BKK) and Don Mueang International Airport (DMK) during the designated arrival and departure periods." /><ContentCards cards={[{ label: 'ARRIVAL & DEPARTURE', title: 'Share your flight details.', body: 'Participants will be asked to submit their flight details through the registration system so the organising team can coordinate transportation.' }, { label: 'LOCAL MOVEMENT', title: 'Transfers are provided.', body: 'Transfers between the home base, contest campuses, ceremonies and city programme venues will be provided and coordinated by the organising team.' }]} /><section className="route-link wrap"><a className="text-link" href="/programme#getting-there"><Footprints size={16} /> Walking route from the hotel to the Faculty of Arts <ArrowRight size={16} /></a></section><section className="pickup-plan wrap"><div><p className="eyebrow">Airport pick-up service</p><h2>The service timetable will appear here.</h2><p>Pick-up windows, airport meeting points, contact instructions and coach departure times will be published after the transport plan is confirmed.</p></div><div className="pickup-table-wrap"><table className="pickup-table"><caption>Future airport pick-up schedule</caption><thead><tr><th>Airport</th><th>Service period</th><th>Operating hours</th><th>Meeting point</th></tr></thead><tbody><tr><td>BKK / DMK</td><td colSpan={3}>Schedule to be confirmed</td></tr></tbody></table></div></section></>
+  const [hotel] = venues
+  const journey = [
+    { icon: PlaneLanding, when: dateOf('Day 01'), title: 'Arrive in Bangkok', detail: 'Pick-up from Suvarnabhumi (BKK) or Don Mueang (DMK) during the arrival period.' },
+    { icon: Hotel, when: 'All week', title: hotel.name, detail: 'The home base for teams, jury, volunteers and staff.' },
+    { icon: Bus, when: `${dateOf('Day 02').split(' ')[0]}–${dateOf('Day 07')}`, title: 'Transfers to every venue', detail: 'To the opening at Kasetsart University, the contests at Chulalongkorn University and the city programme.' },
+    { icon: PlaneTakeoff, when: dateOf('Day 08'), title: 'Depart', detail: 'Drop-off at BKK or DMK during the departure period.' },
+  ]
+  return <><PageIntro eyebrow="Event guide / Transportation" title="Arrive, move and depart with us." body="Official airport pick-up and drop-off services will be provided at Suvarnabhumi Airport (BKK) and Don Mueang International Airport (DMK) during the designated arrival and departure periods." />
+    <section className="transport-journey wrap"><header><p className="eyebrow">Door to door</p><h2 className="mixed-heading">The week, <em>from landing to take-off.</em></h2></header>
+      <ol>{journey.map(({ icon: Icon, when, title, detail }) => <li key={title}><span className="transport-stop"><Icon size={22} aria-hidden="true" /></span><p className="transport-when">{when}</p><h3>{title}</h3><p>{detail}</p></li>)}</ol>
+    </section>
+    <section className="transport-airports wrap">
+      <article><span>BKK</span><h3>Suvarnabhumi Airport</h3><p>Bangkok’s main international airport.</p><p className="transport-service"><Check size={16} aria-hidden="true" />Pick-up and drop-off provided</p></article>
+      <article><span>DMK</span><h3>Don Mueang International Airport</h3><p>Bangkok’s older airport, used by many regional and low-cost airlines.</p><p className="transport-service"><Check size={16} aria-hidden="true" />Pick-up and drop-off provided</p></article>
+      <article className="transport-flights"><h3>Share your flights</h3><p>Team Leaders add everyone’s stay dates in the registration portal, then their flights once they are booked. The organising team plans the pick-ups from them.</p><a className="text-link" href="/registration/how-to-register">How to register <ArrowRight size={15} /></a></article>
+    </section>
+    <section className="transport-timetable wrap"><div><p className="transport-status">To be confirmed</p><h2>Airport pick-up timetable</h2><p>It will be published here once the transport plan is confirmed.</p></div>
+      <ul>{['Pick-up windows', 'Airport meeting points', 'Who to contact on arrival', 'Coach departure times'].map((item) => <li key={item}><Clock size={16} aria-hidden="true" />{item}</li>)}</ul>
+    </section>
+    <section className="transport-walk wrap"><RoutePanel /></section></>
+}
+
+// Registration dates come from the IOL 2027 fees and important dates notice, the working language deadline from
+// ioling.org/upcoming, and the Olympiad days from the programme. Dates are compared in Bangkok time.
+const registrationKeyDates = [
+  { iso: '2027-01-18', title: 'Registration opens', detail: 'Fee amounts and the bank-transfer instructions are published, and early bird registration begins.' },
+  { iso: '2027-01-31', title: 'New working languages', detail: 'A working language that was not used at the previous IOL must be requested before this date.' },
+  { iso: '2027-03-12', title: 'Early bird registration ends', detail: 'Regular registration runs from 13 March.' },
+  { iso: '2027-04-30', title: 'Regular registration ends', detail: 'The last day of the regular registration period.' },
+]
+const olympiadKeyDates = schedule.map((item) => ({ iso: `2027-07-${item.date.split(' ')[0]}`, title: item.title, detail: item.detail }))
+const utcDate = (iso: string, options: Intl.DateTimeFormatOptions) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { ...options, timeZone: 'UTC' })
+
+function KeyDates({ dates, today }: { dates: { iso: string; title: string; detail: string }[]; today: string }) {
+  const next = [...registrationKeyDates, ...olympiadKeyDates].find((item) => item.iso >= today)?.iso
+  return <ol className="key-dates">{dates.map((item) => {
+    const state = item.iso === next ? 'next' : item.iso < today ? 'past' : 'later'
+    return <li key={item.iso} className={`key-date is-${state}`}>
+      <time dateTime={item.iso}><b>{utcDate(item.iso, { day: 'numeric' })}</b>{utcDate(item.iso, { month: 'short' })}</time>
+      <div><strong>{item.title}{state === 'next' && <em>Next</em>}</strong><p>{item.detail}</p></div>
+    </li>
+  })}</ol>
 }
 
 function ImportantDates() {
-  const dates = [
-    { label: 'FEE RELEASE', date: '18 JAN 2027', detail: 'Fee information is released.' },
-    { label: 'EARLY BIRD', date: '18 JAN-12 MAR', detail: 'Early bird registration period.' },
-    { label: 'REGULAR', date: '13 MAR-30 APR', detail: 'Regular registration period.' },
-    { label: 'IOL 2027', date: '21-28 JULY', detail: 'The 24th International Linguistics Olympiad in Bangkok.' },
-  ]
-  return <><PageIntro eyebrow="About / Important dates" title="Keep the key moments in view." body="Registration dates come from the IOL 2027 fees and important dates notice. Additional deadlines will be added after they are approved." /><section className="date-list wrap">{dates.map((item) => <article key={item.label}><div><p>{item.label}</p><h2>{item.date}</h2><small>{item.detail}</small></div></article>)}</section></>
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })
+  const next = [...registrationKeyDates, ...olympiadKeyDates].find((item) => item.iso >= today)
+  const days = next ? Math.round((Date.parse(next.iso) - Date.parse(today)) / 86400000) : 0
+  return <><PageIntro eyebrow="About / Important dates" title="Keep the key moments in view." body="Registration runs from January to April 2027, and the Olympiad takes place in Bangkok from 21 to 28 July. More deadlines will be added once they are approved." />
+    {next && <section className="dates-next wrap"><div><p className="dates-next-label">Next · {days === 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`}</p><h2>{next.title}</h2><p className="dates-next-when">{utcDate(next.iso, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p></div><p>{next.detail}</p></section>}
+    <section className="dates-phases wrap">
+      <div className="dates-phase"><header><h2>Registration</h2><p>18 Jan – 30 Apr 2027</p></header><KeyDates dates={registrationKeyDates} today={today} /><a className="text-link" href="/registration/fees-deadlines">Fees and deadlines <ArrowRight size={16} /></a></div>
+      <div className="dates-phase dates-phase-dark"><header><h2>The Olympiad</h2><p>21–28 Jul 2027 · Bangkok</p></header><KeyDates dates={olympiadKeyDates} today={today} /><a className="text-link" href="/programme">Schedule and venues <ArrowRight size={16} /></a></div>
+    </section></>
 }
 
 function Guidebook() {
