@@ -431,7 +431,10 @@ function Registration() {
       <p>Teams come through their country’s national linguistics olympiad, run by an organisation accredited by the International Linguistics Olympiad. The list of accredited countries and territories is on <a className="inline-link" href="https://ioling.org/countries/" target="_blank" rel="noreferrer">ioling.org</a>.</p>
       <p>Not accredited yet? Write to the IOL Board at <a className="inline-link" href="mailto:contact@ioling.org">contact@ioling.org</a>. Under the IOL regulations, applications made by 1 January are guaranteed a place at that year’s olympiad.</p>
     </div></section>
-    <section className="fee-grid wrap"><article><span>FEE RELEASE</span><strong>18 JAN 2027</strong><p>Fee amounts and the approved transfer instructions are published.</p></article><article><span>EARLY BIRD</span><strong>18 JAN-12 MAR</strong><p>Early bird registration period.</p></article><article><span>REGULAR</span><strong>13 MAR-30 APR</strong><p>Regular registration period.</p></article></section>
+    <section className="two-col wrap registration-block registration-fees"><div><p className="eyebrow">Fees and deadlines</p><h2>Register by 12&nbsp;March for the early bird fee.</h2></div><div className="prose">
+      <p>The fee depends on the day the registration is submitted, not the day it is started.</p>
+      <a className="text-link" href="/registration/fees-deadlines">How payment works <ArrowRight size={16} /></a>
+    </div><RegistrationDates /></section>
     <section className="two-col wrap registration-block"><div><p className="eyebrow">Working languages</p><h2>Problems in your team’s language.</h2></div><div className="prose">
       <p>Contestants read the problems and answer in a working language of their choice. A language that has not been used before must be requested before 31 January 2027.</p>
       <a className="text-link" href="https://ioling.org/upcoming/" target="_blank" rel="noreferrer">IOL 2027 dates on ioling.org <ExternalLink size={14} /></a>
@@ -439,6 +442,17 @@ function Registration() {
     <SectionLinks links={[{ href: '/registration/how-to-register', label: 'How to register', detail: 'Every step of the registration flow.' }, { href: '/registration/fees-deadlines', label: 'Fees & deadlines', detail: 'Registration periods and how payment works.' }, { href: '/registration/visas', label: 'Visa & invitation letters', detail: 'Check the requirements for your country.' }]} />
     <section className="contact-panel wrap"><div><p className="eyebrow">Questions about registration</p><a className="contact-email" href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a></div><div className="prose"><p>Please include your country or territory in the subject line so your message reaches the registration team.</p></div></section>
   </>
+}
+
+// The registration periods on one line: the fee periods sit on the line, the dates that start and end them below it.
+function RegistrationDates() {
+  return <ol className="reg-dates">
+    <li className="reg-date reg-date-start"><h3>Registration opens</h3><strong>18 Jan 2027</strong><p>Fee amounts and the bank-transfer instructions are published.</p></li>
+    <li className="reg-period reg-period-early"><p><strong>Early bird fee</strong> 18 Jan – 12 Mar</p></li>
+    <li className="reg-date reg-date-mid"><h3>Early bird deadline</h3><strong>12 Mar 2027</strong><p>Registrations submitted by this day pay the early bird fee.</p></li>
+    <li className="reg-period reg-period-regular"><p><strong>Regular fee</strong> 13 Mar – 30 Apr</p></li>
+    <li className="reg-date reg-date-end"><h3>Regular registration ends</h3><strong>30 Apr 2027</strong><p>Registrations submitted from 13 March pay the regular fee.</p></li>
+  </ol>
 }
 
 function PortalRedirect({ to }: { to: string }) {
@@ -461,7 +475,7 @@ function RegistrationHow() {
 }
 
 function RegistrationFees() {
-  return <><PageIntro eyebrow="Registration / Fees & deadlines" title="Transfer instructions, not online checkout." body="The confirmed registration windows come from the IOL 2027 fees and important dates notice. Final amounts and bank-account instructions will be published after Finance approval." /><section className="fee-grid wrap"><article><span>FEE RELEASE</span><strong>18 JAN 2027</strong><p>Fee information and approved transfer instructions are released.</p></article><article><span>EARLY BIRD</span><strong>18 JAN-12 MAR</strong><p>Early bird registration period.</p></article><article><span>REGULAR</span><strong>13 MAR-30 APR</strong><p>Regular registration period.</p></article></section><section className="two-col wrap"><div><p className="eyebrow">Payment process</p><h2>Transfer outside the website, then upload proof.</h2></div><div className="prose"><p>Teams will use the bank-transfer instructions shown in the registration system. The website does not collect payment or card details.</p><p>After transfer, the team leader uploads proof of payment. Finance verifies the proof manually before registration is confirmed.</p></div></section></>
+  return <><PageIntro eyebrow="Registration / Fees & deadlines" title="Transfer instructions, not online checkout." body="The confirmed registration windows come from the IOL 2027 fees and important dates notice. Final amounts and bank-account instructions will be published after Finance approval." /><section className="reg-dates-page wrap"><RegistrationDates /></section><section className="two-col wrap"><div><p className="eyebrow">Payment process</p><h2>Transfer outside the website, then upload proof.</h2></div><div className="prose"><p>Teams will use the bank-transfer instructions shown in the registration system. The website does not collect payment or card details.</p><p>After transfer, the team leader uploads proof of payment. Finance verifies the proof manually before registration is confirmed.</p></div></section></>
 }
 
 function Visas() {
