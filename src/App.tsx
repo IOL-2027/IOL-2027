@@ -271,7 +271,20 @@ function Thailand() {
     <section className="word-cloud-section"><div className="word-cloud-heading wrap"><p className="eyebrow">Twenty ways to say hello</p><h2 className="mixed-heading">A world of <em>hellos.</em></h2><p>Every greeting has its own sound and structure. At IOL 2027, they meet in one shared welcome.</p></div><div className="word-cloud wrap" aria-label="Greetings in twenty languages">{greetings.map((word) => <span key={word.text} lang={word.lang} className={`cloud-word ${word.className}`}>{word.text}</span>)}</div></section>
     <section className="three-notes wrap"><article><h3>Read the city</h3><p>Bangkok links the home base, university campuses, contest rooms, ceremonies and the city programme.</p></article><article><h3>Meet the host culture</h3><p>Excursions, cultural programming and everyday encounters give teams a way to experience Thailand together.</p></article><article><h3>Notice the forms</h3><p>Thai language and script offer a living system whose patterns reward close attention.</p></article></section>
     <section className="thailand-hosts"><div className="wrap"><div className="thailand-hosts-heading"><p className="eyebrow">Who we are</p><h2 className="mixed-heading">Three institutions, <em>one Thai welcome.</em></h2><p>Academic Olympiad experience and Bangkok's university community come together to host the 24th International Linguistics Olympiad.</p></div><div className="thailand-host-grid">{hosts.map((host) => <article key={host.name}><div><img src={host.image} alt={`${host.name} logo`} /></div><h3>{host.name}</h3><p>{host.description}</p></article>)}</div><LinkButton href="/hosts">Meet the hosts</LinkButton></div></section>
-    <section className="experience-grid wrap"><article className="exp-one"><span>DAY 04 / EXCURSION</span><h2>Move beyond the contest room.</h2><p>A shared day to encounter Thailand through place, culture and conversation. The final route will be confirmed by the organising team.</p></article><article className="exp-two"><span>DAY 05 / CITY PROGRAMME</span><h2>Read Bangkok.</h2><p>Campus, neighbourhood, river and street life become part of the week-long setting.</p></article><article className="exp-three"><span>DAY 07 / CULTURAL NIGHT</span><h2>Celebrate the community.</h2><p>After solutions, awards and closing, teams gather for the host culture and friendships that outlast the score.</p></article></section></>
+    <section className="host-week wrap"><header className="host-week-head"><div><p className="eyebrow">Beyond the contests</p><h2 className="mixed-heading">Three days to <em>see Thailand.</em></h2></div><p>The two contests are on days 03 and 06. On three other days, the host programme takes teams out of the contest rooms to see Thailand. The organising team will confirm routes and venues closer to the Olympiad.</p></header>
+      <ol className="host-week-strip">{schedule.map((item) => {
+        const host = hostDays[item.day]
+        return <li key={item.day} className={host ? `host-week-feature ${host.className}` : undefined}><span><b>{item.date}</b> <b>{item.day}</b></span><strong>{host?.title ?? item.title}</strong>{host && <p>{host.detail}</p>}</li>
+      })}</ol>
+      <a className="text-link" href="/programme">See the full programme <ArrowRight size={16} /></a>
+    </section></>
+}
+
+// The days of the week (keyed by schedule day) when the host programme takes teams out to see Thailand.
+const hostDays: Record<string, { title: string; detail: string; className: string }> = {
+  'Day 04': { title: 'Excursion', detail: 'The day after the individual contest, a hosted excursion for every team. The route will be confirmed by the organising team.', className: 'host-week-orange' },
+  'Day 05': { title: 'Bangkok city programme', detail: 'A hosted day in the city, with time for teams to meet each other before the team contest.', className: 'host-week-jade' },
+  'Day 07': { title: 'Cultural night', detail: 'After the solution presentations and the closing ceremony, the last evening at Chulalongkorn University celebrates the host culture.', className: 'host-week-plum' },
 }
 
 // Bump whenever the clips are regenerated, so browsers do not keep playing cached old audio.
