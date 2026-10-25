@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, ArrowUpRight, Building2, Car, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Footprints, Landmark, Languages, MapPin, Menu, PenTool, Scale, User, Users, Volume2, X } from 'lucide-react'
+import { ArrowDown, ArrowRight, ArrowUpRight, Building2, Car, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Footprints, Landmark, Languages, MapPin, Menu, PenTool, Scale, User, Users, Volume2, X } from 'lucide-react'
 import { event, homeBaseRoute, schedule, venues } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
 import thaiPhrases from './thaiPhrases.json'
@@ -289,8 +289,9 @@ const hostDays: Record<string, { title: string; detail: string; className: strin
 
 // The home page's contest cards. Dates come from the programme, so the home page, the programme and Host: Thailand agree.
 const dateOf = (day: string) => schedule.find((item) => item.day === day)?.date ?? ''
-const hostDates = Object.keys(hostDays).map(dateOf) // all in July: '24 JUL', '25 JUL', '27 JUL' reads as '24, 25 & 27 JUL'
-const hostDatesLabel = `${hostDates.slice(0, -1).map((date) => date.split(' ')[0]).join(', ')} & ${hostDates[hostDates.length - 1]}`
+// All in July: '24 JUL', '25 JUL', '27 JUL' reads as '24, 25 & 27 JUL'.
+const datesLabel = (dates: string[]) => dates.length < 2 ? dates.join('') : `${dates.slice(0, -1).map((date) => date.split(' ')[0]).join(', ')} & ${dates[dates.length - 1]}`
+const hostDatesLabel = datesLabel(Object.keys(hostDays).map(dateOf))
 const contests: { title: string; className: string; stats: [string, string][]; detail: string; when: string; href?: string }[] = [
   { title: 'Individual contest', className: 'home-contest-orange', stats: [['5', 'problems'], ['6', 'hours']], detail: 'Each contestant works alone on problems drawn from languages around the world.', when: `${dateOf('Day 03')} · Chulalongkorn University` },
   { title: 'Team contest', className: 'home-contest-plum', stats: [['1', 'problem set'], ['3–4', 'hours']], detail: 'Teams of up to four work together on one problem set and hand in a single joint solution.', when: `${dateOf('Day 06')} · Chulalongkorn University` },
@@ -349,8 +350,106 @@ function Programme() {
   return <><PageIntro eyebrow="Schedule & venues" title="Eight days in Bangkok." body="The tentative programme runs from 21 to 28 July 2027 across Mandarin Hotel, Kasetsart University, Chulalongkorn University and other programme locations." /><figure className="schedule-artifact wrap"><img src="/assets/iol-2027-schedule.png" alt="Tentative hourly schedule for IOL 2027 from 21 to 28 July" width={1320} height={899} /><figcaption><div><span>TENTATIVE SCHEDULE</span><p>Times and activities may change as the organising team confirms operations.</p></div><a className="pill" href="/downloads/IOL-2027-Schedule.html" target="_blank" rel="noreferrer">Open full schedule <span><ExternalLink size={15} /></span></a></figcaption></figure><section className="timeline wrap">{schedule.map((item) => <article key={item.date}><div><span>{item.day}</span><strong>{item.date}</strong></div><h2>{item.title}</h2><p>{item.detail}</p></article>)}</section><section className="venue-section"><div className="wrap"><p className="eyebrow">Venue plan</p><h2>Bangkok, connected.</h2><div className="venue-cards">{venues.map((venue) => <article key={venue.index}><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small><div className="venue-card-place"><span>{venue.building}</span><span>{venue.address}</span></div><MapsLink query={venue.mapQuery} name={venue.name} /></article>)}</div><RoutePanel /></div></section></>
 }
 
+// The Hosts page. Facts come from each host's own site (posn.or.th, chula.ac.th, ku.ac.th) and ioling.org;
+// the days and places come from the programme and venue data, so they match the Schedule & venues page.
+type HostDetail = (typeof hosts)[number] & {
+  id: string; title: string; subtitle?: string; thaiName: string; kicker: string; role: string; summary: string
+  url: string; site: string; about: string[]; facts: [string, string][]; days: string[]; venue?: string
+  programmes?: string[]; note?: string; route?: boolean
+}
+const hostDetails: HostDetail[] = [
+  {
+    ...hosts[0], id: 'posn', title: 'POSN', subtitle: 'The Promotion of Academic Olympiad and Development of Science Education Foundation', thaiName: 'สอวน.',
+    kicker: 'Host 01 · Foundation', role: 'Host foundation', summary: 'Runs Thailand’s linguistics olympiad', url: 'https://www.posn.or.th/en/', site: 'posn.or.th',
+    about: [
+      'Founded in 1998, POSN supports high school students across Thailand who show exceptional ability in science and mathematics. With the science faculties of 20 public universities, it runs olympiad camps and the contests that select Thailand’s teams for international olympiads.',
+      'Linguistics is one of its olympiads. The Thailand Linguistics Olympiad, which POSN organises with the Department of Linguistics at Chulalongkorn University, selects the team Thailand sends to the IOL. Thailand first competed in 2022, and a Thai contestant won a gold medal in 2024.',
+      'POSN has helped host international olympiads in Thailand before, including the International Physics Olympiad in 2011 and the International Olympiad on Astronomy and Astrophysics in 2017.',
+    ],
+    facts: [['1998', 'Founded'], ['20', 'public university science faculties it works with'], ['2022', 'Thailand’s first year at the IOL']],
+    programmes: ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Informatics', 'Earth Science', 'Astronomy', 'Geography', 'Linguistics'],
+    days: [], note: 'Registration fees are paid to POSN by bank transfer. The account details are shown in the registration portal once registration opens on 18 January 2027.',
+  },
+  {
+    ...hosts[1], id: 'chulalongkorn', title: 'Chulalongkorn University', thaiName: 'จุฬาลงกรณ์มหาวิทยาลัย',
+    kicker: 'Host 02 · Contest campus', role: 'Contest campus', summary: '', url: 'https://www.chula.ac.th/en/', site: 'chula.ac.th',
+    about: [
+      'Chulalongkorn University is Thailand’s first university. King Vajiravudh founded it on 26 March 1917 and named it after his father, King Chulalongkorn.',
+      'The contests take place at the Faculty of Arts, one of the university’s four original faculties. Its Department of Linguistics works with POSN on the Thailand Linguistics Olympiad. The faculty’s historic Maha Vajiravudh Building houses its library and the Tai-Kadai Ethnic Museum; Tai-Kadai is the language family Thai belongs to.',
+      'The university hosted the International Physics Olympiad in 2011 and the International Geography Olympiad in 2025.',
+    ],
+    facts: [['1917', 'Founded as Thailand’s first university'], ['11', 'departments in the Faculty of Arts, linguistics among them']],
+    days: ['Day 03', 'Day 06', 'Day 07'], venue: 'Chulalongkorn University', route: true,
+  },
+  {
+    ...hosts[2], id: 'kasetsart', title: 'Kasetsart University', thaiName: 'มหาวิทยาลัยเกษตรศาสตร์',
+    kicker: 'Host 03 · Opening stage', role: 'Opening stage', summary: '', url: 'https://www.ku.ac.th/en/', site: 'ku.ac.th',
+    about: [
+      'Kasetsart University was founded on 2 February 1943 as Thailand’s first agricultural university; its name means “agricultural science” in Thai. Its roots go back to a sericulture school opened in 1904.',
+      'The university began on its Bangkhen campus in Bangkok and now has campuses in other provinces too. The opening ceremony is held at the Faculty of Humanities at Bangkhen. The faculty was founded in 1981, with a Department of Linguistics from the start.',
+    ],
+    facts: [['1904', 'Its roots: a sericulture school'], ['1943', 'Founded as Thailand’s first agricultural university'], ['1981', 'Faculty of Humanities and its Department of Linguistics founded']],
+    days: ['Day 02'], venue: 'Kasetsart University',
+  },
+]
+
+// A selection, not a complete list. Each was checked against the olympiad's or the host's own records.
+const olympiadsInThailand = [
+  { year: '1999', short: 'IChO', name: 'International Chemistry Olympiad', city: 'Bangkok' },
+  { year: '2003', short: 'APhO', name: 'Asian Physics Olympiad', city: 'Bangkok' },
+  { year: '2007', short: 'IOAA', name: 'International Olympiad on Astronomy and Astrophysics', city: 'Chiang Mai' },
+  { year: '2011', short: 'IPhO', name: 'International Physics Olympiad', city: 'Bangkok' },
+  { year: '2011', short: 'IOI', name: 'International Olympiad in Informatics', city: 'Pattaya' },
+  { year: '2015', short: 'IMO', name: 'International Mathematical Olympiad', city: 'Chiang Mai' },
+  { year: '2017', short: 'IChO', name: 'International Chemistry Olympiad', city: 'Nakhon Pathom' },
+  { year: '2017', short: 'IOAA', name: 'International Olympiad on Astronomy and Astrophysics', city: 'Phuket' },
+  { year: '2018', short: 'IESO', name: 'International Earth Science Olympiad', city: 'Kanchanaburi' },
+  { year: '2023', short: 'IJSO', name: 'International Junior Science Olympiad', city: 'Bangkok' },
+  { year: '2025', short: 'iGeo', name: 'International Geography Olympiad', city: 'Bangkok' },
+]
+
+function HostProfile({ host }: { host: HostDetail }) {
+  const venue = venues.find((item) => item.name === host.venue)
+  return <article id={host.id} className={`host-profile ${host.className}`}>
+    <header className="host-profile-head"><img src={host.image} alt={`${host.name} logo`} /><div>
+      <p className="host-profile-kicker">{host.kicker}</p><h2>{host.title}</h2>
+      <p className="host-profile-names">{host.subtitle && <>{host.subtitle}<br /></>}<span lang="th">{host.thaiName}</span></p>
+    </div></header>
+    <div className="host-profile-about">
+      {host.about.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+      <ul className="host-profile-facts">{host.facts.map(([value, label]) => <li key={label}><strong>{value}</strong><span>{label}</span></li>)}</ul>
+      <a className="text-link" href={host.url} target="_blank" rel="noreferrer">{host.site} <ExternalLink size={14} /></a>
+    </div>
+    <div className="host-profile-aside">
+      {venue && <figure className="host-profile-photo"><img src={venue.image} alt={venue.imageAlt} style={{ objectPosition: venue.imagePosition }} loading="lazy" /><figcaption><a href={venue.imageCreditUrl} target="_blank" rel="noreferrer">{venue.imageCredit}</a></figcaption></figure>}
+      {host.programmes && <div className="host-panel"><h3>Olympiads it runs</h3><ul className="host-programmes">{host.programmes.map((programme) => <li key={programme} className={programme === 'Linguistics' ? 'host-programme-ours' : undefined}>{programme}</li>)}</ul></div>}
+      <div className="host-panel"><h3>At IOL 2027</h3>
+        {host.days.length > 0 && <ol className="host-days">{host.days.map((day) => <li key={day}><span>{dateOf(day)}</span><strong>{schedule.find((item) => item.day === day)?.title}</strong></li>)}</ol>}
+        {host.note && <p>{host.note}</p>}
+        {venue && <div className="host-place"><strong>{venue.building}</strong><span>{venue.address}</span><span>{venue.transit}</span>
+          <div className="host-place-links"><MapsLink query={venue.mapQuery} name={venue.name} />{host.route && <a className="text-link" href="/programme#getting-there">Walking route from the hotel <ArrowRight size={15} /></a>}</div>
+        </div>}
+      </div>
+    </div>
+  </article>
+}
+
 function Hosts() {
-  return <><PageIntro eyebrow="Hosts" title="A shared welcome from Thailand." body="IOL 2027 is hosted by organisations that bring together academic Olympiad experience, education, research and Bangkok's university community." /><section className="sponsor-detail-list wrap">{hosts.map((host, index) => <article className={`sponsor-detail ${host.className}`} key={host.name}><div className="sponsor-detail-logo"><img src={host.image} alt={`${host.name} logo`} /></div><div><h2>{host.name}</h2><p>{host.description}</p><p className="sponsor-detail-note">{index === 0 ? 'POSN supports Thailand academic Olympiads and the development of young talent.' : index === 1 ? 'Chulalongkorn University hosts the contests, solution presentations, closing ceremony and cultural night.' : 'Kasetsart University welcomes teams for the opening ceremony.'}</p></div></article>)}</section></>
+  return <><PageIntro eyebrow="Hosts" title="A shared welcome from Thailand." body="IOL 2027 is hosted by POSN, the foundation behind Thailand’s academic olympiads, together with Chulalongkorn University and Kasetsart University in Bangkok." />
+    <nav className="hosts-overview wrap" aria-label="The three hosts">{hostDetails.map((host) => <a key={host.id} href={`#${host.id}`} className={host.className}>
+      <img src={host.image} alt="" /><span><small>{host.role}</small><strong>{host.shortName}</strong>{host.days.length ? datesLabel(host.days.map(dateOf)) : host.summary}</span><ArrowDown size={18} aria-hidden="true" />
+    </a>)}</nav>
+    <section className="host-profiles wrap">{hostDetails.map((host) => <HostProfile key={host.id} host={host} />)}</section>
+    <section className="olympiads-thailand"><div className="wrap">
+      <header className="olympiads-thailand-head"><div><p className="eyebrow">Thailand and the olympiads</p><h2 className="mixed-heading">No stranger <em>to olympiads.</em></h2></div><p>Thailand has hosted international science olympiads for more than 25 years. IOL 2027 is the first International Linguistics Olympiad held in Southeast Asia.</p></header>
+      <ol className="olympiads-thailand-list">
+        {olympiadsInThailand.map((item) => <li key={item.year + item.short}><strong>{item.year}</strong><b>{item.short}</b><span>{item.name}</span><small>{item.city}</small></li>)}
+        <li className="olympiads-thailand-iol"><strong>2027</strong><b>IOL</b><span>International Linguistics Olympiad, the first in Southeast Asia</span><small>Bangkok</small></li>
+      </ol>
+      <p className="olympiads-thailand-note">A selection of the international olympiads held in Thailand.</p>
+    </div></section>
+    <SectionLinks links={[{ href: '/programme', label: 'Schedule & venues', detail: 'What happens on each day, and where.' }, { href: '/about/thailand', label: 'Host: Thailand', detail: 'Bangkok, and the days teams see Thailand.' }, { href: '/contact', label: 'Contact', detail: 'Questions for the organising team.' }]} />
+  </>
 }
 
 function Sponsors() {
