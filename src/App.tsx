@@ -363,10 +363,10 @@ const hostDetails: HostDetail[] = [
     kicker: 'Host 01 · Foundation', role: 'Host foundation', summary: 'Runs Thailand’s linguistics olympiad', url: 'https://www.posn.or.th/en/', site: 'posn.or.th',
     about: [
       'Founded in 1998, POSN supports high school students across Thailand who show exceptional ability in science and mathematics. With the science faculties of 20 public universities, it runs olympiad camps and the contests that select Thailand’s teams for international olympiads.',
-      'Linguistics is one of its olympiads. The Thailand Linguistics Olympiad, which POSN organises with the Department of Linguistics at Chulalongkorn University, selects the team Thailand sends to the IOL. Thailand first competed in 2022, and a Thai contestant won a gold medal in 2024.',
+      'Linguistics is one of its olympiads. The Thailand Linguistics Olympiad, which POSN organises with the Department of Linguistics at Chulalongkorn University, selects the team Thailand sends to the IOL.',
       'POSN has helped host international olympiads in Thailand before, including the International Physics Olympiad in 2011 and the International Olympiad on Astronomy and Astrophysics in 2017.',
     ],
-    facts: [['1998', 'Founded'], ['20', 'public university science faculties it works with'], ['2022', 'Thailand’s first year at the IOL']],
+    facts: [['1998', 'Founded'], ['20', 'public university science faculties it works with']],
     programmes: ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Informatics', 'Earth Science', 'Astronomy', 'Geography', 'Linguistics'],
     days: [], note: 'Registration fees are paid to POSN by bank transfer. The account details are shown in the registration portal once registration opens on 18 January 2027.',
   },
@@ -393,20 +393,16 @@ const hostDetails: HostDetail[] = [
   },
 ]
 
-// A selection, not a complete list. Each was checked against the olympiad's or the host's own records.
-const olympiadsInThailand = [
-  { year: '1999', short: 'IChO', name: 'International Chemistry Olympiad', city: 'Bangkok' },
-  { year: '2003', short: 'APhO', name: 'Asian Physics Olympiad', city: 'Bangkok' },
-  { year: '2007', short: 'IOAA', name: 'International Olympiad on Astronomy and Astrophysics', city: 'Chiang Mai' },
-  { year: '2011', short: 'IPhO', name: 'International Physics Olympiad', city: 'Bangkok' },
-  { year: '2011', short: 'IOI', name: 'International Olympiad in Informatics', city: 'Pattaya' },
-  { year: '2015', short: 'IMO', name: 'International Mathematical Olympiad', city: 'Chiang Mai' },
-  { year: '2017', short: 'IChO', name: 'International Chemistry Olympiad', city: 'Nakhon Pathom' },
-  { year: '2017', short: 'IOAA', name: 'International Olympiad on Astronomy and Astrophysics', city: 'Phuket' },
-  { year: '2018', short: 'IESO', name: 'International Earth Science Olympiad', city: 'Kanchanaburi' },
-  { year: '2023', short: 'IJSO', name: 'International Junior Science Olympiad', city: 'Bangkok' },
-  { year: '2025', short: 'iGeo', name: 'International Geography Olympiad', city: 'Bangkok' },
+// Thailand's results at the IOL, from ioling.org/results/THA. Host cities come from the About page's olympiad list.
+type IolAward = { kind: 'gold' | 'silver' | 'bronze' | 'mention'; label: string }
+const thailandAtIol: { year: number; awards: IolAward[] }[] = [
+  { year: 2022, awards: [{ kind: 'bronze', label: 'Bronze medal' }, { kind: 'mention', label: 'Honourable mention' }] },
+  { year: 2023, awards: [{ kind: 'silver', label: 'Silver medal' }, { kind: 'mention', label: 'Honourable mention' }, { kind: 'mention', label: 'Team contest: honourable mention' }] },
+  { year: 2024, awards: [{ kind: 'gold', label: 'Gold medal' }, { kind: 'bronze', label: 'Bronze medal' }, { kind: 'mention', label: 'Team contest: honourable mention' }] },
+  { year: 2025, awards: [{ kind: 'silver', label: 'Silver medal' }, { kind: 'bronze', label: 'Bronze medal' }, { kind: 'bronze', label: 'Team contest: bronze trophy' }] },
+  { year: 2026, awards: [{ kind: 'mention', label: '2 honourable mentions' }] },
 ]
+const iolHost = (year: number) => olympiads.find((item) => item.year === year)
 
 function HostProfile({ host }: { host: HostDetail }) {
   const venue = venues.find((item) => item.name === host.venue)
@@ -440,13 +436,14 @@ function Hosts() {
       <img src={host.image} alt="" /><span><small>{host.role}</small><strong>{host.shortName}</strong>{host.days.length ? datesLabel(host.days.map(dateOf)) : host.summary}</span><ArrowDown size={18} aria-hidden="true" />
     </a>)}</nav>
     <section className="host-profiles wrap">{hostDetails.map((host) => <HostProfile key={host.id} host={host} />)}</section>
-    <section className="olympiads-thailand"><div className="wrap">
-      <header className="olympiads-thailand-head"><div><p className="eyebrow">Thailand and the olympiads</p><h2 className="mixed-heading">No stranger <em>to olympiads.</em></h2></div><p>Thailand has hosted international science olympiads for more than 25 years. IOL 2027 is the first International Linguistics Olympiad held in Southeast Asia.</p></header>
-      <ol className="olympiads-thailand-list">
-        {olympiadsInThailand.map((item) => <li key={item.year + item.short}><strong>{item.year}</strong><b>{item.short}</b><span>{item.name}</span><small>{item.city}</small></li>)}
-        <li className="olympiads-thailand-iol"><strong>2027</strong><b>IOL</b><span>International Linguistics Olympiad, the first in Southeast Asia</span><small>Bangkok</small></li>
+    <section className="thai-iol"><div className="wrap">
+      <header className="thai-iol-head"><div><p className="eyebrow">Thailand at the IOL</p><h2 className="mixed-heading">From first team <em>to host.</em></h2></div><p>Thailand sent its first team to the IOL in 2022. The team is chosen through the Thailand Linguistics Olympiad, held every year by POSN with the Department of Linguistics at Chulalongkorn University: a national contest, then a training camp, then the team for the IOL.</p></header>
+      <ol className="thai-iol-years">
+        {thailandAtIol.map(({ year, awards }) => <li key={year}><strong>{year}</strong><small>{iolHost(year)?.city}, {iolHost(year)?.country}</small>{year === 2022 && <p>Thailand’s first IOL</p>}
+          <ul>{awards.map((award) => <li key={award.label} className={`thai-iol-${award.kind}`}>{award.label}</li>)}</ul></li>)}
+        <li className="thai-iol-host"><strong>2027</strong><small>Bangkok, Thailand</small><p>Thailand hosts the IOL, the first held in Southeast Asia.</p></li>
       </ol>
-      <p className="olympiads-thailand-note">A selection of the international olympiads held in Thailand.</p>
+      <p className="thai-iol-note">Five olympiads so far: 20 contestants, 6 medals, a team bronze trophy and 2 best-solution prizes. <a href="https://ioling.org/results/THA" target="_blank" rel="noreferrer">Thailand’s results on ioling.org <ExternalLink size={13} /></a></p>
     </div></section>
     <SectionLinks links={[{ href: '/programme', label: 'Schedule & venues', detail: 'What happens on each day, and where.' }, { href: '/about/thailand', label: 'Host: Thailand', detail: 'Bangkok, and the days teams see Thailand.' }, { href: '/contact', label: 'Contact', detail: 'Questions for the organising team.' }]} />
   </>
