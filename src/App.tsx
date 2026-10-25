@@ -187,10 +187,13 @@ function Home() {
     <NewsCarousel />
     <section className="statement"><h2>A world championship<br />for <em>thinking in languages.</em></h2><div className="statement-grid"><div className="statement-mark"><img src="/assets/iol-wordmark-transparent.png" alt="International Linguistics Olympiad logo" /></div><div className="statement-copy"><p>The International Linguistics Olympiad brings high-school students together to solve complex puzzles drawn from languages around the world using reasoning, intuition and curiosity rather than prior linguistic knowledge.</p><LinkButton href="/about">Discover the Olympiad</LinkButton></div></div></section>
     <HostCarousel />
-    <section className="feature-grid wrap">
-      <article className="feature-card saffron"><span>INDIVIDUAL CONTEST</span><h3>Five problems.<br />Six hours.</h3><p>Contestants work independently through an exacting set of linguistic puzzles.</p></article>
-      <article className="feature-card plum"><span>TEAM CONTEST</span><h3>Four minds.<br />One problem.</h3><p>Teams combine perspectives to solve one large-scale challenge together.</p></article>
-      <article className="feature-card jade"><span>HOST PROGRAMME</span><h3>One shared<br />language: curiosity.</h3><p>Excursions, culture and friendships turn a competition into a global community.</p></article>
+    <section className="home-contests wrap"><header className="home-contests-head"><div><p className="eyebrow">How the Olympiad works</p><h2 className="mixed-heading">Two contests, <em>one week together.</em></h2></div><p>No prior knowledge of linguistics is needed. Every problem contains all the information required to solve it, so reasoning and curiosity are what count.</p></header>
+      <div className="home-contest-cards">{contests.map((contest) => <article key={contest.title} className={`home-contest ${contest.className}`}>
+        <h3>{contest.title}</h3>
+        <p className="home-contest-stats">{contest.stats.map(([number, label]) => <span key={label}><strong>{number}</strong>{label}</span>)}</p>
+        <p>{contest.detail}</p>
+        <div className="home-contest-when">{contest.href ? <a href={contest.href}>{contest.when} <ArrowRight size={15} /></a> : contest.when}</div>
+      </article>)}</div>
     </section>
     <section className="venues-preview wrap"><div className="section-heading"><p className="eyebrow">Across Bangkok</p><h2>Three places.<br />One Olympiad.</h2><LinkButton href="/programme">See venues</LinkButton></div><div className="venue-photo-stack">{venues.map((venue) => <article key={venue.index}><img src={venue.image} alt={venue.imageAlt} loading="lazy" style={{ objectPosition: venue.imagePosition }} /><div className="venue-photo-copy"><p>{venue.index} · {venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small><MapsLink query={venue.mapQuery} name={venue.name} /></div><a className="venue-photo-credit" href={venue.imageCreditUrl} target="_blank" rel="noreferrer">{venue.imageCredit}</a></article>)}</div></section>
     {placeholderPagesShown && <SponsorPreview />}
@@ -286,6 +289,16 @@ const hostDays: Record<string, { title: string; detail: string; className: strin
   'Day 05': { title: 'Bangkok city programme', detail: 'A hosted day in the city, with time for teams to meet each other before the team contest.', className: 'host-week-jade' },
   'Day 07': { title: 'Cultural night', detail: 'After the solution presentations and the closing ceremony, the last evening at Chulalongkorn University celebrates the host culture.', className: 'host-week-plum' },
 }
+
+// The home page's contest cards. Dates come from the programme, so the home page, the programme and Host: Thailand agree.
+const dateOf = (day: string) => schedule.find((item) => item.day === day)?.date ?? ''
+const hostDates = Object.keys(hostDays).map(dateOf) // all in July: '24 JUL', '25 JUL', '27 JUL' reads as '24, 25 & 27 JUL'
+const hostDatesLabel = `${hostDates.slice(0, -1).map((date) => date.split(' ')[0]).join(', ')} & ${hostDates[hostDates.length - 1]}`
+const contests: { title: string; className: string; stats: [string, string][]; detail: string; when: string; href?: string }[] = [
+  { title: 'Individual contest', className: 'home-contest-orange', stats: [['5', 'problems'], ['6', 'hours']], detail: 'Each contestant works alone on problems drawn from languages around the world.', when: `${dateOf('Day 03')} · Chulalongkorn University` },
+  { title: 'Team contest', className: 'home-contest-plum', stats: [['1', 'problem set'], ['3–4', 'hours']], detail: 'Teams of up to four work together on one problem set and hand in a single joint solution.', when: `${dateOf('Day 06')} · Chulalongkorn University` },
+  { title: 'Host programme', className: 'home-contest-jade', stats: [['3', 'days to see Thailand'], ['8', 'days in Bangkok']], detail: 'An excursion, a Bangkok city programme and a cultural night, shared with teams from around the world.', when: `${hostDatesLabel} · See the days`, href: '/about/thailand' },
+]
 
 // Bump whenever the clips are regenerated, so browsers do not keep playing cached old audio.
 const thaiAudioVersion = 3
