@@ -347,7 +347,7 @@ const dayIcons: Record<string, typeof Camera> = { 'Day 01': PlaneLanding, 'Day 0
 const scheduleVenueNames: Record<ScheduleVenue, string> = { kasetsart: 'Kasetsart University', chulalongkorn: 'Chulalongkorn University', mandarin: 'Mandarin Hotel', other: 'Other locations' }
 const contestDays = ['Day 03', 'Day 06']
 
-// The days under the schedule image: a card per day in the venue colours of the image's legend, the contest days in night.
+// The days under the schedule image: a card per day, its dot and icon in the venue colours of the image's legend.
 function ScheduleDays() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })
   return <section className="schedule-days wrap" aria-labelledby="schedule-days-title">
@@ -362,11 +362,11 @@ function ScheduleDays() {
       const weekday = new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })
       const contest = contestDays.includes(item.day)
       const Icon = dayIcons[item.day] ?? Camera
-      return <li key={item.day} data-venue={item.venue} className={`schedule-day${contest ? ' is-contest' : ''}${iso === today ? ' is-today' : ''}`}>
+      return <li key={item.day} data-venue={item.venue} className="schedule-day">
         <p className="schedule-day-when">{weekday}{iso === today && <b>Today</b>}</p>
         <article>
           <header><strong>{dayOfMonth}<small>{month}</small></strong><span className="schedule-day-icon" aria-hidden="true"><Icon size={22} /></span></header>
-          <p className="schedule-day-no">{item.day}{contest && <b>Contest</b>}</p>
+          <p className="schedule-day-no">{contest ? `${item.day} · Contest` : item.day}</p>
           <h3>{item.title}</h3>
           <p>{item.detail}</p>
           <p className="schedule-day-where"><MapPin size={15} aria-hidden="true" />{item.where}</p>
@@ -661,9 +661,10 @@ function EventGuide() {
 }
 
 function Accommodation() {
+  const [hotel] = venues
   const [active, setActive] = useState(0)
   const image = hotelImages[active]
-  return <><PageIntro eyebrow="Event guide / Accommodation" title="Our home base in Bangkok." body="Mandarin Hotel Bangkok, managed by Centre Point, is the home base for IOL 2027 teams, jury, volunteers and staff." /><section className="hotel-feature wrap"><figure className="hotel-gallery"><div className="hotel-gallery-frame">{active > 0 && <button className="carousel-arrow carousel-arrow-left" type="button" onClick={() => setActive(active - 1)} aria-label="Previous hotel image"><ChevronLeft /></button>}<img key={image.src} src={image.src} alt={image.alt} />{active < hotelImages.length - 1 && <button className="carousel-arrow carousel-arrow-right" type="button" onClick={() => setActive(active + 1)} aria-label="Next hotel image"><ChevronRight /></button>}</div><figcaption><span>{image.caption} · Official Mandarin Hotel Bangkok image</span><span>{active + 1} / {hotelImages.length}</span></figcaption></figure><div><p className="eyebrow">Mandarin Hotel Bangkok</p><h2>662 Rama IV Road, Bang Rak, Bangkok 10500</h2><p>Located near MRT Sam Yan and within easy reach of Chulalongkorn University and central Bangkok.</p><div className="hotel-actions"><a className="pill" href="https://www.mandarin-bkk.com/" target="_blank" rel="noreferrer">Hotel website <span><ExternalLink size={16} /></span></a><a className="text-link" href="https://www.google.com/maps/search/?api=1&query=Mandarin+Hotel+Bangkok+662+Rama+IV+Road" target="_blank" rel="noreferrer"><MapPin size={16} /> Open in Google Maps</a></div></div></section><section className="hotel-map wrap"><iframe title="Mandarin Hotel Bangkok location" src="https://www.google.com/maps?q=Mandarin+Hotel+Bangkok+662+Rama+IV+Road&output=embed" loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" /></section></>
+  return <><PageIntro eyebrow="Event guide / Accommodation" title="Our home base in Bangkok." body="Mandarin Hotel Bangkok, managed by Centre Point, is the home base for IOL 2027 teams, jury, volunteers and staff." /><section className="hotel-feature wrap"><figure className="hotel-gallery"><div className="hotel-gallery-frame">{active > 0 && <button className="carousel-arrow carousel-arrow-left" type="button" onClick={() => setActive(active - 1)} aria-label="Previous hotel image"><ChevronLeft /></button>}<img key={image.src} src={image.src} alt={image.alt} />{active < hotelImages.length - 1 && <button className="carousel-arrow carousel-arrow-right" type="button" onClick={() => setActive(active + 1)} aria-label="Next hotel image"><ChevronRight /></button>}</div><figcaption><span>{image.caption} · Official Mandarin Hotel Bangkok image</span><span>{active + 1} / {hotelImages.length}</span></figcaption></figure><div><p className="eyebrow">Home base</p><h2>{hotel.name}</h2><p>Located near MRT Sam Yan and within easy reach of Chulalongkorn University and central Bangkok.</p><dl className="hotel-details"><div><dt>Address</dt><dd>{hotel.address}</dd></div><div><dt>Managed by</dt><dd>Centre Point</dd></div></dl><div className="hotel-actions"><a className="pill" href="https://www.mandarin-bkk.com/" target="_blank" rel="noreferrer">Hotel website <span><ExternalLink size={16} /></span></a><a className="text-link" href="https://www.google.com/maps/search/?api=1&query=Mandarin+Hotel+Bangkok+662+Rama+IV+Road" target="_blank" rel="noreferrer"><MapPin size={16} /> Open in Google Maps</a></div></div></section><section className="hotel-map wrap"><iframe title="Mandarin Hotel Bangkok location" src="https://www.google.com/maps?q=Mandarin+Hotel+Bangkok+662+Rama+IV+Road&output=embed" loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" /></section></>
 }
 
 function Transportation() {
