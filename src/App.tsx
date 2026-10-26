@@ -198,7 +198,7 @@ function OutLink({ href, children }: { href: string; children: React.ReactNode }
 }
 
 function About() {
-  return <div className="about-page"><PageIntro eyebrow="About the Olympiad" title="Data holds the pattern, deduction holds the key." body="IOL is one of the International Science Olympiads: a yearly meeting of young problem-solvers who decode the structures hidden inside human language." />
+  return <div className="about-page"><PageIntro eyebrow="About the Olympiad" title="What is the International Linguistics Olympiad?" body="IOL is one of the International Science Olympiads: a yearly meeting of young problem-solvers who decode the structures hidden inside human language." />
     <section className="two-col wrap"><div><p className="eyebrow">What happens</p><h2>Reasoning through pattern, verified by rigor.</h2></div><div className="prose"><p>Problems may draw on any language in the world. Contestants discover patterns, test hypotheses and explain systems they have never seen before. No knowledge of particular languages or of linguistic theory is assumed.</p><p>Each accredited country or territory may send up to two teams. A contest team has no more than four contestants and one team leader. Contestants take part in both an individual round and a collaborative team round.</p><p>Careful observation, hypothesis testing and a clear explanation matter more than memorised vocabulary.</p></div></section>
 
     <section className="about-block wrap">
@@ -583,7 +583,7 @@ const registrationJourney: { phase: string; steps: { title: string; detail: stri
 
 function RegistrationHow() {
   const firstStep = registrationJourney.map((_, index) => registrationJourney.slice(0, index).reduce((total, phase) => total + phase.steps.length, 1))
-  return <><PageIntro eyebrow="Registration / How to register" title="One clear path for every team." body="One Team Leader registers the whole country, from the invitation code and payment to each person’s details and travel. Everything saved in the portal is kept, so it can be done over several sittings." />
+  return <><PageIntro eyebrow="Registration / How to register" title="Registering your country, step by step." body="One Team Leader registers the whole country, from the invitation code and payment to each person’s details and travel. Everything saved in the portal is kept, so it can be done over several sittings." />
     <section className="how-ready wrap"><div><p className="eyebrow">Before you start</p><h2>Have these ready.</h2></div><ul>{registrationReady.map((item) => <li key={item}><Check size={18} aria-hidden="true" />{item}</li>)}</ul></section>
     <section className="how-journey wrap">{registrationJourney.map((phase, index) => <div className="how-phase" key={phase.phase}><h2>{phase.phase}</h2>
       <ol start={firstStep[index]}>{phase.steps.map((step, stepIndex) => <li key={step.title}><span className="how-step-number" aria-hidden="true">{firstStep[index] + stepIndex}</span><div>
@@ -597,7 +597,7 @@ function RegistrationHow() {
 }
 
 function RegistrationFees() {
-  return <><PageIntro eyebrow="Registration / Fees & deadlines" title="Transfer instructions, not online checkout." body="The confirmed registration windows come from the IOL 2027 fees and important dates notice. Final amounts and bank-account instructions will be published after Finance approval." /><section className="reg-dates-page wrap"><RegistrationDates /></section><section className="two-col wrap"><div><p className="eyebrow">Payment process</p><h2>Transfer outside the website, then upload proof.</h2></div><div className="prose"><p>Teams will use the bank-transfer instructions shown in the registration system. The website does not collect payment or card details.</p><p>After transfer, the team leader uploads proof of payment. Finance verifies the proof manually before registration is confirmed.</p></div></section></>
+  return <><PageIntro eyebrow="Registration / Fees & deadlines" title="Fees, deadlines and how to pay." body="The confirmed registration windows come from the IOL 2027 fees and important dates notice. Final amounts and bank-account instructions will be published after Finance approval." /><section className="reg-dates-page wrap"><RegistrationDates /></section><section className="two-col wrap"><div><p className="eyebrow">Payment process</p><h2>Transfer outside the website, then upload proof.</h2></div><div className="prose"><p>Teams will use the bank-transfer instructions shown in the registration system. The website does not collect payment or card details.</p><p>After transfer, the team leader uploads proof of payment. Finance verifies the proof manually before registration is confirmed.</p></div></section></>
 }
 
 const visaSteps = [
@@ -681,7 +681,7 @@ function ImportantDates() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })
   const next = [...registrationKeyDates, ...olympiadKeyDates].find((item) => item.iso >= today)
   const days = next ? Math.round((Date.parse(next.iso) - Date.parse(today)) / 86400000) : 0
-  return <><PageIntro eyebrow="About / Important dates" title="Keep the key moments in view." body="Registration runs from January to April 2027, and the Olympiad takes place in Bangkok from 21 to 28 July. More deadlines will be added once they are approved." />
+  return <><PageIntro eyebrow="About / Important dates" title="Key dates for IOL 2027." body="Registration runs from January to April 2027, and the Olympiad takes place in Bangkok from 21 to 28 July. More deadlines will be added once they are approved." />
     {next && <section className="dates-next wrap"><div><p className="dates-next-label">Next · {days === 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`}</p><h2>{next.title}</h2><p className="dates-next-when">{utcDate(next.iso, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p></div><p>{next.detail}</p></section>}
     <section className="dates-phases wrap">
       <div className="dates-phase"><header><h2>Registration</h2><p>18 Jan – 30 Apr 2027</p></header><KeyDates dates={registrationKeyDates} today={today} /><a className="text-link" href="/registration/fees-deadlines">Fees and deadlines <ArrowRight size={16} /></a></div>
