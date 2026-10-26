@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowRight, ArrowUpRight, Building2, Bus, Camera, Car, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Compass, ExternalLink, Footprints, Hotel, Landmark, Languages, Mail, MapPin, Maximize2, Menu, PenTool, PlaneLanding, PlaneTakeoff, Scale, Search, Sparkles, Stamp, Trophy, User, Users, Volume2, X } from 'lucide-react'
-import { event, homeBaseRoute, schedule, venues } from './siteData'
+import { event, homeBaseRoute, schedule, venues, type ScheduleVenue } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
 import thaiPhrases from './thaiPhrases.json'
 import { placeholderPagesShown, portalUrl, registrationOpen } from './launch'
@@ -342,8 +342,42 @@ function RoutePanel() {
   </article>
 }
 
+// One icon per programme day, shared by the Programme page's day cards and the Gallery's albums.
+const dayIcons: Record<string, typeof Camera> = { 'Day 01': PlaneLanding, 'Day 02': Sparkles, 'Day 03': PenTool, 'Day 04': Compass, 'Day 05': Landmark, 'Day 06': Users, 'Day 07': Trophy, 'Day 08': PlaneTakeoff }
+const scheduleVenueNames: Record<ScheduleVenue, string> = { kasetsart: 'Kasetsart University', chulalongkorn: 'Chulalongkorn University', mandarin: 'Mandarin Hotel', other: 'Other locations' }
+const contestDays = ['Day 03', 'Day 06']
+
+// The days under the schedule image: a card per day in the venue colours of the image's legend, the contest days in night.
+function ScheduleDays() {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })
+  return <section className="schedule-days wrap" aria-labelledby="schedule-days-title">
+    <header className="schedule-days-head">
+      <div><p className="eyebrow">21–28 July 2027</p><h2 id="schedule-days-title" className="mixed-heading">The week, <em>day by day.</em></h2></div>
+      <div><p>What happens on each day, and where. The colours match the venues in the schedule above.</p>
+        <ul className="schedule-venues" aria-label="Venues">{(Object.keys(scheduleVenueNames) as ScheduleVenue[]).map((venue) => <li key={venue} data-venue={venue}>{scheduleVenueNames[venue]}</li>)}</ul></div>
+    </header>
+    <ol className="schedule-days-list">{schedule.map((item) => {
+      const [dayOfMonth, month] = item.date.split(' ')
+      const iso = `2027-07-${dayOfMonth}`
+      const weekday = new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })
+      const contest = contestDays.includes(item.day)
+      const Icon = dayIcons[item.day] ?? Camera
+      return <li key={item.day} data-venue={item.venue} className={`schedule-day${contest ? ' is-contest' : ''}${iso === today ? ' is-today' : ''}`}>
+        <p className="schedule-day-when">{weekday}{iso === today && <b>Today</b>}</p>
+        <article>
+          <header><strong>{dayOfMonth}<small>{month}</small></strong><span className="schedule-day-icon" aria-hidden="true"><Icon size={22} /></span></header>
+          <p className="schedule-day-no">{item.day}{contest && <b>Contest</b>}</p>
+          <h3>{item.title}</h3>
+          <p>{item.detail}</p>
+          <p className="schedule-day-where"><MapPin size={15} aria-hidden="true" />{item.where}</p>
+        </article>
+      </li>
+    })}</ol>
+  </section>
+}
+
 function Programme() {
-  return <><PageIntro eyebrow="Schedule & venues" title="Eight days in Bangkok." body="The tentative programme runs from 21 to 28 July 2027 across Mandarin Hotel, Kasetsart University, Chulalongkorn University and other programme locations." /><figure className="schedule-artifact wrap"><img src="/assets/iol-2027-schedule.png" alt="Tentative hourly schedule for IOL 2027 from 21 to 28 July" width={1320} height={899} /><figcaption><div><span>TENTATIVE SCHEDULE</span><p>Times and activities may change as the organising team confirms operations.</p></div><a className="pill" href="/downloads/IOL-2027-Schedule.html" target="_blank" rel="noreferrer">Open full schedule <span><ExternalLink size={15} /></span></a></figcaption></figure><section className="timeline wrap">{schedule.map((item) => <article key={item.date}><div><span>{item.day}</span><strong>{item.date}</strong></div><h2>{item.title}</h2><p>{item.detail}</p></article>)}</section><section className="venue-section"><div className="wrap"><p className="eyebrow">Venue plan</p><h2>Bangkok, connected.</h2><div className="venue-cards">{venues.map((venue) => <article key={venue.index}><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small><div className="venue-card-place"><span>{venue.building}</span><span>{venue.address}</span></div><MapsLink query={venue.mapQuery} name={venue.name} /></article>)}</div><RoutePanel /></div></section></>
+  return <><PageIntro eyebrow="Schedule & venues" title="Eight days in Bangkok." body="The tentative programme runs from 21 to 28 July 2027 across Mandarin Hotel, Kasetsart University, Chulalongkorn University and other programme locations." /><figure className="schedule-artifact wrap"><img src="/assets/iol-2027-schedule.png" alt="Tentative hourly schedule for IOL 2027 from 21 to 28 July" width={1320} height={899} /><figcaption><div><span>TENTATIVE SCHEDULE</span><p>Times and activities may change as the organising team confirms operations.</p></div><a className="pill" href="/downloads/IOL-2027-Schedule.html" target="_blank" rel="noreferrer">Open full schedule <span><ExternalLink size={15} /></span></a></figcaption></figure><ScheduleDays /><section className="venue-section"><div className="wrap"><p className="eyebrow">Venue plan</p><h2>Bangkok, connected.</h2><div className="venue-cards">{venues.map((venue) => <article key={venue.index}><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small><div className="venue-card-place"><span>{venue.building}</span><span>{venue.address}</span></div><MapsLink query={venue.mapQuery} name={venue.name} /></article>)}</div><RoutePanel /></div></section></>
 }
 
 // The Hosts page. Facts come from each host's own site (posn.or.th, chula.ac.th, ku.ac.th) and ioling.org;
@@ -722,8 +756,6 @@ const galleryPlaces: { id: string; venue: string; when: string; about: { href: s
   ] },
 ]
 const galleryPhotos = galleryPlaces.flatMap((place) => place.photos.map((photo) => ({ ...photo, venue: place.venue })))
-const albumIcons: Record<string, typeof Camera> = { 'Day 01': PlaneLanding, 'Day 02': Sparkles, 'Day 03': PenTool, 'Day 04': Compass, 'Day 05': Landmark, 'Day 06': Users, 'Day 07': Trophy, 'Day 08': PlaneTakeoff }
-
 function GalleryCredits({ photos }: { photos: GalleryPhoto[] }) {
   const [first] = photos
   if (photos.every((photo) => photo.creditUrl === first.creditUrl)) return <p className="gallery-credits">Photos: <a href={first.creditUrl} target="_blank" rel="noreferrer">{first.credit}</a></p>
@@ -788,7 +820,7 @@ function Gallery() {
     <section id="albums" className="gallery-albums"><div className="wrap">
       <header className="gallery-albums-head"><div><p className="eyebrow">July 2027</p><h2 className="mixed-heading">One album <em>for every day.</em></h2></div><p>Photographs from the Olympiad will be added after the July 2027 programme, sorted by day, from the first arrivals to the last departures.</p></header>
       <ol className="gallery-albums-list">{schedule.map((item) => {
-        const Icon = albumIcons[item.day] ?? Camera
+        const Icon = dayIcons[item.day] ?? Camera
         return <li key={item.day}><div className="gallery-album-cover" aria-hidden="true"><Icon size={24} /><strong>{item.date.split(' ')[0]}<small>{item.date.split(' ')[1]}</small></strong></div><p>{item.day}</p><h3>{item.title}</h3></li>
       })}</ol>
     </div></section>
