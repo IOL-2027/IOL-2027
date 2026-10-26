@@ -1,8 +1,11 @@
 // Form pieces shared by the Team Leader portal, sign-in screens and the staff back office.
 import type { InputHTMLAttributes, ReactNode } from 'react'
-import { CircleAlert } from 'lucide-react'
-import { ApiError } from './api'
+import { CircleAlert, LogOut } from 'lucide-react'
+import { ApiError, type User } from './api'
 import { selectOptions, type Field } from './portalData'
+
+// Until launch the portal runs on test data that may be reset; its build (VITE_TEST_ENVIRONMENT) and local development say so.
+export const testEnvironment = import.meta.env.VITE_TEST_ENVIRONMENT === 'true' || /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
 
 export const slug = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 export const formatDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })
@@ -96,5 +99,38 @@ export function TextField({ name, label, hint, error, idPrefix = 'acc', ...input
       <input id={id} name={name} className="reg-control" aria-invalid={error ? true : undefined}
         aria-describedby={[hint ? `${id}-hint` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined} {...input} />
     </div>
+  )
+}
+
+/** Who is signed in and the way out, at the top right of the page header. */
+export function SessionBar({ user, onSignOut }: { user?: User | null; onSignOut?: () => void }) {
+  if (!testEnvironment && !user) return null
+  return (
+    <div className="reg-head-session">
+      {testEnvironment && <span className="reg-test-chip">Test environment · data may be reset</span>}
+      {user && <span className="reg-head-who">Signed in as <strong>{user.fullName}</strong></span>}
+      {user && onSignOut && <button type="button" className="reg-head-signout" onClick={onSignOut}><LogOut size={15} aria-hidden="true" />Sign out</button>}
+    </div>
+  )
+}
+
+/** The dark band that opens every signed-in page: what this is, whose it is, and (aside) where things stand. */
+export function PageHead({ eyebrow, title, intro, session, aside, children }: {
+  eyebrow: string; title: ReactNode; intro?: ReactNode; session?: ReactNode; aside?: ReactNode; children?: ReactNode
+}) {
+  return (
+    <header className="reg-head">
+      <div className="wrap">
+        <div className="reg-head-top"><p className="reg-head-eyebrow">{eyebrow}</p>{session}</div>
+        <div className="reg-head-main">
+          <div className="reg-head-title">
+            <h1>{title}</h1>
+            {intro && <p className="reg-head-intro">{intro}</p>}
+            {children}
+          </div>
+          {aside}
+        </div>
+      </div>
+    </header>
   )
 }

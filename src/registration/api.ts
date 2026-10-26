@@ -59,7 +59,8 @@ export type DelegationData = {
 }
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number, readonly missing?: string[]) {
+  /** `data` is the whole error body, for answers that carry more than a message (e.g. a used invitation code). */
+  constructor(message: string, readonly status: number, readonly missing?: string[], readonly data?: Record<string, unknown>) {
     super(message)
   }
 }
@@ -80,7 +81,7 @@ export async function api<T>(path: string, { method = 'GET', body, form }: Optio
   // The public site has no API behind it: Firebase answers /api with the HTML app shell.
   if (!type.includes('application/json')) throw new ApiError('The registration server is not available here.', 503)
   const data = await response.json()
-  if (!response.ok) throw new ApiError(data.error ?? 'Something went wrong.', response.status, data.missing)
+  if (!response.ok) throw new ApiError(data.error ?? 'Something went wrong.', response.status, data.missing, data)
   return data as T
 }
 

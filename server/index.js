@@ -21,7 +21,7 @@ import {
 import { calculateFees, loadSettings, needsGuardianConsent } from './fees.js'
 import {
   asyncHandler, buildUpdate, camelizeRow, camelizeRows, hashToken, insertAudit, isEmail, missingMemberDetails,
-  optionalNumber, optionalString, pool, query, requireDb, requiredString, portalUrl, withTransaction,
+  exposeDevCodes, optionalNumber, optionalString, pool, query, requireDb, requiredString, portalUrl, withTransaction,
 } from './lib.js'
 import { issuePasswordCode, issueVerificationCode } from './codes.js'
 import { registerAdminRoutes } from './admin.js'
@@ -129,15 +129,27 @@ app.get('/api/registration/options', (_req, res) => {
   })
 })
 
+// "ananya@chula.ac.th" becomes "a•••••@chula.ac.th": enough for the code holder to recognise the account.
+const maskEmail = (email) => `${email[0]}•••••${email.slice(email.indexOf('@'))}`
+
 app.post('/api/registration/invite/verify', asyncHandler(async (req, res) => {
   const code = requiredString(req.body.code, 'invite code').toUpperCase()
-  const result = await query(
-    `SELECT code, country_territory, accredited_organisation, max_teams
-     FROM invite_codes WHERE code = $1 AND status = 'active' AND used_by_account_id IS NULL`,
+  const invite = (await query(
+    `SELECT i.code, i.country_territory, i.accredited_organisation, i.max_teams, i.status, i.used_by_account_id, a.email AS used_by_email
+     FROM invite_codes i LEFT JOIN accounts a ON a.id = i.used_by_account_id WHERE i.code = $1`,
     [code],
-  )
-  if (!result.rowCount) throw new HttpError(404, 'That code was not found or has already been used. Check the invitation email, or contact the organisers.')
-  res.json({ invite: camelizeRow(result.rows[0]) })
+  )).rows[0]
+  // A used code means the Team Leader account already exists (often someone who left before finishing),
+  // so the answer sends them to sign in rather than saying the code is wrong.
+  if (invite && (invite.status === 'used' || invite.used_by_account_id)) {
+    return res.status(409).json({
+      error: `This code has already been used to create the Team Leader account for ${invite.country_territory}. Sign in with that account instead.`,
+      codeUsed: true, countryTerritory: invite.country_territory, accountHint: invite.used_by_email ? maskEmail(invite.used_by_email) : null,
+    })
+  }
+  if (invite?.status !== 'active') throw new HttpError(404, 'That code was not found. Check the invitation email, or contact the organisers.')
+  const { country_territory, accredited_organisation, max_teams } = invite
+  res.json({ invite: camelizeRow({ code: invite.code, country_territory, accredited_organisation, max_teams }) })
 }))
 
 /* ------------------------------------------------------------------ */
@@ -241,6 +253,15 @@ app.post('/api/registration/team-leader-account', asyncHandler(async (req, res) 
       [inviteCode],
     )).rows[0]
     if (!invite) throw new HttpError(404, 'That code was not found or has already been used.')
+    // The reusable test code (test servers only) replaces the account made with it last time, so the
+    // sign-up can be tried again and again, with the same email address if wanted.
+    const reuse = invite.reusable && exposeDevCodes
+    if (reuse) {
+      for (const previous of (await client.query('SELECT id, account_id FROM delegations WHERE invite_code_id = $1', [invite.id])).rows) {
+        await client.query('DELETE FROM delegations WHERE id = $1', [previous.id])
+        await client.query(`DELETE FROM accounts WHERE id = $1 AND role = 'team_leader'`, [previous.account_id])
+      }
+    }
     // An existing account is never modified here: that would let anyone holding a code reset its password.
     const existing = await client.query('SELECT 1 FROM accounts WHERE lower(email) = $1', [email])
     if (existing.rowCount) throw new HttpError(409, 'An account with this email already exists. Sign in instead.')
@@ -261,7 +282,7 @@ app.post('/api/registration/team-leader-account', asyncHandler(async (req, res) 
       [delegation.id, fullName, email],
     )
     await ensureTeams(client, delegation)
-    await client.query(`UPDATE invite_codes SET status = 'used', used_at = now(), used_by_account_id = $1, updated_at = now() WHERE id = $2`, [account.id, invite.id])
+    if (!reuse) await client.query(`UPDATE invite_codes SET status = 'used', used_at = now(), used_by_account_id = $1, updated_at = now() WHERE id = $2`, [account.id, invite.id])
     await insertAudit(client, { actorAccountId: account.id, delegationId: delegation.id, eventType: 'team_leader_account_created', entityType: 'delegation', entityId: delegation.id, details: { inviteCode } })
     return { account, delegation }
   })

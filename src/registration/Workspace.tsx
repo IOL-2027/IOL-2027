@@ -1,11 +1,12 @@
-// The Team Leader's registration workspace: a step rail on the left, one step at a time on the right.
+// The Team Leader's registration workspace: an overview of the whole track for anyone coming back, then a step
+// rail on the left and one step at a time on the right.
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, Info, Lock, Upload, UserPlus } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, Info, LayoutGrid, Lock, Upload, UserPlus } from 'lucide-react'
 import { api, ApiError, type DelegationData, type Member } from './api'
 import { personFieldGroups, programmeWindow, sections, type Field, type PortalRecord, type Section, type SectionId } from './portalData'
 import { consentFor, personFields, personGaps, personPayload, personRecord, teamRecord, tripPayload, tripRecord, welfareFacts } from './live'
 import { openInvoice, openReceipt } from './invoice'
-import { Alert, Facts, FieldControl, daysBetween, focusFirstError, formatDate, messageOf } from './ui'
+import { Alert, Facts, FieldControl, PageHead, daysBetween, focusFirstError, formatDate, messageOf } from './ui'
 
 type StepStatus = 'done' | 'todo' | 'locked' | 'info' | 'waiting' | 'after'
 const statusLabel: Record<StepStatus, string> = {
@@ -39,10 +40,12 @@ type StaffView = { roleLabel: string; onBack: () => void }
  * One delegation's registration, step by step. Team Leaders see their own; registration admins open
  * any country's from the back office (staff), and every change is recorded under their name.
  */
-export default function Workspace({ delegationId, onSessionEnd, staff }: { delegationId: string; onSessionEnd: () => void; staff?: StaffView }) {
+export default function Workspace({ delegationId, onSessionEnd, staff, session }: { delegationId: string; onSessionEnd: () => void; staff?: StaffView; session?: ReactNode }) {
   const [data, setData] = useState<DelegationData | null>(null)
   const [loadError, setLoadError] = useState('')
   const [activeId, setActiveId] = useState<SectionId>('start')
+  // The overview: where someone coming back lands, and the first item in the step rail.
+  const [home, setHome] = useState(false)
   const [selected, setSelected] = useState<Partial<Record<SectionId, string>>>({})
   const [draftOpen, setDraftOpen] = useState(false)
   const [recordOpen, setRecordOpen] = useState(false)
@@ -81,6 +84,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff }: { deleg
       if (requested && sections.some((s) => s.id === requested)) { navigated.current = true; setActiveId(requested as SectionId); return }
       if (d.delegation.registrationStatus !== 'draft') setActiveId('review')
       else if (steps.has('start')) setActiveId(required.find((s) => (s.id === 'payment' ? !paid : !steps.has(s.id)))?.id ?? 'review')
+      // A first visit starts with "Before you begin"; anyone who has been here before sees the overview.
+      if (steps.has('start') || d.delegation.registrationStatus !== 'draft') setHome(true)
     }).catch((e) => { if (!current) return; if (e instanceof ApiError && e.status === 401) onSessionEnd(); else setLoadError(messageOf(e)) })
     return () => { current = false }
   }, [load, onSessionEnd])
@@ -90,7 +95,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff }: { deleg
     titleRef.current?.focus({ preventScroll: true })
     const top = panelRef.current?.getBoundingClientRect().top ?? 0
     if (top < 100 || top > window.innerHeight * 0.6) panelRef.current?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
-  }, [activeId, recordOpen])
+  }, [activeId, recordOpen, home])
 
   const derived = useMemo(() => {
     if (!data) return null
@@ -111,8 +116,15 @@ export default function Workspace({ delegationId, onSessionEnd, staff }: { deleg
     return { d, steps, payment, paymentDone, submitted, records }
   }, [data, draftOpen])
 
-  if (loadError) return <div className="reg-panel"><Alert>{loadError}</Alert></div>
-  if (!data || !derived) return <p className="reg-loading" role="status">{staff ? 'Loading the registration…' : 'Loading your registration…'}</p>
+  const eyebrow = staff ? `Back office · ${staff.roleLabel}` : 'Team Leader portal'
+  if (loadError || !data || !derived) {
+    return <>
+      <PageHead eyebrow={eyebrow} title={staff ? 'Registration' : 'Your registration'} session={session} />
+      <div className="reg-shell wrap">
+        {loadError ? <div className="reg-panel"><Alert>{loadError}</Alert></div> : <p className="reg-loading" role="status">{staff ? 'Loading the registration…' : 'Loading your registration…'}</p>}
+      </div>
+    </>
+  }
 
   const { d, steps, payment, paymentDone, submitted, records } = derived
   const isDone = (id: SectionId) => (id === 'payment' ? paymentDone : id === 'review' ? submitted : steps.has(id))
@@ -135,7 +147,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff }: { deleg
 
   const open = (id: SectionId) => {
     navigated.current = true
-    setActiveId(id); setNavOpen(false); setRecordOpen(false)
+    setHome(false); setActiveId(id); setNavOpen(false); setRecordOpen(false)
     setFieldErrors({}); setSectionError(null); setSavedNote('')
   }
 
@@ -347,42 +359,149 @@ export default function Workspace({ delegationId, onSessionEnd, staff }: { deleg
   const consentMember = activeId === 'people' ? data.members.find((m) => m.id === currentRecord?.id && m.needsGuardianConsent) : undefined
   const consent = consentMember ? consentFor(consentMember, data.attachments) : undefined
 
-  return (
-    <div className="reg-workspace">
+  /* overview --------------------------------------------------------- */
+  const paymentStatus = payment?.status
+  const peopleCount = data.members.filter((m) => m.role !== 'team_leader').length
+  const peopleToFinish = (records.people ?? []).filter((r) => r.status === 'attention' && r.id !== NEW_PERSON).length
+  const flightsIn = data.travelRecords.filter((t) => t.flightServiceNumber && t.localDate).length
+  const trackDetail: Record<SectionId, string> = {
+    start: '',
+    setup: steps.has('setup') ? `${d.numberOfTeams} ${d.numberOfTeams === 1 ? 'team' : 'teams'}, ${d.numberOfObservers} ${d.numberOfObservers === 1 ? 'observer' : 'observers'}.` : 'How many teams and observers. These two numbers set your fees.',
+    payment: paymentStatus === 'approved' ? 'Approved by Finance. The e-receipt is in this step.'
+      : paymentStatus === 'awaiting_review' ? 'Proof uploaded. Finance is matching it against the bank statement.'
+      : paymentStatus === 'rejected' ? 'Finance returned the proof. Upload a new one.'
+      : payment ? 'Invoice details saved. Transfer, then upload the bank’s proof.' : 'Invoice details, the bank transfer, then the proof of transfer.',
+    teams: steps.has('teams') ? data.teams.map((t) => `${t.name}: ${t.contestLanguage ?? 'no language yet'}`).join(' · ') : 'Choose each team’s contest language.',
+    people: !paymentDone ? 'Opens once the proof of payment is uploaded.'
+      : `${peopleCount} ${peopleCount === 1 ? 'person' : 'people'} entered${peopleToFinish ? `, ${peopleToFinish} still to finish` : ''}.`,
+    welfare: steps.has('welfare') ? 'Summary checked.' : 'Check the summary built from everyone’s details.',
+    travel: d.declaredArrivalDate && d.declaredDepartureDate
+      ? `Staying ${formatDate(d.declaredArrivalDate)} to ${formatDate(d.declaredDepartureDate)}. ${flightsIn} of 2 flights added.`
+      : 'Stay dates now; flights once they are booked.',
+    review: submitted ? `Submitted${d.submittedAt ? ` on ${new Date(d.submittedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}` : ''}.` : allRequiredDone ? 'Everything is in. Ready to submit.' : 'Opens once the steps above are done.',
+    badges: '',
+  }
+  type TrackState = StepStatus | 'next'
+  type TrackStep = { key: string; title: string; detail: string; state: TrackState; label: string; to?: SectionId }
+  const trackOf = (s: Section): TrackStep => {
+    const st = statusOf(s)
+    const state: TrackState = !submitted && st !== 'done' && st !== 'locked' && s.id === firstOpenStep?.id ? 'next' : st === 'info' ? 'todo' : st
+    return { key: s.id, title: s.title, detail: trackDetail[s.id], state, label: state === 'next' ? 'Next' : statusLabel[st], to: s.id }
+  }
+  const phases: { title: string; steps: TrackStep[] }[] = [
+    { title: 'Your account', steps: [
+      { key: 'code', title: 'Invitation code', detail: `Linked this account to ${d.countryTerritory}.`, state: 'done', label: 'Done' },
+      { key: 'account', title: 'Team Leader account', detail: `${d.teamLeaderEmail}, email checked.`, state: 'done', label: 'Done' },
+    ] },
+    { title: 'Registration', steps: main.filter((s) => s.id !== 'start').map(trackOf) },
+    { title: 'Before the Olympiad', steps: [
+      { key: 'letters', title: 'Invitation letters', detail: paymentStatus === 'approved' ? 'Your payment is confirmed, so letters for visa applications follow by email.' : 'One for each person, sent once the payment is confirmed.', state: 'after', label: 'Later' },
+      { key: 'badges', title: 'QR badges', detail: 'Emailed once the payment is confirmed and everyone’s arrival and departure are in.', state: 'after', label: 'Later', to: 'badges' },
+      { key: 'arrival', title: 'Arrival in Bangkok', detail: 'From 21 July 2027. Badges are scanned at the arrival desk.', state: 'after', label: 'Later' },
+    ] },
+  ]
+
+  const nextStep: { tone: 'go' | 'warn' | 'done'; kicker: string; title: string; body: ReactNode; to: SectionId; cta: string } =
+    submitted ? { tone: 'done', kicker: 'Registration submitted', title: 'Submitted. Thank you.', to: 'review', cta: 'See your registration',
+      body: 'Finance checks the payment next. People and travel can still be updated until the change deadline.' }
+    : paymentStatus === 'rejected' ? { tone: 'warn', kicker: 'Action needed', title: 'Upload a new proof of payment', to: 'payment', cta: 'Go to Payment',
+      body: <>Finance could not match your proof of transfer.{payment?.reviewNote ? <> Their note: “{payment.reviewNote}”</> : null}</> }
+    : allRequiredDone ? { tone: 'go', kicker: 'Ready', title: 'Everything is in. Submit your registration.', to: 'review', cta: 'Review and submit',
+      body: 'Check it once more, then submit. You can still update people and travel afterwards.' }
+    : { tone: 'go', kicker: doneCount ? 'Pick up where you left off' : 'Where to start', title: `Next: ${firstOpenStep?.title ?? 'Review'}`, to: firstOpenStep?.id ?? 'review', cta: `Continue to ${firstOpenStep?.title ?? 'Review'}`,
+      body: <>{firstOpenStep?.intro}{paymentStatus === 'awaiting_review' && <> Finance is checking your proof of payment; carry on meanwhile.</>}</> }
+
+  // Registration steps keep the numbers the step rail gives them.
+  const trackMark = (step: TrackStep) => step.state === 'done' ? <Check size={15} strokeWidth={3} />
+    : step.state === 'locked' ? <Lock size={14} strokeWidth={2.4} />
+    : step.state === 'after' ? <Clock size={14} /> : stepNumber(sections.find((s) => s.id === step.to)!)
+
+  const overview = (
+    <section className="reg-home" aria-labelledby="reg-home-title">
+      <div className={`reg-home-next is-${nextStep.tone}`}>
+        <div>
+          <p className="reg-home-kicker">{nextStep.kicker}</p>
+          <h2 id="reg-home-title" ref={titleRef} tabIndex={-1}>{nextStep.title}</h2>
+          <p>{nextStep.body}</p>
+        </div>
+        <button type="button" className="reg-btn reg-btn-primary" onClick={() => open(nextStep.to)}>{nextStep.cta} <ArrowRight size={18} aria-hidden="true" /></button>
+      </div>
+
+      <div className="reg-track">
+        {phases.map((phase) => (
+            <div className="reg-track-phase" key={phase.title}>
+              <h3>{phase.title}</h3>
+              <ol>
+                {phase.steps.map((step) => (
+                  <li key={step.key} className={`is-${step.state}`} aria-current={step.state === 'next' ? 'step' : undefined}>
+                    <span className="reg-track-mark" aria-hidden="true">{trackMark(step)}</span>
+                    <div className="reg-track-body">
+                      <p className="reg-track-title">
+                        {step.to && step.state !== 'after' ? <button type="button" onClick={() => open(step.to!)}>{step.title}</button> : <strong>{step.title}</strong>}
+                        <span className="reg-track-label">{step.label}</span>
+                      </p>
+                      <p className="reg-track-detail">{step.detail}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+        ))}
+      </div>
+
+      <div className="reg-home-foot">
+        <dl>
+          <div><dt>Early bird fee</dt><dd>Registrations submitted by 12 March 2027</dd></div>
+          <div><dt>Registration closes</dt><dd>30 April 2027</dd></div>
+          <div><dt>The Olympiad</dt><dd>21–28 July 2027, Bangkok</dd></div>
+        </dl>
+        <p>Questions about your registration? <a href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a></p>
+      </div>
+    </section>
+  )
+
+  const goHome = () => { setHome(true); setNavOpen(false); setRecordOpen(false); setSectionError(null); setSavedNote('') }
+
+  return <>
+    <PageHead eyebrow={eyebrow} title={d.countryTerritory} session={session}
+      intro={`${d.primaryTeamLeaderName} · Team Leader${staff ? ` · ${d.teamLeaderEmail}` : ''}`}
+      aside={
+        <div className="reg-head-progress">
+          <p><strong>{submitted ? 'Submitted' : `${doneCount} of ${required.length}`}</strong>{submitted ? ' · people and travel can still change' : ' steps done'}</p>
+          <div className="reg-meter" role="progressbar" aria-label="Registration progress" aria-valuemin={0} aria-valuemax={required.length} aria-valuenow={doneCount}>
+            <span style={{ transform: `scaleX(${doneCount / required.length})` }} />
+          </div>
+          {!home && !submitted && firstOpenStep && firstOpenStep.id !== activeId && (
+            <button type="button" className="reg-btn reg-btn-quiet" onClick={() => open(firstOpenStep.id)}>
+              Next: {firstOpenStep.title} <ArrowRight size={16} aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      }>
+      <ul className="reg-ws-summary" aria-label="Delegation summary">
+        <li>{d.numberOfTeams} {d.numberOfTeams === 1 ? 'team' : 'teams'} · up to {d.numberOfTeams * 4} contestants</li>
+        <li>{d.numberOfObservers} {d.numberOfObservers === 1 ? 'observer' : 'observers'}</li>
+        <li>{submitted ? 'Registration submitted' : paymentLabel[payment?.status ?? 'none']}</li>
+      </ul>
+    </PageHead>
+    <div className="reg-shell wrap reg-workspace">
       {staff && (
         <div className="reg-staff-bar">
           <button type="button" className="reg-btn-link" onClick={staff.onBack}><ArrowLeft size={16} aria-hidden="true" />Back to the back office</button>
           <p><Info size={16} aria-hidden="true" />You are working on this registration as {staff.roleLabel}. Changes are saved straight away and recorded under your name.</p>
         </div>
       )}
-      <header className="reg-ws-head">
-        <div className="reg-ws-who">
-          <h2>{d.countryTerritory}</h2>
-          <p>{d.primaryTeamLeaderName} · Team Leader{staff ? ` · ${d.teamLeaderEmail}` : ''}</p>
-          <ul className="reg-ws-summary" aria-label="Delegation summary">
-            <li>{d.numberOfTeams} {d.numberOfTeams === 1 ? 'team' : 'teams'} · up to {d.numberOfTeams * 4} contestants</li>
-            <li>{d.numberOfObservers} {d.numberOfObservers === 1 ? 'observer' : 'observers'}</li>
-            <li>{submitted ? 'Registration submitted' : paymentLabel[payment?.status ?? 'none']}</li>
-          </ul>
-        </div>
-        <div className="reg-ws-progress">
-          <p><strong>{submitted ? 'Submitted' : `${doneCount} of ${required.length}`}</strong>{submitted ? ' · you can still update travel and people' : ' steps done'}</p>
-          <div className="reg-meter" role="progressbar" aria-label="Registration progress" aria-valuemin={0} aria-valuemax={required.length} aria-valuenow={doneCount}>
-            <span style={{ transform: `scaleX(${doneCount / required.length})` }} />
-          </div>
-        </div>
-        {!submitted && firstOpenStep && firstOpenStep.id !== activeId && (
-          <button type="button" className="reg-btn reg-btn-quiet" onClick={() => open(firstOpenStep.id)}>
-            Next: {firstOpenStep.title} <ArrowRight size={16} aria-hidden="true" />
-          </button>
-        )}
-      </header>
+      {home && overview}
 
-      <div className="reg-ws-body">
+      {!home && <div className="reg-ws-body">
         <nav className={`reg-rail${navOpen ? ' is-open' : ''}`} aria-label="Registration steps">
           <button type="button" className="reg-rail-toggle" aria-expanded={navOpen} onClick={() => setNavOpen((v) => !v)}>
             <span>{section.afterSubmission ? 'After you submit' : `Step ${stepNumber(section)} of ${main.length}`}</span>
             <strong>{section.title}</strong>
+          </button>
+          <button type="button" className="reg-rail-item reg-rail-home" onClick={goHome}>
+            <span className="reg-mark is-home" aria-hidden="true"><LayoutGrid size={14} /></span>
+            <span className="reg-rail-text"><span>Overview</span><small>Where everything stands</small></span>
           </button>
           <ol>
             {main.map((s) => {
@@ -718,7 +837,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff }: { deleg
             <p className="reg-aside"><Info size={18} aria-hidden="true" />Staff use the <a href="/check-in">badge scanner</a> during event week.</p>
           </>}
         </section>
-      </div>
+      </div>}
     </div>
-  )
+  </>
 }

@@ -102,3 +102,7 @@ Unused codes for trying the sign-up itself (invitation code, account, email veri
 | --- | --- |
 | `IOL2027-TST-0001` | Testland (TEST) |
 | `IOL2027-TST-0002` | Sampleland (TEST) |
+
+`IOL2027-TST-LOOP` (**Loopland (TEST)**) never gets used up: on the test server each sign-up with it replaces the account made with it before, so the whole account setup can be walked through again and again, with the same `.test` address if you like. A real (production) server treats it as an ordinary single-use code.
+
+A code that has already been used is not reported as wrong: the portal says which country's account it created (with the address partly hidden, e.g. `t•••••@iol2027.test`) and offers to sign in instead.

@@ -1,8 +1,8 @@
 // Signing in, creating a Team Leader account with an invitation code, verifying the email,
 // and resetting a password (also how staff set their first password).
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ArrowLeft, ArrowRight, Check, CircleAlert, Info, KeyRound, MailCheck, ShieldCheck } from 'lucide-react'
-import { api, type User } from './api'
+import { ArrowLeft, ArrowRight, Check, CircleAlert, Info, KeyRound, LogIn, MailCheck, ShieldCheck } from 'lucide-react'
+import { api, ApiError, type User } from './api'
 import { Alert, TextField, focusFirstError, messageOf } from './ui'
 
 const accountSteps = ['Invitation', 'Account', 'Email code']
@@ -42,7 +42,7 @@ function DevCode({ code }: { code?: string }) {
   return code ? <p className="reg-devcode" role="status"><Info size={18} aria-hidden="true" /><span>Test server: email sending is switched off, so here is your code: <strong>{code}</strong></span></p> : null
 }
 
-function SignIn({ onSignedIn, onForgot, notice }: { onSignedIn: (user: User) => void; onForgot: (email: string) => void; notice?: string }) {
+function SignIn({ onSignedIn, onForgot, notice, staff }: { onSignedIn: (user: User) => void; onForgot: (email: string) => void; notice?: string; staff: boolean }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
@@ -63,7 +63,7 @@ function SignIn({ onSignedIn, onForgot, notice }: { onSignedIn: (user: User) => 
   return (
     <form ref={formRef} className="reg-account-card" onSubmit={submit} noValidate>
       <h2>Sign in</h2>
-      <p className="reg-lede">For Team Leaders who already have an account, and for organising staff.</p>
+      <p className="reg-lede">{staff ? 'For the IOL 2027 organising team.' : 'Started already? Sign in with the email you used. Everything you saved is still there.'}</p>
       {notice && <p className="reg-aside"><Info size={18} aria-hidden="true" />{notice}</p>}
       {error && <Alert>{error}</Alert>}
       <TextField name="email" label="Email address" type="email" autoComplete="email" required />
@@ -72,7 +72,7 @@ function SignIn({ onSignedIn, onForgot, notice }: { onSignedIn: (user: User) => 
         <button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'} <ArrowRight size={18} aria-hidden="true" /></button>
         <button type="button" className="reg-btn-link" onClick={forgot}><KeyRound size={16} aria-hidden="true" />Forgot your password?</button>
       </div>
-      <p className="reg-reassure"><Info size={18} aria-hidden="true" /><span>Staff setting up a new account: choose “Forgot your password?” and use the code from your setup email.</span></p>
+      {staff && <p className="reg-reassure"><Info size={18} aria-hidden="true" /><span>New organiser account? Choose “Forgot your password?” and use the code from your setup email.</span></p>}
     </form>
   )
 }
@@ -159,20 +159,47 @@ function ResetPassword({ initialEmail, onDone, onBack }: { initialEmail: string;
   )
 }
 
-function SignUp({ onCreated, initialCode }: { onCreated: (user: User, developmentCode?: string) => void; initialCode?: string }) {
+type Invite = { code: string; countryTerritory: string; accreditedOrganisation: string | null }
+type UsedCode = { country: string; accountHint: string | null }
+const codePattern = /^IOL2027-[A-Z]{3}-[A-Z0-9]{4}$/i
+
+function SignUp({ onCreated, onSignIn, onForgot, initialCode }: {
+  onCreated: (user: User, developmentCode?: string) => void; onSignIn: () => void; onForgot: () => void; initialCode?: string
+}) {
   const [step, setStep] = useState(0)
-  const [invite, setInvite] = useState<{ code: string; countryTerritory: string; accreditedOrganisation: string | null } | null>(null)
+  const [invite, setInvite] = useState<Invite | null>(null)
+  const [used, setUsed] = useState<UsedCode | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
-  const { headingRef, rootRef } = useStepFocus(step)
+  const { headingRef, rootRef } = useStepFocus(used ? 'used' : step)
+
+  /** Checks a code. A used one means the account exists already, so the answer is to sign in, not an error. */
+  const checkCode = async (code: string) => {
+    try {
+      const result = await api<{ invite: Invite }>('/api/registration/invite/verify', { method: 'POST', body: { code } })
+      setInvite(result.invite); setStep(1)
+    } catch (e) {
+      if (e instanceof ApiError && e.data?.codeUsed) setUsed({ country: String(e.data.countryTerritory ?? ''), accountHint: (e.data.accountHint as string | null) ?? null })
+      else throw e
+    }
+  }
+
+  // A link from the invitation email carries the code: check it straight away.
+  const checkedLink = useRef(false)
+  useEffect(() => {
+    if (checkedLink.current || !initialCode || !codePattern.test(initialCode)) return
+    checkedLink.current = true
+    setBusy(true)
+    checkCode(initialCode.toUpperCase()).catch((e) => setErrors({ code: messageOf(e) })).finally(() => setBusy(false))
+  }, [initialCode])
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
     const value = (name: string) => String(data.get(name) ?? '').trim()
     const found: Record<string, string> = {}
-    if (step === 0 && !/^IOL2027-[A-Z]{3}-[A-Z0-9]{4}$/i.test(value('code'))) found.code = 'Enter the code in the format IOL2027-ABC-1234. It is in the invitation email from the organisers.'
+    if (step === 0 && !codePattern.test(value('code'))) found.code = 'Enter the code in the format IOL2027-ABC-1234. It is in the invitation email from the organisers.'
     if (step === 1) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value('email'))) found.email = 'Enter an email address like name@example.org.'
       if (!value('name')) found.name = 'Enter the Team Leader’s full name.'
@@ -183,8 +210,7 @@ function SignUp({ onCreated, initialCode }: { onCreated: (user: User, developmen
     setBusy(true)
     try {
       if (step === 0) {
-        const result = await api<{ invite: { code: string; countryTerritory: string; accreditedOrganisation: string | null } }>('/api/registration/invite/verify', { method: 'POST', body: { code: value('code') } })
-        setInvite(result.invite); setStep(1)
+        await checkCode(value('code'))
       } else if (invite) {
         const result = await api<{ user: User; developmentCode?: string }>('/api/registration/team-leader-account', {
           method: 'POST', body: { inviteCode: invite.code, email: value('email'), fullName: value('name'), password: String(data.get('password')) },
@@ -197,6 +223,24 @@ function SignUp({ onCreated, initialCode }: { onCreated: (user: User, developmen
     } finally {
       setBusy(false)
     }
+  }
+
+  if (used) {
+    return (
+      <div ref={rootRef} className="reg-account-card reg-used">
+        <span className="reg-used-icon" aria-hidden="true"><LogIn size={22} /></span>
+        <h2 ref={headingRef} tabIndex={-1}>This code has been used</h2>
+        <p className="reg-lede">
+          The Team Leader account for <strong>{used.country}</strong> was created with it{used.accountHint ? <>, using <strong>{used.accountHint}</strong></> : null}.
+          Sign in with that account to carry on where you left off. Nothing you saved is lost.
+        </p>
+        <div className="reg-account-actions">
+          <button type="button" className="reg-btn reg-btn-primary" onClick={onSignIn}>Sign in <ArrowRight size={18} aria-hidden="true" /></button>
+          <button type="button" className="reg-btn-link" onClick={onForgot}><KeyRound size={16} aria-hidden="true" />Forgot the password?</button>
+        </div>
+        <p className="reg-reassure"><Info size={18} aria-hidden="true" /><span>Not your account? Someone else in your country may have set it up: ask them, or write to <a href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a>. <button type="button" className="reg-inline-btn" onClick={() => { setUsed(null); setStep(0); setErrors({}) }}>Try another code</button></span></p>
+      </div>
+    )
   }
 
   return (
@@ -230,8 +274,12 @@ function SignUp({ onCreated, initialCode }: { onCreated: (user: User, developmen
   )
 }
 
-export function VerifyEmail({ user, developmentCode, showStepper, onVerified, onSignOut }: {
-  user: User; developmentCode?: string; showStepper: boolean; onVerified: (user: User) => void; onSignOut: () => void
+/**
+ * The last step of the account setup. `fresh` is straight after creating the account, when the code has just been sent;
+ * otherwise this is a Team Leader coming back to an unverified account, so a new code goes out as the page opens.
+ */
+export function VerifyEmail({ user, developmentCode, fresh, onVerified, onSignOut }: {
+  user: User; developmentCode?: string; fresh: boolean; onVerified: (user: User) => void; onSignOut: () => void
 }) {
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
@@ -246,20 +294,31 @@ export function VerifyEmail({ user, developmentCode, showStepper, onVerified, on
     catch (e) { setError(messageOf(e)) }
     finally { setBusy(false) }
   }
-  const resend = async () => {
+  const resend = async (quiet = false) => {
     setError(''); setStatus('')
     try {
       const result = await api<{ developmentCode?: string }>('/api/auth/verify-email/request', { method: 'POST' })
       if (result.developmentCode) setCode(result.developmentCode)
-      setStatus(`A new code is on its way to ${user.email}.`)
-    } catch (e) { setError(messageOf(e)) }
+      if (!quiet) setStatus(`A new code is on its way to ${user.email}.`)
+    } catch (e) {
+      // 429: a code went out less than a minute ago and still works.
+      if (!(quiet && e instanceof ApiError && e.status === 429)) setError(messageOf(e))
+    }
   }
+  const sentOnOpen = useRef(false)
+  useEffect(() => {
+    if (fresh || sentOnOpen.current) return
+    sentOnOpen.current = true
+    resend(true)
+  }, [fresh])
   return (
     <div>
-      {showStepper && <Stepper step={2} />}
+      <Stepper step={2} />
       <form className="reg-account-card" onSubmit={submit} noValidate>
-        <h2>Check your email</h2>
-        <p className="reg-lede">We sent a 6-digit code to <strong>{user.email}</strong>. It expires in 30 minutes.</p>
+        <h2>{fresh ? 'Check your email' : 'One step left: your email'}</h2>
+        <p className="reg-lede">{fresh
+          ? <>We sent a 6-digit code to <strong>{user.email}</strong>. It expires in 30 minutes.</>
+          : <>Your account is set up, but the email address still needs checking. We sent a new 6-digit code to <strong>{user.email}</strong>.</>}</p>
         <DevCode code={code} />
         <div className={`reg-field${error ? ' has-error' : ''}`}>
           <label htmlFor="acc-otp">Code from the email</label>
@@ -267,7 +326,7 @@ export function VerifyEmail({ user, developmentCode, showStepper, onVerified, on
           <input id="acc-otp" name="otp" className="reg-control reg-control-otp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} aria-invalid={error ? true : undefined} aria-describedby={error ? 'acc-otp-error' : undefined} />
         </div>
         <p className="reg-reassure"><MailCheck size={18} aria-hidden="true" />
-          <span>No email? Check spam, or <button type="button" className="reg-inline-btn" onClick={resend}>send a new code</button>. Wrong address? <button type="button" className="reg-inline-btn" onClick={onSignOut}>Sign out</button> and contact the organisers.</span>
+          <span>No email? Check spam, or <button type="button" className="reg-inline-btn" onClick={() => resend()}>send a new code</button>. Wrong address? <button type="button" className="reg-inline-btn" onClick={onSignOut}>Sign out</button> and contact the organisers.</span>
         </p>
         <p className="reg-status-line" role="status">{status}</p>
         <div className="reg-account-actions"><button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{busy ? 'Checking…' : 'Verify and continue'} <ArrowRight size={18} aria-hidden="true" /></button></div>
@@ -277,7 +336,7 @@ export function VerifyEmail({ user, developmentCode, showStepper, onVerified, on
 }
 
 /**
- * Sign in, or create a Team Leader account with an invitation code. The organisers' door (allowSignup false)
+ * Sign in, or create a Team Leader account with an invitation code, in one card. The organisers' door (allowSignup false)
  * offers only sign-in and password reset. initialCode (from an invitation email link) opens the sign-up with it filled in.
  */
 export function Entry({ onSignedIn, onCreated, notice, allowSignup = true, initialCode }: {
@@ -286,15 +345,15 @@ export function Entry({ onSignedIn, onCreated, notice, allowSignup = true, initi
   const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>(allowSignup && initialCode ? 'signup' : 'signin')
   const [resetEmail, setResetEmail] = useState('')
   return (
-    <div className="reg-account">
+    <div className="reg-account reg-entry">
       {mode !== 'reset' && allowSignup && (
         <div className="reg-switch" role="group" aria-label="How do you want to start?">
           <button type="button" aria-pressed={mode === 'signin'} className={mode === 'signin' ? 'active' : undefined} onClick={() => setMode('signin')}>Sign in</button>
           <button type="button" aria-pressed={mode === 'signup'} className={mode === 'signup' ? 'active' : undefined} onClick={() => setMode('signup')}>I have an invitation code</button>
         </div>
       )}
-      {mode === 'signin' && <SignIn onSignedIn={onSignedIn} notice={notice} onForgot={(email) => { setResetEmail(email); setMode('reset') }} />}
-      {mode === 'signup' && <SignUp onCreated={onCreated} initialCode={initialCode} />}
+      {mode === 'signin' && <SignIn staff={!allowSignup} onSignedIn={onSignedIn} notice={notice} onForgot={(email) => { setResetEmail(email); setMode('reset') }} />}
+      {mode === 'signup' && <SignUp onCreated={onCreated} initialCode={initialCode} onSignIn={() => setMode('signin')} onForgot={() => { setResetEmail(''); setMode('reset') }} />}
       {mode === 'reset' && <ResetPassword initialEmail={resetEmail} onDone={onSignedIn} onBack={() => setMode('signin')} />}
     </div>
   )
