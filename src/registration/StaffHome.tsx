@@ -1,10 +1,12 @@
-// The staff back office: a section list on the left, one section at a time on the right.
-// Each role sees only its sections; the API enforces the same rules (docs/ROLES.md).
+// The staff back office: a section list on the left, one section at a time on the right, opening on a home page
+// with what is waiting and quick actions. Each role sees only its sections; the API enforces the same rules (docs/ROLES.md).
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react'
-import { Banknote, CreditCard, Download, Globe2, HeartPulse, History, Inbox, LayoutDashboard, Mail, QrCode, ShieldCheck, UserCog, Users } from 'lucide-react'
+import { BarChart3, Banknote, CreditCard, Download, Globe2, HeartPulse, History, House, Inbox, Mail, QrCode, ShieldCheck, UserCog, Users } from 'lucide-react'
 import { roleLabel, type Role, type User } from './api'
 import Workspace from './Workspace'
+import { PageHead, daysBetween } from './ui'
 import Accounts from './staff/Accounts'
+import Home from './staff/Home'
 import Invites from './staff/Invites'
 import Overview from './staff/Overview'
 import Payments from './staff/Payments'
@@ -51,7 +53,8 @@ type SectionDef = { id: string; label: string; group: string; icon: ComponentTyp
 
 // Super admins see every section; `roles` lists who else does.
 const sectionDefs: SectionDef[] = [
-  { id: 'overview', label: 'Overview', group: 'Registration', icon: LayoutDashboard, roles: ['registration_admin', 'finance_admin', 'viewer'] },
+  { id: 'home', label: 'Home', group: 'Registration', icon: House, roles: ['registration_admin', 'finance_admin', 'checkin_staff', 'welfare_staff', 'viewer'] },
+  { id: 'overview', label: 'Statistics', group: 'Registration', icon: BarChart3, roles: ['registration_admin', 'finance_admin', 'viewer'] },
   { id: 'countries', label: 'Countries', group: 'Registration', icon: Globe2, roles: ['registration_admin', 'finance_admin', 'welfare_staff'] },
   { id: 'people', label: 'People', group: 'Registration', icon: Users, roles: ['registration_admin', 'finance_admin', 'checkin_staff'] },
   { id: 'invites', label: 'Invitation codes', group: 'Registration', icon: Mail, roles: ['registration_admin'] },
@@ -68,7 +71,28 @@ const sectionDefs: SectionDef[] = [
 
 const readHash = () => window.location.hash.replace(/^#/, '')
 
-export default function StaffHome({ user, onSessionEnd }: { user: User; onSessionEnd: () => void }) {
+/** The next milestone, counted in Bangkok days, for the corner of the back-office header. */
+function milestone() {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })
+  const days = (iso: string) => daysBetween(today, iso)
+  if (today < '2027-01-18') return { count: days('2027-01-18'), label: 'until registration opens', date: '18 January 2027' }
+  if (today <= '2027-04-30') return { count: days('2027-04-30'), label: 'left to register', date: 'Registration closes 30 April 2027' }
+  if (today < '2027-07-21') return { count: days('2027-07-21'), label: 'until the Olympiad', date: '21–28 July 2027, Bangkok' }
+  if (today <= '2027-07-28') return { count: null, label: 'Olympiad week', date: '21–28 July 2027, Bangkok' }
+  return { count: null, label: 'IOL 2027 has ended', date: 'Bangkok, 21–28 July 2027' }
+}
+
+function Milestone() {
+  const m = milestone()
+  return (
+    <div className="reg-head-count">
+      {m.count !== null ? <p><strong>{m.count}</strong> {m.count === 1 ? 'day' : 'days'} {m.label}</p> : <p><strong>{m.label}</strong></p>}
+      <small>{m.date}</small>
+    </div>
+  )
+}
+
+export default function StaffHome({ user, onSessionEnd, session }: { user: User; onSessionEnd: () => void; session?: ReactNode }) {
   const role = user.role
   const isSuper = role === 'super_admin'
   const visible = sectionDefs.filter((s) => isSuper || s.roles.includes(role))
@@ -86,17 +110,23 @@ export default function StaffHome({ user, onSessionEnd }: { user: User; onSessio
     if (top < 0) topRef.current?.scrollIntoView({ block: 'start' })
   }, [active])
 
-  if (role === 'participant') return <div className="reg-staff"><ParticipantPanel /></div>
-  if (role === 'content_editor' || role === 'results_staff') return <div className="reg-staff"><ComingPanel role={role} /></div>
+  const head = role === 'participant'
+    ? <PageHead eyebrow="Participant" title="Your registration" session={session} />
+    : <PageHead eyebrow={`Back office · ${roleLabel[role]}`} title={`Hello, ${user.fullName}.`} intro="You see only the tools and data this role needs." session={session} aside={<Milestone />} />
+  const page = (body: ReactNode) => <>{head}<div className="reg-shell wrap">{body}</div></>
+
+  if (role === 'participant') return page(<div className="reg-staff"><ParticipantPanel /></div>)
+  if (role === 'content_editor' || role === 'results_staff') return page(<div className="reg-staff"><ComingPanel role={role} /></div>)
 
   const canOpen = role === 'registration_admin' || isSuper
   const openCountry = canOpen ? (id: string) => { setOpenDelegation(id); window.scrollTo({ top: 0 }) } : undefined
   if (openDelegation) {
-    return <Workspace delegationId={openDelegation} onSessionEnd={onSessionEnd} staff={{ roleLabel: roleLabel[role], onBack: () => { setOpenDelegation(null); window.scrollTo({ top: 0 }) } }} />
+    return <Workspace delegationId={openDelegation} onSessionEnd={onSessionEnd} session={session} staff={{ roleLabel: roleLabel[role], onBack: () => { setOpenDelegation(null); window.scrollTo({ top: 0 }) } }} />
   }
 
   const go = (id: string) => { setActive(id); setNavOpen(false) }
   const panels: Record<string, () => ReactNode> = {
+    home: () => <Home role={role} sections={visible.map((s) => s.id)} onGo={go} />,
     overview: () => <Overview onGo={visible.some((s) => s.id === 'payments') ? go : undefined} />,
     countries: () => <Countries onOpen={openCountry} />,
     people: () => <People onOpen={openCountry} />,
@@ -112,11 +142,11 @@ export default function StaffHome({ user, onSessionEnd }: { user: User; onSessio
     accounts: () => <Accounts me={user} />,
   }
   const current = visible.find((s) => s.id === active) ?? visible[0]
-  if (!current) return <div className="reg-staff"><Panel id="none" title="Nothing to show" intro="Your role has no back-office tools yet."><span /></Panel></div>
-  if (visible.length === 1) return <div className="reg-staff">{panels[current.id]()}</div>
+  if (!current) return page(<div className="reg-staff"><Panel id="none" title="Nothing to show" intro="Your role has no back-office tools yet."><span /></Panel></div>)
+  if (visible.length === 1) return page(<div className="reg-staff">{panels[current.id]()}</div>)
   const groups = [...new Set(visible.map((s) => s.group))]
 
-  return (
+  return page(
     <div className="reg-staff-layout" ref={topRef}>
       <nav className={`reg-rail reg-staff-rail${navOpen ? ' is-open' : ''}`} aria-label="Back office">
         <button type="button" className="reg-rail-toggle" aria-expanded={navOpen} onClick={() => setNavOpen((v) => !v)}>

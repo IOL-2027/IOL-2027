@@ -61,7 +61,8 @@ try {
   // real inbox on an earlier run, or someone trying the sign-up with IOL2027-TST-0001).
   const testCodes = `code LIKE 'IOL2027-%-TEST' OR code LIKE 'IOL2027-TST-%' OR country_territory LIKE '%(TEST)'`
   const testAccounts = (await db.query(
-    `SELECT id FROM accounts WHERE email LIKE '%@iol2027.test' OR email = $1 OR id IN (SELECT used_by_account_id FROM invite_codes WHERE ${testCodes})`,
+    `SELECT id FROM accounts WHERE email LIKE '%@iol2027.test' OR email = $1 OR id IN (SELECT used_by_account_id FROM invite_codes WHERE ${testCodes})
+       OR id IN (SELECT account_id FROM delegations WHERE invite_code_id IN (SELECT id FROM invite_codes WHERE ${testCodes}))`,
     [demo.email],
   )).rows.map((row) => row.id)
   await db.query(`DELETE FROM delegations WHERE country_territory LIKE '%(TEST)' OR account_id = ANY($1)`, [testAccounts])
@@ -120,6 +121,8 @@ try {
   for (const [code, country] of [['IOL2027-TST-0001', 'Testland (TEST)'], ['IOL2027-TST-0002', 'Sampleland (TEST)']]) {
     await db.query(`INSERT INTO invite_codes (code, country_territory, accredited_organisation, status) VALUES ($1, $2, 'Test organisation', 'active')`, [code, country])
   }
+  // Works every time on a test server: each use replaces the account made with it before (server/index.js).
+  await db.query(`INSERT INTO invite_codes (code, country_territory, accredited_organisation, status, reusable) VALUES ('IOL2027-TST-LOOP', 'Loopland (TEST)', 'Test organisation', 'active', true)`)
 
   // The demo Team Leader: same starting point as a new sign-up (one team, four contestant places, nothing filled in).
   const demoAccount = (await db.query(
@@ -144,7 +147,7 @@ try {
   await db.query(`INSERT INTO teams (delegation_id, name, code, status) VALUES ($1, 'Demoland A', 'DEM-A', 'draft')`, [demoDelegation.id])
   await db.query('COMMIT')
   const count = (await db.query(`SELECT count(*)::int AS n FROM accounts WHERE email LIKE '%@iol2027.test'`)).rows[0].n
-  console.log(`test data ready: ${count} @iol2027.test accounts, 3 delegations (demo leader ${demo.email}), 2 unused invite codes`)
+  console.log(`test data ready: ${count} @iol2027.test accounts, 3 delegations (demo leader ${demo.email}), 2 unused invite codes and the reusable IOL2027-TST-LOOP`)
 } catch (error) {
   await db.query('ROLLBACK')
   throw error

@@ -1,10 +1,10 @@
 // /check-in: the badge scanner. Staff who may scan (check-in staff, registration admins, super admins) sign in,
 // choose the checkpoint and scan; each scan is recorded with the checkpoint, time and result.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Camera, CheckCircle, LogOut, ShieldCheck, X } from 'lucide-react'
+import { Camera, CheckCircle, ShieldCheck, X } from 'lucide-react'
 import { api, ApiError, roleLabel, type User } from '../registration/api'
 import { Entry } from '../registration/AuthForms'
-import { Alert, messageOf } from '../registration/ui'
+import { Alert, PageHead, SessionBar, messageOf } from '../registration/ui'
 import '../registration/registration.css'
 
 const scanningRoles = ['checkin_staff', 'registration_admin', 'super_admin']
@@ -84,14 +84,11 @@ export default function CheckIn() {
   const mayScan = user && scanningRoles.includes(user.role)
   return (
     <div className="reg-page">
-      <header className="reg-intro"><div className="wrap">
-        <h1>Scan every badge.</h1>
-        <p>For check-in staff during event week. The QR on each badge holds only a random reference; every scan records the checkpoint, time and result.</p>
-      </div></header>
+      <PageHead eyebrow="Badge scanner" title="Scan every badge." session={<SessionBar user={user} onSignOut={signOut} />}
+        intro="For check-in staff during event week. The QR on each badge holds only a random reference; every scan records the checkpoint, time and result." />
       <div className="reg-shell wrap">
         {user === undefined && <p className="reg-loading" role="status">Loading…</p>}
         {user === null && <>{error && <Alert>{error}</Alert>}<Entry allowSignup={false} onSignedIn={setUser} onCreated={setUser} /></>}
-        {user && <p className="reg-who"><span>Signed in as <strong>{user.fullName}</strong> · {roleLabel[user.role]}</span><button type="button" className="reg-btn-link" onClick={signOut}><LogOut size={16} aria-hidden="true" />Sign out</button></p>}
         {user && !mayScan && <div className="reg-panel"><Alert>{roleLabel[user.role]} accounts cannot scan badges. Ask a super admin for a check-in staff account.</Alert></div>}
         {mayScan && <Scanner />}
       </div>

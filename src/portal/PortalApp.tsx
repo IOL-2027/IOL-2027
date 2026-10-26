@@ -3,16 +3,15 @@
 import { ArrowRight, ArrowUpRight } from 'lucide-react'
 import { publicSiteUrl, registrationOpen } from '../launch'
 import TeamLeaderPortal from '../registration/TeamLeaderPortal'
+import { PageHead } from '../registration/ui'
 import CheckIn from './CheckIn'
 import mark from './iol2027-mark.png'
 
 function Closed() {
   return (
     <div className="reg-page">
-      <header className="reg-intro"><div className="wrap">
-        <h1>Registration opens on 18 January 2027.</h1>
-        <p>The official contact for each accredited country or territory receives an invitation code by email. The Team Leader uses it here to create the country’s account.</p>
-      </div></header>
+      <PageHead eyebrow="Team Leader portal" title="Registration opens on 18 January 2027."
+        intro="The official contact for each accredited country or territory receives an invitation code by email. The Team Leader uses it here to create the country’s account." />
       <div className="reg-shell wrap"><div className="reg-account"><div className="reg-account-card">
         <h2>Until then</h2>
         <p className="reg-lede">Read how registration works, what it costs and the deadlines on the IOL 2027 website.</p>
