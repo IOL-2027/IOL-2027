@@ -446,7 +446,7 @@ function Hosts() {
 }
 
 function Sponsors() {
-  return <><PageIntro eyebrow="Sponsors" title="A clear place for every sponsor." body="This page demonstrates how approved sponsors can be presented without confusing them with the official hosts." /><SponsorPreview full /><section className="sponsor-thanks"><p className="eyebrow">Sponsor IOL 2027</p><h2>Help young minds look closer.</h2><a className="text-link" href="mailto:iol2027.th@gmail.com?subject=IOL%202027%20sponsorship">Contact the organising team <ArrowRight size={16} /></a></section></>
+  return <><PageIntro eyebrow="Sponsors" title="Sponsors of IOL 2027." body="This page demonstrates how approved sponsors can be presented without confusing them with the official hosts." /><SponsorPreview full /><section className="sponsor-thanks"><p className="eyebrow">Sponsor IOL 2027</p><h2>Help young minds look closer.</h2><a className="text-link" href="mailto:iol2027.th@gmail.com?subject=IOL%202027%20sponsorship">Contact the organising team <ArrowRight size={16} /></a></section></>
 }
 
 // A full-screen hero hides that the page continues. The cue sits at the bottom of the window until the visitor scrolls:
@@ -640,7 +640,7 @@ function Transportation() {
     { icon: Bus, when: `${dateOf('Day 02').split(' ')[0]}–${dateOf('Day 07')}`, title: 'Transfers to every venue', detail: 'To the opening at Kasetsart University, the contests at Chulalongkorn University and the city programme.' },
     { icon: PlaneTakeoff, when: dateOf('Day 08'), title: 'Depart', detail: 'Drop-off at BKK or DMK during the departure period.' },
   ]
-  return <><PageIntro eyebrow="Event guide / Transportation" title="Arrive, move and depart with us." body="Official airport pick-up and drop-off services will be provided at Suvarnabhumi Airport (BKK) and Don Mueang International Airport (DMK) during the designated arrival and departure periods." />
+  return <><PageIntro eyebrow="Event guide / Transportation" title="Airport pick-up and getting around." body="Official airport pick-up and drop-off services will be provided at Suvarnabhumi Airport (BKK) and Don Mueang International Airport (DMK) during the designated arrival and departure periods." />
     <section className="transport-journey wrap"><header><p className="eyebrow">Door to door</p><h2 className="mixed-heading">The week, <em>from landing to take-off.</em></h2></header>
       <ol>{journey.map(({ icon: Icon, when, title, detail }) => <li key={title}><span className="transport-stop"><Icon size={22} aria-hidden="true" /></span><p className="transport-when">{when}</p><h3>{title}</h3><p>{detail}</p></li>)}</ol>
     </section>
@@ -798,7 +798,7 @@ function Gallery() {
 }
 
 function People() {
-  return <><PageIntro eyebrow="People" title="Built by many kinds of minds." body="Committee, jury and volunteer information will be added when the approved names and roles are provided." /><SectionLinks links={[{ href: '/people/committee', label: 'Committee', detail: 'The full Thai-language roster of the organising committees and subcommittees.' }, { href: '/people/jury', label: 'Jury', detail: 'The international jury for the individual and team contests.' }, { href: '/people/problem-committee', label: 'Problem Committee', detail: 'The authors, translators and markers of the contest problems.' }, { href: '/people/volunteers', label: 'Volunteers', detail: 'The people who welcome and guide every team.' }]} /></>
+  return <><PageIntro eyebrow="People" title="The people behind IOL 2027." body="Committee, jury and volunteer information will be added when the approved names and roles are provided." /><SectionLinks links={[{ href: '/people/committee', label: 'Committee', detail: 'The full Thai-language roster of the organising committees and subcommittees.' }, { href: '/people/jury', label: 'Jury', detail: 'The international jury for the individual and team contests.' }, { href: '/people/problem-committee', label: 'Problem Committee', detail: 'The authors, translators and markers of the contest problems.' }, { href: '/people/volunteers', label: 'Volunteers', detail: 'The people who welcome and guide every team.' }]} /></>
 }
 
 function CommitteeRoster() {
@@ -843,11 +843,11 @@ function PeopleSubpage({ kind }: { kind: 'committee' | 'jury' | 'problem-committ
 }
 
 function Contact() {
-  return <><PageIntro eyebrow="Contact" title="Let's keep the signal clear." body="For enquiries regarding IOL 2027, visa-related issues, sponsorship, programme information, future announcements, or any other issues, please contact the Local Organising Committee through email." /><section className="contact-panel wrap"><div><p className="eyebrow">Central contact</p><a className="contact-email" href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a></div><div className="prose"><p>Please include a clear subject line and the participant's country or team where relevant so the enquiry can reach the appropriate organising team.</p><a className="pill" href="mailto:iol2027.th@gmail.com?subject=IOL%202027%20enquiry">Send an enquiry <span><ArrowRight size={16} /></span></a></div></section></>
+  return <><PageIntro eyebrow="Contact" title="Contact the organisers." body="For enquiries regarding IOL 2027, visa-related issues, sponsorship, programme information, future announcements, or any other issues, please contact the Local Organising Committee through email." /><section className="contact-panel wrap"><div><p className="eyebrow">Central contact</p><a className="contact-email" href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a></div><div className="prose"><p>Please include a clear subject line and the participant's country or team where relevant so the enquiry can reach the appropriate organising team.</p><a className="pill" href="mailto:iol2027.th@gmail.com?subject=IOL%202027%20enquiry">Send an enquiry <span><ArrowRight size={16} /></span></a></div></section></>
 }
 
 function Privacy() {
-  return <><PageIntro eyebrow="Privacy / PDPA" title="Respecting the people behind the data." body="IOL 2027 will collect and use participant information only for legitimate registration, safety and event-operation purposes." /><section className="two-col wrap"><div><p className="eyebrow">Privacy principles</p><h2>Clear purpose. Limited access. Responsible deletion.</h2></div><div className="prose"><p>Registration may include identity, passport, contact, accommodation, transport, dietary, accessibility, guardian, emergency-contact, payment-proof, check-in and event-operation data.</p><p>Access will be limited by staff role. The final notice will identify the legal data controller, applicable lawful bases, retention periods, service providers and contact route for rights requests under Thailand's Personal Data Protection Act.</p></div></section></>
+  return <><PageIntro eyebrow="Privacy / PDPA" title="How we handle personal data." body="IOL 2027 will collect and use participant information only for legitimate registration, safety and event-operation purposes." /><section className="two-col wrap"><div><p className="eyebrow">Privacy principles</p><h2>Clear purpose. Limited access. Responsible deletion.</h2></div><div className="prose"><p>Registration may include identity, passport, contact, accommodation, transport, dietary, accessibility, guardian, emergency-contact, payment-proof, check-in and event-operation data.</p><p>Access will be limited by staff role. The final notice will identify the legal data controller, applicable lawful bases, retention periods, service providers and contact route for rights requests under Thailand's Personal Data Protection Act.</p></div></section></>
 }
 
 function ExternalResultsRedirect() {
@@ -856,7 +856,7 @@ function ExternalResultsRedirect() {
 }
 
 function NotFound() {
-  return <><PageIntro eyebrow="404" title="That signal was lost." body="The page may have moved or is not published yet." /><div className="not-found-link wrap"><LinkButton href="/">Return home</LinkButton></div></>
+  return <><PageIntro eyebrow="404" title="Page not found." body="The page may have moved or is not published yet." /><div className="not-found-link wrap"><LinkButton href="/">Return home</LinkButton></div></>
 }
 
 function App() {

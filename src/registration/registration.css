@@ -60,7 +60,7 @@
 .reg-head { padding: 22px 0 40px; }
 .reg-head-loading { padding-bottom: 22px; }
 .reg-head-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 24px; min-height: 38px; }
-.reg-head-eyebrow { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--yellow); }
+.reg-head-eyebrow { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--orange); }
 .reg-head-session { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 14px; color: var(--reg-on-dark-muted); }
 .reg-head-who strong { color: var(--cream); }
 .reg-test-chip { padding: 4px 11px; border: 1px dashed rgba(243, 238, 228, .38); border-radius: 999px; font-size: 12px; font-weight: 600; }
