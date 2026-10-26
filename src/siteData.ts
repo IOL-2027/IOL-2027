@@ -6,15 +6,18 @@ export const event = {
   openingDate: '2027-07-21T00:00:00+07:00',
 }
 
-export const schedule = [
-  { date: '21 JUL', day: 'Day 01', title: 'Arrivals', detail: 'Teams arrive, check in and gather at the official home base.' },
-  { date: '22 JUL', day: 'Day 02', title: 'Opening ceremony', detail: 'The Olympiad opens at Kasetsart University, followed by the kick-off session and first activity.' },
-  { date: '23 JUL', day: 'Day 03', title: 'Individual contest', detail: 'Five language puzzles and six hours of concentrated work at Chulalongkorn University.' },
-  { date: '24 JUL', day: 'Day 04', title: 'Excursion', detail: 'A hosted day to encounter Thailand through place, culture and conversation.' },
-  { date: '25 JUL', day: 'Day 05', title: 'Bangkok city programme', detail: 'A hosted city experience and time for teams to connect.' },
-  { date: '26 JUL', day: 'Day 06', title: 'Team contest', detail: 'Teams of four solve one extended problem together at Chulalongkorn University.' },
-  { date: '27 JUL', day: 'Day 07', title: 'Solutions and closing', detail: 'Solution presentations, the closing ceremony and cultural night.' },
-  { date: '28 JUL', day: 'Day 08', title: 'Departures', detail: 'Farewells and official transfers on the departure day.' },
+// venue is the day's main place, keyed to the colours of the tentative schedule image (Kasetsart, Chulalongkorn,
+// Mandarin Hotel, other locations); where is how the Programme page names it.
+export type ScheduleVenue = 'kasetsart' | 'chulalongkorn' | 'mandarin' | 'other'
+export const schedule: { date: string; day: string; title: string; detail: string; venue: ScheduleVenue; where: string }[] = [
+  { date: '21 JUL', day: 'Day 01', title: 'Arrivals', detail: 'Teams arrive, check in and gather at the official home base.', venue: 'mandarin', where: 'Mandarin Hotel Bangkok' },
+  { date: '22 JUL', day: 'Day 02', title: 'Opening ceremony', detail: 'The Olympiad opens at Kasetsart University, followed by the kick-off session and first activity.', venue: 'kasetsart', where: 'Kasetsart University' },
+  { date: '23 JUL', day: 'Day 03', title: 'Individual contest', detail: 'Five language puzzles and six hours of concentrated work at Chulalongkorn University.', venue: 'chulalongkorn', where: 'Chulalongkorn University' },
+  { date: '24 JUL', day: 'Day 04', title: 'Excursion', detail: 'A hosted day to encounter Thailand through place, culture and conversation.', venue: 'other', where: 'Route to be confirmed' },
+  { date: '25 JUL', day: 'Day 05', title: 'Bangkok city programme', detail: 'A hosted city experience and time for teams to connect.', venue: 'other', where: 'Around Bangkok' },
+  { date: '26 JUL', day: 'Day 06', title: 'Team contest', detail: 'Teams of up to four solve one extended problem together at Chulalongkorn University.', venue: 'chulalongkorn', where: 'Chulalongkorn University' },
+  { date: '27 JUL', day: 'Day 07', title: 'Solutions and closing', detail: 'Solution presentations, the closing ceremony and cultural night.', venue: 'chulalongkorn', where: 'Chulalongkorn University' },
+  { date: '28 JUL', day: 'Day 08', title: 'Departures', detail: 'Farewells and official transfers on the departure day.', venue: 'mandarin', where: 'Mandarin Hotel Bangkok' },
 ]
 
 export type Venue = {

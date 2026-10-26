@@ -1,16 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, ArrowUpRight, Building2, Bus, Camera, Car, Check, CheckCircle, ChevronLeft, ChevronRight, Clock, ExternalLink, Footprints, Hotel, Landmark, Languages, Mail, MapPin, Menu, PenTool, PlaneLanding, PlaneTakeoff, Scale, Search, ShieldCheck, Stamp, User, Users, Volume2, X } from 'lucide-react'
-import { event, homeBaseRoute, schedule, venues } from './siteData'
+import { ArrowDown, ArrowRight, ArrowUpRight, Building2, Bus, Camera, Car, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Compass, ExternalLink, Footprints, Hotel, Landmark, Languages, Mail, MapPin, Maximize2, Menu, PenTool, PlaneLanding, PlaneTakeoff, Scale, Search, Sparkles, Stamp, Trophy, User, Users, Volume2, X } from 'lucide-react'
+import { event, homeBaseRoute, schedule, venues, type ScheduleVenue } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
 import thaiPhrases from './thaiPhrases.json'
-import TeamLeaderPortal from './registration/TeamLeaderPortal'
-import { placeholderPagesShown, registrationOpen } from './launch'
+import { placeholderPagesShown, portalUrl, registrationOpen } from './launch'
 import { olympiads, socialLinks, workingLanguages } from './aboutData'
 import { GrowthChart, HostMap } from './AboutVisuals'
 
 type NavItem = { label: string; href: string; external?: boolean; children?: { label: string; href: string }[] }
-const badgeScannerMode = import.meta.env.VITE_BADGE_SCANNER_MODE === 'live' ? 'live' : 'demo'
-const demoBadgeCode = 'IOL2027-POC-DEMO'
 
 // Sections that are still placeholders; hidden on the public site until launch (src/launch.ts).
 const placeholderSections = ['/sponsors', '/gallery', '/people']
@@ -28,7 +25,7 @@ const navigation: NavItem[] = [
     { label: 'How to register', href: '/registration/how-to-register' },
     { label: 'Fees & deadlines', href: '/registration/fees-deadlines' },
     { label: 'Visa & invitation letters', href: '/registration/visas' },
-    ...(registrationOpen ? [{ label: 'Team Leader account', href: '/registration/team-leader' }] : []),
+    ...(registrationOpen ? [{ label: 'Registration portal', href: portalUrl }] : []),
   ] },
   { label: 'Event guide', href: '/event-guide', children: [
     { label: 'Schedule & venues', href: '/programme' },
@@ -175,7 +172,7 @@ function Home() {
         <div className="hero-kicker"><p className="system-label">[ BANGKOK · THAILAND · 2027 ]</p><HeroHostedBy /></div>
         <h1><span className="hero-title-small">THE 24TH</span><span className="hero-title-serif">INTERNATIONAL</span><span className="hero-title-main">LINGUISTICS OLYMPIAD</span></h1>
         <p className="hero-deck">Eight days. Two contests. Dozens of languages and hundreds of ways to see the world differently.</p>
-        <div className="hero-actions"><LinkButton href="/registration" light>Registration preview</LinkButton><a href="/programme" className="text-link">View the programme <ChevronRight size={16} /></a></div>
+        <div className="hero-actions"><LinkButton href="/registration" light>Registration details</LinkButton><a href="/programme" className="text-link">View the programme <ChevronRight size={16} /></a></div>
         <div className="hero-event-row"><Countdown /><div className="hero-event-place"><strong>21-28 JULY 2027</strong><span>BANGKOK, THAILAND</span></div></div>
       </div>
       <div className="hero-mark"><img src="/assets/iol-mark.png" alt="Official IOL 2027 Thailand mark" /></div>
@@ -201,7 +198,7 @@ function OutLink({ href, children }: { href: string; children: React.ReactNode }
 }
 
 function About() {
-  return <div className="about-page"><PageIntro eyebrow="About the Olympiad" title="Data holds the pattern, deduction holds the key." body="IOL is one of the International Science Olympiads: a yearly meeting of young problem-solvers who decode the structures hidden inside human language." />
+  return <div className="about-page"><PageIntro eyebrow="About the Olympiad" title="What is the International Linguistics Olympiad?" body="IOL is one of the International Science Olympiads: a yearly meeting of young problem-solvers who decode the structures hidden inside human language." />
     <section className="two-col wrap"><div><p className="eyebrow">What happens</p><h2>Reasoning through pattern, verified by rigor.</h2></div><div className="prose"><p>Problems may draw on any language in the world. Contestants discover patterns, test hypotheses and explain systems they have never seen before. No knowledge of particular languages or of linguistic theory is assumed.</p><p>Each accredited country or territory may send up to two teams. A contest team has no more than four contestants and one team leader. Contestants take part in both an individual round and a collaborative team round.</p><p>Careful observation, hypothesis testing and a clear explanation matter more than memorised vocabulary.</p></div></section>
 
     <section className="about-block wrap">
@@ -288,8 +285,9 @@ const hostDays: Record<string, { title: string; detail: string; className: strin
 
 // The home page's contest cards. Dates come from the programme, so the home page, the programme and Host: Thailand agree.
 const dateOf = (day: string) => schedule.find((item) => item.day === day)?.date ?? ''
-const hostDates = Object.keys(hostDays).map(dateOf) // all in July: '24 JUL', '25 JUL', '27 JUL' reads as '24, 25 & 27 JUL'
-const hostDatesLabel = `${hostDates.slice(0, -1).map((date) => date.split(' ')[0]).join(', ')} & ${hostDates[hostDates.length - 1]}`
+// All in July: '24 JUL', '25 JUL', '27 JUL' reads as '24, 25 & 27 JUL'.
+const datesLabel = (dates: string[]) => dates.length < 2 ? dates.join('') : `${dates.slice(0, -1).map((date) => date.split(' ')[0]).join(', ')} & ${dates[dates.length - 1]}`
+const hostDatesLabel = datesLabel(Object.keys(hostDays).map(dateOf))
 const contests: { title: string; className: string; stats: [string, string][]; detail: string; when: string; href?: string }[] = [
   { title: 'Individual contest', className: 'home-contest-orange', stats: [['5', 'problems'], ['6', 'hours']], detail: 'Each contestant works alone on problems drawn from languages around the world.', when: `${dateOf('Day 03')} · Chulalongkorn University` },
   { title: 'Team contest', className: 'home-contest-plum', stats: [['1', 'problem set'], ['3–4', 'hours']], detail: 'Teams of up to four work together on one problem set and hand in a single joint solution.', when: `${dateOf('Day 06')} · Chulalongkorn University` },
@@ -344,20 +342,248 @@ function RoutePanel() {
   </article>
 }
 
+// One icon per programme day, shared by the Programme page's day cards and the Gallery's albums.
+const dayIcons: Record<string, typeof Camera> = { 'Day 01': PlaneLanding, 'Day 02': Sparkles, 'Day 03': PenTool, 'Day 04': Compass, 'Day 05': Landmark, 'Day 06': Users, 'Day 07': Trophy, 'Day 08': PlaneTakeoff }
+const scheduleVenueNames: Record<ScheduleVenue, string> = { kasetsart: 'Kasetsart University', chulalongkorn: 'Chulalongkorn University', mandarin: 'Mandarin Hotel', other: 'Other locations' }
+const contestDays = ['Day 03', 'Day 06']
+
+// The days under the schedule image: a card per day, its dot and icon in the venue colours of the image's legend.
+function ScheduleDays() {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })
+  return <section className="schedule-days wrap" aria-labelledby="schedule-days-title">
+    <header className="schedule-days-head">
+      <div><p className="eyebrow">21–28 July 2027</p><h2 id="schedule-days-title" className="mixed-heading">The week, <em>day by day.</em></h2></div>
+      <div><p>What happens on each day, and where. The colours match the venues in the schedule above.</p>
+        <ul className="schedule-venues" aria-label="Venues">{(Object.keys(scheduleVenueNames) as ScheduleVenue[]).map((venue) => <li key={venue} data-venue={venue}>{scheduleVenueNames[venue]}</li>)}</ul></div>
+    </header>
+    <ol className="schedule-days-list">{schedule.map((item) => {
+      const [dayOfMonth, month] = item.date.split(' ')
+      const iso = `2027-07-${dayOfMonth}`
+      const weekday = new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })
+      const contest = contestDays.includes(item.day)
+      const Icon = dayIcons[item.day] ?? Camera
+      return <li key={item.day} data-venue={item.venue} className="schedule-day">
+        <p className="schedule-day-when">{weekday}{iso === today && <b>Today</b>}</p>
+        <article>
+          <header><strong>{dayOfMonth}<small>{month}</small></strong><span className="schedule-day-icon" aria-hidden="true"><Icon size={22} /></span></header>
+          <p className="schedule-day-no">{contest ? `${item.day} · Contest` : item.day}</p>
+          <h3>{item.title}</h3>
+          <p>{item.detail}</p>
+          <p className="schedule-day-where"><MapPin size={15} aria-hidden="true" />{item.where}</p>
+        </article>
+      </li>
+    })}</ol>
+  </section>
+}
+
 function Programme() {
-  return <><PageIntro eyebrow="Schedule & venues" title="Eight days in Bangkok." body="The tentative programme runs from 21 to 28 July 2027 across Mandarin Hotel, Kasetsart University, Chulalongkorn University and other programme locations." /><figure className="schedule-artifact wrap"><img src="/assets/iol-2027-schedule.png" alt="Tentative hourly schedule for IOL 2027 from 21 to 28 July" width={1320} height={899} /><figcaption><div><span>TENTATIVE SCHEDULE</span><p>Times and activities may change as the organising team confirms operations.</p></div><a className="pill" href="/downloads/IOL-2027-Schedule.html" target="_blank" rel="noreferrer">Open full schedule <span><ExternalLink size={15} /></span></a></figcaption></figure><section className="timeline wrap">{schedule.map((item) => <article key={item.date}><div><span>{item.day}</span><strong>{item.date}</strong></div><h2>{item.title}</h2><p>{item.detail}</p></article>)}</section><section className="venue-section"><div className="wrap"><p className="eyebrow">Venue plan</p><h2>Bangkok, connected.</h2><div className="venue-cards">{venues.map((venue) => <article key={venue.index}><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small><div className="venue-card-place"><span>{venue.building}</span><span>{venue.address}</span></div><MapsLink query={venue.mapQuery} name={venue.name} /></article>)}</div><RoutePanel /></div></section></>
+  return <><PageIntro eyebrow="Schedule & venues" title="Eight days in Bangkok." body="The tentative programme runs from 21 to 28 July 2027 across Mandarin Hotel, Kasetsart University, Chulalongkorn University and other programme locations." /><figure className="schedule-artifact wrap"><img src="/assets/iol-2027-schedule.png" alt="Tentative hourly schedule for IOL 2027 from 21 to 28 July" width={1320} height={899} /><figcaption><div><span>TENTATIVE SCHEDULE</span><p>Times and activities may change as the organising team confirms operations.</p></div><a className="pill" href="/downloads/IOL-2027-Schedule.html" target="_blank" rel="noreferrer">Open full schedule <span><ExternalLink size={15} /></span></a></figcaption></figure><ScheduleDays /><section className="venue-section"><div className="wrap"><p className="eyebrow">Venue plan</p><h2>Bangkok, connected.</h2><div className="venue-cards">{venues.map((venue) => <article key={venue.index}><p>{venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small><div className="venue-card-place"><span>{venue.building}</span><span>{venue.address}</span></div><MapsLink query={venue.mapQuery} name={venue.name} /></article>)}</div><RoutePanel /></div></section></>
+}
+
+// The Hosts page. Facts come from each host's own site (posn.or.th, chula.ac.th, ku.ac.th) and ioling.org;
+// the days and places come from the programme and venue data, so they match the Schedule & venues page.
+type HostDetail = (typeof hosts)[number] & {
+  id: string; title: string; subtitle?: string; thaiName: string; kicker: string; role: string; summary: string
+  url: string; site: string; about: string[]; facts: [string, string][]; days: string[]; venue?: string
+  programmes?: string[]; note?: string; route?: boolean
+}
+const hostDetails: HostDetail[] = [
+  {
+    ...hosts[0], id: 'posn', title: 'POSN', subtitle: 'The Promotion of Academic Olympiad and Development of Science Education Foundation', thaiName: 'สอวน.',
+    kicker: 'Host 01 · Foundation', role: 'Host foundation', summary: 'Runs Thailand’s linguistics olympiad', url: 'https://www.posn.or.th/en/', site: 'posn.or.th',
+    about: [
+      'Founded in 1998, POSN supports high school students across Thailand who show exceptional ability in science and mathematics. With the science faculties of 20 public universities, it runs olympiad camps and the contests that select Thailand’s teams for international olympiads.',
+      'Linguistics is one of its olympiads. The Thailand Linguistics Olympiad, which POSN organises with the Department of Linguistics at Chulalongkorn University, selects the team Thailand sends to the IOL.',
+      'POSN has helped host international olympiads in Thailand before, including the International Physics Olympiad in 2011 and the International Olympiad on Astronomy and Astrophysics in 2017.',
+    ],
+    facts: [['1998', 'Founded'], ['20', 'public university science faculties it works with']],
+    programmes: ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Informatics', 'Earth Science', 'Astronomy', 'Geography', 'Linguistics'],
+    days: [], note: 'Registration fees are paid to POSN by bank transfer. The account details are shown in the registration portal once registration opens on 18 January 2027.',
+  },
+  {
+    ...hosts[1], id: 'chulalongkorn', title: 'Chulalongkorn University', thaiName: 'จุฬาลงกรณ์มหาวิทยาลัย',
+    kicker: 'Host 02 · Contest campus', role: 'Contest campus', summary: '', url: 'https://www.chula.ac.th/en/', site: 'chula.ac.th',
+    about: [
+      'Chulalongkorn University is Thailand’s first university. King Vajiravudh founded it on 26 March 1917 and named it after his father, King Chulalongkorn.',
+      'The contests take place at the Faculty of Arts, one of the university’s four original faculties. Its Department of Linguistics works with POSN on the Thailand Linguistics Olympiad. The faculty’s historic Maha Vajiravudh Building houses its library and the Tai-Kadai Ethnic Museum; Tai-Kadai is the language family Thai belongs to.',
+      'The university hosted the International Physics Olympiad in 2011 and the International Geography Olympiad in 2025.',
+    ],
+    facts: [['1917', 'Founded as Thailand’s first university'], ['11', 'departments in the Faculty of Arts, linguistics among them']],
+    days: ['Day 03', 'Day 06', 'Day 07'], venue: 'Chulalongkorn University', route: true,
+  },
+  {
+    ...hosts[2], id: 'kasetsart', title: 'Kasetsart University', thaiName: 'มหาวิทยาลัยเกษตรศาสตร์',
+    kicker: 'Host 03 · Opening stage', role: 'Opening stage', summary: '', url: 'https://www.ku.ac.th/en/', site: 'ku.ac.th',
+    about: [
+      'Kasetsart University was founded on 2 February 1943 as Thailand’s first agricultural university; its name means “agricultural science” in Thai. Its roots go back to a sericulture school opened in 1904.',
+      'The university began on its Bangkhen campus in Bangkok and now has campuses in other provinces too. The opening ceremony is held at the Faculty of Humanities at Bangkhen. The faculty was founded in 1981, with a Department of Linguistics from the start.',
+    ],
+    facts: [['1904', 'Its roots: a sericulture school'], ['1943', 'Founded as Thailand’s first agricultural university'], ['1981', 'Faculty of Humanities and its Department of Linguistics founded']],
+    days: ['Day 02'], venue: 'Kasetsart University',
+  },
+]
+
+// Thailand's results at the IOL, from ioling.org/results/THA. Host cities come from the About page's olympiad list.
+type IolAward = { kind: 'gold' | 'silver' | 'bronze' | 'mention'; label: string }
+const thailandAtIol: { year: number; awards: IolAward[] }[] = [
+  { year: 2022, awards: [{ kind: 'bronze', label: 'Bronze medal' }, { kind: 'mention', label: 'Honourable mention' }] },
+  { year: 2023, awards: [{ kind: 'silver', label: 'Silver medal' }, { kind: 'mention', label: 'Honourable mention' }, { kind: 'mention', label: 'Team contest: honourable mention' }] },
+  { year: 2024, awards: [{ kind: 'gold', label: 'Gold medal' }, { kind: 'bronze', label: 'Bronze medal' }, { kind: 'mention', label: 'Team contest: honourable mention' }] },
+  { year: 2025, awards: [{ kind: 'silver', label: 'Silver medal' }, { kind: 'bronze', label: 'Bronze medal' }, { kind: 'bronze', label: 'Team contest: bronze trophy' }] },
+  { year: 2026, awards: [{ kind: 'mention', label: '2 honourable mentions' }] },
+]
+const iolHost = (year: number) => olympiads.find((item) => item.year === year)
+
+function HostProfile({ host }: { host: HostDetail }) {
+  const venue = venues.find((item) => item.name === host.venue)
+  return <article id={host.id} className={`host-profile ${host.className}`}>
+    <header className="host-profile-head"><img src={host.image} alt={`${host.name} logo`} /><div>
+      <p className="host-profile-kicker">{host.kicker}</p><h2>{host.title}</h2>
+      <p className="host-profile-names">{host.subtitle && <>{host.subtitle}<br /></>}<span lang="th">{host.thaiName}</span></p>
+    </div></header>
+    <div className="host-profile-about">
+      {host.about.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+      <ul className="host-profile-facts">{host.facts.map(([value, label]) => <li key={label}><strong>{value}</strong><span>{label}</span></li>)}</ul>
+      <a className="text-link" href={host.url} target="_blank" rel="noreferrer">{host.site} <ExternalLink size={14} /></a>
+    </div>
+    <div className="host-profile-aside">
+      {venue && <figure className="host-profile-photo"><img src={venue.image} alt={venue.imageAlt} style={{ objectPosition: venue.imagePosition }} loading="lazy" /><figcaption><a href={venue.imageCreditUrl} target="_blank" rel="noreferrer">{venue.imageCredit}</a></figcaption></figure>}
+      {host.programmes && <div className="host-panel"><h3>Olympiads it runs</h3><ul className="host-programmes">{host.programmes.map((programme) => <li key={programme} className={programme === 'Linguistics' ? 'host-programme-ours' : undefined}>{programme}</li>)}</ul></div>}
+      <div className="host-panel"><h3>At IOL 2027</h3>
+        {host.days.length > 0 && <ol className="host-days">{host.days.map((day) => <li key={day}><span>{dateOf(day)}</span><strong>{schedule.find((item) => item.day === day)?.title}</strong></li>)}</ol>}
+        {host.note && <p>{host.note}</p>}
+        {venue && <div className="host-place"><strong>{venue.building}</strong><span>{venue.address}</span><span>{venue.transit}</span>
+          <div className="host-place-links"><MapsLink query={venue.mapQuery} name={venue.name} />{host.route && <a className="text-link" href="/programme#getting-there">Walking route from the hotel <ArrowRight size={15} /></a>}</div>
+        </div>}
+      </div>
+    </div>
+  </article>
 }
 
 function Hosts() {
-  return <><PageIntro eyebrow="Hosts" title="A shared welcome from Thailand." body="IOL 2027 is hosted by organisations that bring together academic Olympiad experience, education, research and Bangkok's university community." /><section className="sponsor-detail-list wrap">{hosts.map((host, index) => <article className={`sponsor-detail ${host.className}`} key={host.name}><div className="sponsor-detail-logo"><img src={host.image} alt={`${host.name} logo`} /></div><div><h2>{host.name}</h2><p>{host.description}</p><p className="sponsor-detail-note">{index === 0 ? 'POSN supports Thailand academic Olympiads and the development of young talent.' : index === 1 ? 'Chulalongkorn University hosts the contests, solution presentations, closing ceremony and cultural night.' : 'Kasetsart University welcomes teams for the opening ceremony.'}</p></div></article>)}</section></>
+  return <><PageIntro eyebrow="Hosts" title="A shared welcome from Thailand." body="IOL 2027 is hosted by POSN, the foundation behind Thailand’s academic olympiads, together with Chulalongkorn University and Kasetsart University in Bangkok." />
+    <nav className="hosts-overview wrap" aria-label="The three hosts">{hostDetails.map((host) => <a key={host.id} href={`#${host.id}`} className={host.className}>
+      <img src={host.image} alt="" /><span><small>{host.role}</small><strong>{host.shortName}</strong>{host.days.length ? datesLabel(host.days.map(dateOf)) : host.summary}</span><ArrowDown size={18} aria-hidden="true" />
+    </a>)}</nav>
+    <section className="host-profiles wrap">{hostDetails.map((host) => <HostProfile key={host.id} host={host} />)}</section>
+    <section className="thai-iol"><div className="wrap">
+      <header className="thai-iol-head"><div><p className="eyebrow">Thailand at the IOL</p><h2 className="mixed-heading">From first team <em>to host.</em></h2></div><p>Thailand sent its first team to the IOL in 2022. The team is chosen through the Thailand Linguistics Olympiad, held every year by POSN with the Department of Linguistics at Chulalongkorn University: a national contest, then a training camp, then the team for the IOL.</p></header>
+      <ol className="thai-iol-years">
+        {thailandAtIol.map(({ year, awards }) => <li key={year}><strong>{year}</strong><small>{iolHost(year)?.city}, {iolHost(year)?.country}</small>{year === 2022 && <p>Thailand’s first IOL</p>}
+          <ul>{awards.map((award) => <li key={award.label} className={`thai-iol-${award.kind}`}>{award.label}</li>)}</ul></li>)}
+        <li className="thai-iol-host"><strong>2027</strong><small>Bangkok, Thailand</small><p>Thailand hosts the IOL, the first held in Southeast Asia.</p></li>
+      </ol>
+      <p className="thai-iol-note">Five olympiads so far: 20 contestants, 6 medals, a team bronze trophy and 2 best-solution prizes. <a href="https://ioling.org/results/THA" target="_blank" rel="noreferrer">Thailand’s results on ioling.org <ExternalLink size={13} /></a></p>
+    </div></section>
+    <SectionLinks links={[{ href: '/programme', label: 'Schedule & venues', detail: 'What happens on each day, and where.' }, { href: '/about/thailand', label: 'Host: Thailand', detail: 'Bangkok, and the days teams see Thailand.' }, { href: '/contact', label: 'Contact', detail: 'Questions for the organising team.' }]} />
+  </>
 }
 
 function Sponsors() {
-  return <><PageIntro eyebrow="Sponsors" title="A clear place for every sponsor." body="This page demonstrates how approved sponsors can be presented without confusing them with the official hosts." /><SponsorPreview full /><section className="sponsor-thanks"><p className="eyebrow">Sponsor IOL 2027</p><h2>Help young minds look closer.</h2><a className="text-link" href="mailto:iol2027.th@gmail.com?subject=IOL%202027%20sponsorship">Contact the organising team <ArrowRight size={16} /></a></section></>
+  return <><PageIntro eyebrow="Sponsors" title="Sponsors of IOL 2027." body="This page demonstrates how approved sponsors can be presented without confusing them with the official hosts." /><SponsorPreview full /><section className="sponsor-thanks"><p className="eyebrow">Sponsor IOL 2027</p><h2>Help young minds look closer.</h2><a className="text-link" href="mailto:iol2027.th@gmail.com?subject=IOL%202027%20sponsorship">Contact the organising team <ArrowRight size={16} /></a></section></>
+}
+
+// A full-screen hero hides that the page continues. The cue sits at the bottom of the window until the visitor scrolls:
+// centred where the hero leaves room, as a small corner button on short screens, and not at all if it would cover a link.
+function ScrollCue({ target, label }: { target: string; label: string }) {
+  const ref = useRef<HTMLAnchorElement>(null)
+  const [atTop, setAtTop] = useState(true)
+  const [placement, setPlacement] = useState<'centre' | 'corner' | 'none'>('centre')
+  useEffect(() => {
+    const update = () => setAtTop(window.scrollY < 40)
+    update()
+    window.addEventListener('scroll', update, { passive: true })
+    return () => window.removeEventListener('scroll', update)
+  }, [])
+  useEffect(() => {
+    const cue = ref.current
+    const hero = cue?.parentElement
+    if (!cue || !hero) return
+    const covered = (selector: string) => {
+      const c = cue.getBoundingClientRect()
+      return [...hero.querySelectorAll(selector)].some((el) => {
+        if (cue.contains(el)) return false
+        const r = el.getBoundingClientRect()
+        return r.width > 0 && r.left < c.right && r.right > c.left && r.top < c.bottom && r.bottom > c.top
+      })
+    }
+    const place = () => {
+      if (window.scrollY >= 40) return
+      cue.classList.remove('scroll-cue-corner')
+      if (!covered('h1, p, a, span, strong, img')) return setPlacement('centre')
+      cue.classList.add('scroll-cue-corner')
+      setPlacement(covered('a, button') ? 'none' : 'corner')
+    }
+    place()
+    document.fonts?.ready.then(place)
+    window.addEventListener('resize', place)
+    window.addEventListener('load', place)
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('load', place) }
+  }, [])
+  const shown = atTop && placement !== 'none'
+  return <a ref={ref} className={`scroll-cue${placement === 'corner' ? ' scroll-cue-corner' : ''}${shown ? '' : ' scroll-cue-hidden'}`} href={`#${target}`} title={label} tabIndex={shown ? undefined : -1} aria-hidden={shown ? undefined : true}><span>{label}</span><ChevronDown size={18} aria-hidden="true" /></a>
 }
 
 function Registration() {
-  return <><section className="coming-soon grain"><div className="coming-mark"><img src="/assets/iol-mark.png" alt="IOL 2027 Thailand mark" /></div><div><p className="system-label">REGISTRATION CHANNEL / PREPARING</p><h1>OPENS<br /><em>18 JAN 2027.</em></h1><p>Registration is not open yet. The planned flow uses one team leader per country, an invitation code, staged participant data, bank-transfer instructions, proof upload and later travel updates.</p><div className="hero-actions">{registrationOpen ? <><LinkButton href="/registration/team-leader" light>Create Team Leader Account</LinkButton><a href="/registration/how-to-register" className="text-link">See the registration flow <ArrowRight size={16} /></a><a href="/registration/check-in" className="text-link">Badge scanner demo <ArrowRight size={16} /></a></> : <><LinkButton href="/registration/how-to-register" light>See the registration flow</LinkButton><a href="/registration/fees-deadlines" className="text-link">Fees and deadlines <ArrowRight size={16} /></a></>}</div></div><aside><span>FEE RELEASE</span><strong>18 JAN 2027</strong><span>EARLY BIRD</span><strong>18 JAN-12 MAR</strong><span>REGULAR</span><strong>13 MAR-30 APR</strong><span>STATUS</span><strong>PREPARING</strong></aside></section></>
+  const portalHost = portalUrl.replace(/^https?:\/\//, '')
+  const stages = [
+    'Team and observer numbers, which set the fees',
+    'Invoice details, bank transfer and proof of payment',
+    'Teams, their working language, and each person’s details',
+    'Rooms and welfare',
+    'Travel: stay dates now, flights once they are booked',
+    'Review and submit',
+  ]
+  return <>
+    <section className="coming-soon grain"><div className="coming-mark"><img src="/assets/iol-mark.png" alt="IOL 2027 Thailand mark" /></div><div>
+      <p className="system-label">{registrationOpen ? 'REGISTRATION / OPEN' : 'REGISTRATION / OPENS 18 JANUARY 2027'}</p>
+      {registrationOpen ? <h1>REGISTER<br /><em>YOUR TEAM.</em></h1> : <h1>OPENS<br /><em>18 JAN 2027.</em></h1>}
+      <p>{registrationOpen
+        ? 'Team Leaders register their country in the IOL 2027 registration portal, using the invitation code their national organisation received by email.'
+        : 'Registration happens in the IOL 2027 registration portal. Each accredited country’s official contact receives an invitation code by email before it opens.'}</p>
+      <div className="hero-actions">{registrationOpen
+        ? <><a className="pill pill-light" href={portalUrl}>Go to the registration portal <span><ArrowUpRight size={16} /></span></a><a href="/registration/how-to-register" className="text-link">How to register <ArrowRight size={16} /></a></>
+        : <><LinkButton href="/registration/how-to-register" light>How registration works</LinkButton><a href="/registration/fees-deadlines" className="text-link">Fees and deadlines <ArrowRight size={16} /></a></>}</div>
+    </div><aside><span>FEE RELEASE</span><strong>18 JAN 2027</strong><span>EARLY BIRD</span><strong>18 JAN-12 MAR</strong><span>REGULAR</span><strong>13 MAR-30 APR</strong><span>STATUS</span><strong>{registrationOpen ? 'OPEN' : 'PREPARING'}</strong></aside>
+      <ScrollCue target="registration-details" label="Details below" />
+    </section>
+    <section className="two-col wrap" id="registration-details"><div><p className="eyebrow">How to register</p><h2>One Team Leader account per country.</h2></div><div className="prose">
+      <p>The official contact for each accredited country or territory receives an invitation code by email. The Team Leader uses it to create the country’s account in the registration portal{registrationOpen ? <> at <a className="inline-link" href={portalUrl}>{portalHost}</a></> : null}, then registers in stages:</p>
+      <ol className="registration-stages">{stages.map((stage) => <li key={stage}>{stage}</li>)}</ol>
+      <p>Each stage can be saved and finished later. Once the registration is submitted, the payment is confirmed and everyone’s travel is in, the Team Leader receives a QR badge for each person by email.</p>
+      <a className="text-link" href="/registration/how-to-register">The registration flow, step by step <ArrowRight size={16} /></a>
+    </div></section>
+    <section className="two-col wrap registration-block"><div><p className="eyebrow">Who can register</p><h2>Countries accredited by the IOL.</h2></div><div className="prose">
+      <p>Teams come through their country’s national linguistics olympiad, run by an organisation accredited by the International Linguistics Olympiad. The list of accredited countries and territories is on <a className="inline-link" href="https://ioling.org/countries/" target="_blank" rel="noreferrer">ioling.org</a>.</p>
+      <p>Not accredited yet? Write to the IOL Board at <a className="inline-link" href="mailto:contact@ioling.org">contact@ioling.org</a>. Under the IOL regulations, applications made by 1 January are guaranteed a place at that year’s olympiad.</p>
+    </div></section>
+    <section className="two-col wrap registration-block registration-fees"><div><p className="eyebrow">Fees and deadlines</p><h2>Register by 12&nbsp;March for the early bird fee.</h2></div><div className="prose">
+      <p>The fee depends on the day the registration is submitted, not the day it is started.</p>
+      <a className="text-link" href="/registration/fees-deadlines">How payment works <ArrowRight size={16} /></a>
+    </div><RegistrationDates /></section>
+    <section className="two-col wrap registration-block"><div><p className="eyebrow">Working languages</p><h2>Problems in your team’s language.</h2></div><div className="prose">
+      <p>Contestants read the problems and answer in a working language of their choice. A language that has not been used before must be requested before 31 January 2027.</p>
+      <a className="text-link" href="https://ioling.org/upcoming/" target="_blank" rel="noreferrer">IOL 2027 dates on ioling.org <ExternalLink size={14} /></a>
+    </div></section>
+    <SectionLinks links={[{ href: '/registration/how-to-register', label: 'How to register', detail: 'Every step of the registration flow.' }, { href: '/registration/fees-deadlines', label: 'Fees & deadlines', detail: 'Registration periods and how payment works.' }, { href: '/registration/visas', label: 'Visa & invitation letters', detail: 'Check the requirements for your country.' }]} />
+    <section className="contact-panel wrap"><div><p className="eyebrow">Questions about registration</p><a className="contact-email" href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a></div><div className="prose"><p>Please include your country or territory in the subject line so your message reaches the registration team.</p></div></section>
+  </>
+}
+
+// The registration periods on one line: the fee periods sit on the line, the dates that start and end them below it.
+function RegistrationDates() {
+  return <ol className="reg-dates">
+    <li className="reg-date reg-date-start"><h3>Registration opens</h3><strong>18 Jan 2027</strong><p>Fee amounts and the bank-transfer instructions are published.</p></li>
+    <li className="reg-period reg-period-early"><p><strong>Early bird fee</strong> 18 Jan – 12 Mar</p></li>
+    <li className="reg-date reg-date-mid"><h3>Early bird deadline</h3><strong>12 Mar 2027</strong><p>Registrations submitted by this day pay the early bird fee.</p></li>
+    <li className="reg-period reg-period-regular"><p><strong>Regular fee</strong> 13 Mar – 30 Apr</p></li>
+    <li className="reg-date reg-date-end"><h3>Regular registration ends</h3><strong>30 Apr 2027</strong><p>Registrations submitted from 13 March pay the regular fee.</p></li>
+  </ol>
+}
+
+function PortalRedirect({ to }: { to: string }) {
+  useEffect(() => { window.location.replace(to) }, [to])
+  return <PageIntro eyebrow="Registration portal" title="Opening the registration portal." body="The registration portal is its own site. If it does not open, use the Registration portal link in the menu." />
 }
 
 // In the order the registration portal asks for things (src/registration/portalData.ts).
@@ -391,7 +617,7 @@ const registrationJourney: { phase: string; steps: { title: string; detail: stri
 
 function RegistrationHow() {
   const firstStep = registrationJourney.map((_, index) => registrationJourney.slice(0, index).reduce((total, phase) => total + phase.steps.length, 1))
-  return <><PageIntro eyebrow="Registration / How to register" title="One clear path for every team." body="One Team Leader registers the whole country, from the invitation code and payment to each person’s details and travel. Everything saved in the portal is kept, so it can be done over several sittings." />
+  return <><PageIntro eyebrow="Registration / How to register" title="Registering your country, step by step." body="One Team Leader registers the whole country, from the invitation code and payment to each person’s details and travel. Everything saved in the portal is kept, so it can be done over several sittings." />
     <section className="how-ready wrap"><div><p className="eyebrow">Before you start</p><h2>Have these ready.</h2></div><ul>{registrationReady.map((item) => <li key={item}><Check size={18} aria-hidden="true" />{item}</li>)}</ul></section>
     <section className="how-journey wrap">{registrationJourney.map((phase, index) => <div className="how-phase" key={phase.phase}><h2>{phase.phase}</h2>
       <ol start={firstStep[index]}>{phase.steps.map((step, stepIndex) => <li key={step.title}><span className="how-step-number" aria-hidden="true">{firstStep[index] + stepIndex}</span><div>
@@ -400,85 +626,12 @@ function RegistrationHow() {
       </div></li>)}</ol>
     </div>)}</section>
     <section className="how-cta wrap">{registrationOpen
-      ? <><div><p className="eyebrow">Ready to start</p><h2>Begin with the invitation code.</h2></div><a className="pill pill-light" href="/registration/team-leader">Create Team Leader Account <span><ArrowRight size={16} /></span></a></>
+      ? <><div><p className="eyebrow">Ready to start</p><h2>Begin with the invitation code.</h2></div><a className="pill pill-light" href={portalUrl}>Go to the registration portal <span><ArrowUpRight size={16} /></span></a></>
       : <><div><p className="eyebrow">Opens 18 January 2027</p><h2>Each country’s official contact will receive an invitation code by email.</h2></div><a className="pill pill-light" href="/registration/fees-deadlines">Fees and deadlines <span><ArrowRight size={16} /></span></a></>}</section></>
 }
 
-function BadgeCheckIn() {
-  const [checkpoint, setCheckpoint] = useState('Arrival desk')
-  const [manualCode, setManualCode] = useState(badgeScannerMode === 'demo' ? demoBadgeCode : '')
-  const [cameraState, setCameraState] = useState<'starting' | 'ready' | 'unavailable'>('starting')
-  const [scanState, setScanState] = useState<{ tone: 'idle' | 'working' | 'accepted' | 'rejected'; title: string; detail: string }>({ tone: 'idle', title: 'Ready to scan', detail: 'Hold one badge inside the camera frame.' })
-  const scanLock = useRef(false)
-
-  const submitScan = async (payload: string) => {
-    if (!payload.trim() || scanLock.current) return
-    scanLock.current = true
-    setScanState({ tone: 'working', title: badgeScannerMode === 'demo' ? 'Running simulation' : 'Checking badge', detail: checkpoint })
-    try {
-      if (badgeScannerMode === 'demo') {
-        await new Promise((resolve) => window.setTimeout(resolve, 450))
-        if (payload.trim() !== demoBadgeCode) throw new Error(`For this prototype, use the sample badge code ${demoBadgeCode}.`)
-        setScanState({ tone: 'accepted', title: 'Narin Chaiwat', detail: `Contestant · ${checkpoint} simulated · Nothing was saved` })
-        setManualCode(demoBadgeCode)
-      } else {
-        const response = await fetch('/api/registration/check-in/scan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ payload: payload.trim(), checkpoint }),
-        })
-        const result = await response.json()
-        if (!response.ok || !result.accepted) throw new Error(result.error || 'Badge is not active.')
-        setScanState({ tone: 'accepted', title: result.member.badgeName || result.member.displayName, detail: `${result.member.role.replaceAll('_', ' ')} · ${checkpoint} recorded` })
-        setManualCode('')
-      }
-    } catch (error) {
-      setScanState({ tone: 'rejected', title: 'Badge not accepted', detail: error instanceof Error ? error.message : 'Please ask registration staff for help.' })
-    } finally {
-      window.setTimeout(() => { scanLock.current = false }, 1800)
-    }
-  }
-
-  useEffect(() => {
-    let scanner: { stop: () => Promise<void> } | null = null
-    let active = true
-    void import('html5-qrcode').then(({ Html5Qrcode }) => {
-      if (!active) return
-      const reader = new Html5Qrcode('iol-badge-reader')
-      scanner = reader
-      return reader.start(
-        { facingMode: { ideal: 'environment' } },
-        { fps: 24, qrbox: { width: 280, height: 280 } },
-        (decodedText) => { if (active) void submitScan(decodedText) },
-        () => undefined,
-      ).then(() => { if (active) setCameraState('ready') })
-    }).catch(() => { if (active) setCameraState('unavailable') })
-    return () => {
-      active = false
-      scanner?.stop().catch(() => undefined)
-    }
-  }, [checkpoint])
-
-  return <>
-    <PageIntro eyebrow="Event operations / Check-in" title="Scan every badge." body={badgeScannerMode === 'demo' ? 'Preview the planned staff check-in journey with a simulated badge. No check-in or participant information is submitted or saved.' : "Use the participant's QR badge at arrival and approved event checkpoints. The QR contains only a secure random reference."} />
-    {badgeScannerMode === 'demo' && <section className="poc-notice wrap" role="note"><strong>Scanner simulation</strong><p>This is a static PoC. Use <code>{demoBadgeCode}</code> to demonstrate an accepted badge. Camera scans and manual entries are evaluated locally and never sent to the registration API.</p></section>}
-    <section className="checkin-shell wrap">
-      <div className="checkin-controls">
-        <div><p className="eyebrow">Current checkpoint</p><h2>Where are you scanning?</h2></div>
-        <label className="reg-label checkin-label">Checkpoint<select className="reg-input" value={checkpoint} onChange={(event) => setCheckpoint(event.target.value)}><option>Arrival desk</option><option>Hotel departure</option><option>Contest venue entry</option><option>Cultural night</option><option>Awards ceremony</option></select></label>
-        <div className={`checkin-result checkin-result-${scanState.tone}`}><span>{scanState.tone === 'accepted' ? <CheckCircle /> : scanState.tone === 'rejected' ? <X /> : <ShieldCheck />}</span><div><strong>{scanState.title}</strong><p>{scanState.detail}</p></div></div>
-      </div>
-      <div className="checkin-camera">
-        <div className="checkin-camera-head"><Camera size={18} /><strong>Badge camera</strong><span>{badgeScannerMode === 'demo' ? cameraState === 'unavailable' ? 'Demo · camera unavailable' : 'Demo mode' : cameraState === 'ready' ? 'Live' : cameraState === 'starting' ? 'Starting' : 'Camera unavailable'}</span></div>
-        <div id="iol-badge-reader" className="checkin-reader" />
-        <div className="checkin-manual"><span>{badgeScannerMode === 'demo' ? `Sample badge: ${demoBadgeCode}` : 'Camera cannot read it?'}</span><div><input className="reg-input" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Enter badge code" /><button type="button" className="reg-btn-save" onClick={() => void submitScan(manualCode)}>{badgeScannerMode === 'demo' ? 'Simulate check-in' : 'Check badge'}</button></div></div>
-      </div>
-    </section>
-  </>
-}
-
 function RegistrationFees() {
-  return <><PageIntro eyebrow="Registration / Fees & deadlines" title="Transfer instructions, not online checkout." body="The confirmed registration windows come from the IOL 2027 fees and important dates notice. Final amounts and bank-account instructions will be published after Finance approval." /><section className="fee-grid wrap"><article><span>FEE RELEASE</span><strong>18 JAN 2027</strong><p>Fee information and approved transfer instructions are released.</p></article><article><span>EARLY BIRD</span><strong>18 JAN-12 MAR</strong><p>Early bird registration period.</p></article><article><span>REGULAR</span><strong>13 MAR-30 APR</strong><p>Regular registration period.</p></article></section><section className="two-col wrap"><div><p className="eyebrow">Payment process</p><h2>Transfer outside the website, then upload proof.</h2></div><div className="prose"><p>Teams will use the bank-transfer instructions shown in the registration system. The website does not collect payment or card details.</p><p>After transfer, the team leader uploads proof of payment. Finance verifies the proof manually before registration is confirmed.</p></div></section></>
+  return <><PageIntro eyebrow="Registration / Fees & deadlines" title="Fees, deadlines and how to pay." body="The confirmed registration windows come from the IOL 2027 fees and important dates notice. Final amounts and bank-account instructions will be published after Finance approval." /><section className="reg-dates-page wrap"><RegistrationDates /></section><section className="two-col wrap"><div><p className="eyebrow">Payment process</p><h2>Transfer outside the website, then upload proof.</h2></div><div className="prose"><p>Teams will use the bank-transfer instructions shown in the registration system. The website does not collect payment or card details.</p><p>After transfer, the team leader uploads proof of payment. Finance verifies the proof manually before registration is confirmed.</p></div></section></>
 }
 
 const visaSteps = [
@@ -508,9 +661,10 @@ function EventGuide() {
 }
 
 function Accommodation() {
+  const [hotel] = venues
   const [active, setActive] = useState(0)
   const image = hotelImages[active]
-  return <><PageIntro eyebrow="Event guide / Accommodation" title="Our home base in Bangkok." body="Mandarin Hotel Bangkok, managed by Centre Point, is the home base for IOL 2027 teams, jury, volunteers and staff." /><section className="hotel-feature wrap"><figure className="hotel-gallery"><div className="hotel-gallery-frame">{active > 0 && <button className="carousel-arrow carousel-arrow-left" type="button" onClick={() => setActive(active - 1)} aria-label="Previous hotel image"><ChevronLeft /></button>}<img key={image.src} src={image.src} alt={image.alt} />{active < hotelImages.length - 1 && <button className="carousel-arrow carousel-arrow-right" type="button" onClick={() => setActive(active + 1)} aria-label="Next hotel image"><ChevronRight /></button>}</div><figcaption><span>{image.caption} · Official Mandarin Hotel Bangkok image</span><span>{active + 1} / {hotelImages.length}</span></figcaption></figure><div><p className="eyebrow">Mandarin Hotel Bangkok</p><h2>662 Rama IV Road, Bang Rak, Bangkok 10500</h2><p>Located near MRT Sam Yan and within easy reach of Chulalongkorn University and central Bangkok.</p><div className="hotel-actions"><a className="pill" href="https://www.mandarin-bkk.com/" target="_blank" rel="noreferrer">Hotel website <span><ExternalLink size={16} /></span></a><a className="text-link" href="https://www.google.com/maps/search/?api=1&query=Mandarin+Hotel+Bangkok+662+Rama+IV+Road" target="_blank" rel="noreferrer"><MapPin size={16} /> Open in Google Maps</a></div></div></section><section className="hotel-map wrap"><iframe title="Mandarin Hotel Bangkok location" src="https://www.google.com/maps?q=Mandarin+Hotel+Bangkok+662+Rama+IV+Road&output=embed" loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" /></section></>
+  return <><PageIntro eyebrow="Event guide / Accommodation" title="Our home base in Bangkok." body="Mandarin Hotel Bangkok, managed by Centre Point, is the home base for IOL 2027 teams, jury, volunteers and staff." /><section className="hotel-feature wrap"><figure className="hotel-gallery"><div className="hotel-gallery-frame">{active > 0 && <button className="carousel-arrow carousel-arrow-left" type="button" onClick={() => setActive(active - 1)} aria-label="Previous hotel image"><ChevronLeft /></button>}<img key={image.src} src={image.src} alt={image.alt} />{active < hotelImages.length - 1 && <button className="carousel-arrow carousel-arrow-right" type="button" onClick={() => setActive(active + 1)} aria-label="Next hotel image"><ChevronRight /></button>}</div><figcaption><span>{image.caption} · Official Mandarin Hotel Bangkok image</span><span>{active + 1} / {hotelImages.length}</span></figcaption></figure><div><p className="eyebrow">Home base</p><h2>{hotel.name}</h2><p>Located near MRT Sam Yan and within easy reach of Chulalongkorn University and central Bangkok.</p><dl className="hotel-details"><div><dt>Address</dt><dd>{hotel.address}</dd></div><div><dt>Managed by</dt><dd>Centre Point</dd></div></dl><div className="hotel-actions"><a className="pill" href="https://www.mandarin-bkk.com/" target="_blank" rel="noreferrer">Hotel website <span><ExternalLink size={16} /></span></a><a className="text-link" href="https://www.google.com/maps/search/?api=1&query=Mandarin+Hotel+Bangkok+662+Rama+IV+Road" target="_blank" rel="noreferrer"><MapPin size={16} /> Open in Google Maps</a></div></div></section><section className="hotel-map wrap"><iframe title="Mandarin Hotel Bangkok location" src="https://www.google.com/maps?q=Mandarin+Hotel+Bangkok+662+Rama+IV+Road&output=embed" loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" /></section></>
 }
 
 function Transportation() {
@@ -521,7 +675,7 @@ function Transportation() {
     { icon: Bus, when: `${dateOf('Day 02').split(' ')[0]}–${dateOf('Day 07')}`, title: 'Transfers to every venue', detail: 'To the opening at Kasetsart University, the contests at Chulalongkorn University and the city programme.' },
     { icon: PlaneTakeoff, when: dateOf('Day 08'), title: 'Depart', detail: 'Drop-off at BKK or DMK during the departure period.' },
   ]
-  return <><PageIntro eyebrow="Event guide / Transportation" title="Arrive, move and depart with us." body="Official airport pick-up and drop-off services will be provided at Suvarnabhumi Airport (BKK) and Don Mueang International Airport (DMK) during the designated arrival and departure periods." />
+  return <><PageIntro eyebrow="Event guide / Transportation" title="Airport pick-up and getting around." body="Official airport pick-up and drop-off services will be provided at Suvarnabhumi Airport (BKK) and Don Mueang International Airport (DMK) during the designated arrival and departure periods." />
     <section className="transport-journey wrap"><header><p className="eyebrow">Door to door</p><h2 className="mixed-heading">The week, <em>from landing to take-off.</em></h2></header>
       <ol>{journey.map(({ icon: Icon, when, title, detail }) => <li key={title}><span className="transport-stop"><Icon size={22} aria-hidden="true" /></span><p className="transport-when">{when}</p><h3>{title}</h3><p>{detail}</p></li>)}</ol>
     </section>
@@ -562,7 +716,7 @@ function ImportantDates() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })
   const next = [...registrationKeyDates, ...olympiadKeyDates].find((item) => item.iso >= today)
   const days = next ? Math.round((Date.parse(next.iso) - Date.parse(today)) / 86400000) : 0
-  return <><PageIntro eyebrow="About / Important dates" title="Keep the key moments in view." body="Registration runs from January to April 2027, and the Olympiad takes place in Bangkok from 21 to 28 July. More deadlines will be added once they are approved." />
+  return <><PageIntro eyebrow="About / Important dates" title="Key dates for IOL 2027." body="Registration runs from January to April 2027, and the Olympiad takes place in Bangkok from 21 to 28 July. More deadlines will be added once they are approved." />
     {next && <section className="dates-next wrap"><div><p className="dates-next-label">Next · {days === 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`}</p><h2>{next.title}</h2><p className="dates-next-when">{utcDate(next.iso, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p></div><p>{next.detail}</p></section>}
     <section className="dates-phases wrap">
       <div className="dates-phase"><header><h2>Registration</h2><p>18 Jan – 30 Apr 2027</p></header><KeyDates dates={registrationKeyDates} today={today} /><a className="text-link" href="/registration/fees-deadlines">Fees and deadlines <ArrowRight size={16} /></a></div>
@@ -574,12 +728,110 @@ function Guidebook() {
   return <><PageIntro eyebrow="Event guide / Guidebook" title="Your practical guide to the week." body="The official programme booklet will be provided later as a downloadable PDF." /><section className="guidebook-panel wrap"><div><p className="eyebrow">Coming later</p><h2>One document for the whole week.</h2><p className="prose">The final PDF will gather the confirmed schedule, venue, accommodation, transportation, safety, emergency contact and participant instructions. No placeholder download is provided until the approved file is ready.</p></div><div className="guidebook-placeholder"><span>PDF</span><strong>Guidebook<br />2027</strong><small>Not yet published</small></div></section></>
 }
 
+type GalleryPhoto = { src: string; thumb: string; alt: string; caption: string; credit: string; creditUrl: string; size?: 'feature' | 'wide' }
+
+const hotelPhoto = (file: string, size?: GalleryPhoto['size']): GalleryPhoto => {
+  const image = hotelImages.find((item) => item.src.endsWith(file)) ?? hotelImages[0]
+  return { ...image, thumb: `/assets/gallery/thumbs/hotel-${file}`, size, credit: 'Mandarin Hotel Bangkok', creditUrl: 'https://www.mandarin-bkk.com/' }
+}
+const hostDaysOf = (id: string) => datesLabel((hostDetails.find((host) => host.id === id)?.days ?? []).map(dateOf))
+
+// Until the Olympiad has photographs of its own, the gallery shows the three venues. Campus photos come from
+// Wikimedia Commons under CC BY or CC BY-SA, which require the author, licence and source wherever they are shown.
+const galleryPlaces: { id: string; venue: string; when: string; about: { href: string; label: string }; photos: GalleryPhoto[] }[] = [
+  { id: 'hotel', venue: 'Mandarin Hotel Bangkok', when: `${dateOf('Day 01').split(' ')[0]}–${dateOf('Day 08')}`, about: { href: '/event-guide/accommodation', label: 'Accommodation' }, photos: [
+    hotelPhoto('01-lobby-atrium.jpg', 'feature'), hotelPhoto('03-lobby-lounge.jpg'), hotelPhoto('10-thai-artwork.jpg'), hotelPhoto('02-reception.jpg'), hotelPhoto('04-pool-garden.jpg'),
+    hotelPhoto('05-grand-ballroom.jpg', 'wide'), hotelPhoto('06-ballroom-stage.jpg'), hotelPhoto('08-conference-hall.jpg'),
+  ] },
+  { id: 'kasetsart', venue: 'Kasetsart University', when: hostDaysOf('kasetsart'), about: { href: '/hosts#kasetsart', label: 'About Kasetsart University' }, photos: [
+    { src: '/assets/venues/kasetsart-main-auditorium.jpg', thumb: '/assets/gallery/thumbs/ku-main-auditorium.jpg', alt: 'Main Auditorium of Kasetsart University, Bangkhen campus', caption: 'Main Auditorium', credit: 'David Supervid, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Kasetsart_University_Auditorium.jpg', size: 'feature' },
+    { src: '/assets/gallery/ku-sign.jpg', thumb: '/assets/gallery/thumbs/ku-sign.jpg', alt: 'Large KASETSART letters on a lawn below a row of coloured flags', caption: 'The Kasetsart sign, Bangkhen campus', credit: 'กสิณธร ราชโอรส, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:มหาวิทยาลัยเกษตรศาสตร์_วิทยาเขตบางเขน_เขตจตุจักร_กรุงเทพมหานคร_(3).jpg', size: 'wide' },
+    { src: '/assets/gallery/ku-pond.jpg', thumb: '/assets/gallery/thumbs/ku-pond.jpg', alt: 'A tall curved sculpture rising from a pond, with a Thai-style pavilion behind it', caption: 'By the pond, Bangkhen campus', credit: 'กสิณธร ราชโอรส, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:มหาวิทยาลัยเกษตรศาสตร์_วิทยาเขตบางเขน_เขตจตุจักร_กรุงเทพมหานคร_(7).jpg', size: 'wide' },
+  ] },
+  { id: 'chulalongkorn', venue: 'Chulalongkorn University', when: hostDaysOf('chulalongkorn'), about: { href: '/hosts#chulalongkorn', label: 'About Chulalongkorn University' }, photos: [
+    { src: '/assets/gallery/chula-maha-vajiravudh.jpg', thumb: '/assets/gallery/thumbs/chula-maha-vajiravudh.jpg', alt: 'Maha Vajiravudh Building, a white Thai-style building with red roofs, Faculty of Arts, Chulalongkorn University', caption: 'Maha Vajiravudh Building, Faculty of Arts', credit: 'Supanut Arunoprayote, CC BY 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Mahavajiravut_Building_06.23.jpg', size: 'feature' },
+    { src: '/assets/gallery/chula-arts-courtyard.jpg', thumb: '/assets/gallery/thumbs/chula-arts-courtyard.jpg', alt: 'Faculty of Arts courtyard and lotus pond at dusk, Chulalongkorn University', caption: 'Faculty of Arts courtyard at dusk', credit: 'BerryJ, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:01-อาคารคณะอักษรศาสตร์-จุฬาลงกรณ์มหาวิทยาลัย.jpg' },
+    { src: '/assets/gallery/chula-boromrajakumari.jpg', thumb: '/assets/gallery/thumbs/chula-boromrajakumari.jpg', alt: 'Boromrajakumari Building, Faculty of Arts, Chulalongkorn University', caption: 'Boromrajakumari Building', credit: 'Supanut Arunoprayote, CC BY 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Baromratchakumari_Building_06.23.jpg' },
+    { src: '/assets/gallery/chula-maha-chulalongkorn.jpg', thumb: '/assets/gallery/thumbs/chula-maha-chulalongkorn.jpg', alt: 'Maha Chulalongkorn Building and its garden, seen from the Maha Vajiravudh Building', caption: 'Maha Chulalongkorn Building', credit: 'BunBn, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Mahachulalongkorn.jpg' },
+    { src: '/assets/gallery/chula-arts-library.jpg', thumb: '/assets/gallery/thumbs/chula-arts-library.jpg', alt: 'Bookshelves in the Faculty of Arts Library, Chulalongkorn University', caption: 'Faculty of Arts Library', credit: 'Geonuch, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Bookshelves_in_Faculty_of_Arts_Library,_Chulalongkorn_University.jpg' },
+  ] },
+]
+const galleryPhotos = galleryPlaces.flatMap((place) => place.photos.map((photo) => ({ ...photo, venue: place.venue })))
+function GalleryCredits({ photos }: { photos: GalleryPhoto[] }) {
+  const [first] = photos
+  if (photos.every((photo) => photo.creditUrl === first.creditUrl)) return <p className="gallery-credits">Photos: <a href={first.creditUrl} target="_blank" rel="noreferrer">{first.credit}</a></p>
+  return <p className="gallery-credits">Photos from Wikimedia Commons: {photos.map((photo, index) => <span key={photo.src}>{index > 0 && ' · '}{photo.caption}, <a href={photo.creditUrl} target="_blank" rel="noreferrer">{photo.credit}</a></span>)}</p>
+}
+
+function GalleryViewer({ index, onIndex }: { index: number; onIndex: (index: number | null) => void }) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
+  const photo = galleryPhotos[index]
+  const step = (delta: number) => onIndex((index + delta + galleryPhotos.length) % galleryPhotos.length)
+  useEffect(() => {
+    dialog.current?.showModal()
+    document.documentElement.classList.add('viewer-open')
+    return () => document.documentElement.classList.remove('viewer-open')
+  }, [])
+  // Load the photos either side, so stepping through feels instant.
+  useEffect(() => { for (const delta of [-1, 1]) new Image().src = galleryPhotos[(index + delta + galleryPhotos.length) % galleryPhotos.length].src }, [index])
+  const swipe = (x: number, y: number) => {
+    const start = touchStart.current
+    touchStart.current = null
+    if (start && Math.abs(x - start.x) > 50 && Math.abs(x - start.x) > Math.abs(y - start.y)) step(x < start.x ? 1 : -1)
+  }
+  // A click on the dark area around the photo (the dialog itself) closes the viewer; Escape closes it natively.
+  return <dialog ref={dialog} className="gallery-viewer" aria-label="Photo viewer" onClose={() => onIndex(null)}
+    onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close() }}
+    onKeyDown={(event) => { if (event.key === 'ArrowLeft') step(-1); if (event.key === 'ArrowRight') step(1) }}>
+    <button type="button" className="gallery-viewer-close" onClick={() => dialog.current?.close()} aria-label="Close photo viewer"><X size={22} /></button>
+    <figure onTouchStart={(event) => { touchStart.current = { x: event.touches[0].clientX, y: event.touches[0].clientY } }} onTouchEnd={(event) => swipe(event.changedTouches[0].clientX, event.changedTouches[0].clientY)}>
+      <img key={photo.src} src={photo.src} alt={photo.alt} />
+      <figcaption aria-live="polite">
+        <div><span>{photo.venue}</span><strong>{photo.caption}</strong></div>
+        <div><a href={photo.creditUrl} target="_blank" rel="noreferrer">Photo: {photo.credit}</a><span className="gallery-viewer-count">{index + 1} / {galleryPhotos.length}</span></div>
+      </figcaption>
+    </figure>
+    <button type="button" className="gallery-viewer-step gallery-viewer-prev" onClick={() => step(-1)} aria-label="Previous photo"><ChevronLeft size={26} /></button>
+    <button type="button" className="gallery-viewer-step gallery-viewer-next" onClick={() => step(1)} aria-label="Next photo"><ChevronRight size={26} /></button>
+  </dialog>
+}
+
 function Gallery() {
-  return <><PageIntro eyebrow="Gallery" title="The week in pictures." body="The gallery will become a living record of the contest, host programme and people who make IOL feel like a community." /><section className="gallery-grid wrap">{['Opening', 'Contest rooms', 'Bangkok', 'Cultural night', 'Awards', 'Friends'].map((label, index) => <article key={label} className={`gallery-tile gallery-${index + 1}`}><h2>{label}</h2><small>Event photographs will be added after the July 2027 programme.</small></article>)}</section></>
+  const [open, setOpen] = useState<number | null>(null)
+  return <><PageIntro eyebrow="Gallery" title="The week in pictures." body="Photographs from IOL 2027 will be added after the July 2027 programme. Until then, look around the hotel and the two campuses where the week takes place." />
+    <nav className="gallery-jump wrap" aria-label="Gallery sections">
+      {galleryPlaces.map((place) => <a key={place.id} href={`#${place.id}`}><img src={place.photos[0].thumb} alt="" /><span><strong>{place.venue}</strong>{place.photos.length} photos</span></a>)}
+      <a href="#albums" className="gallery-jump-albums"><span className="gallery-jump-icon"><Camera size={22} aria-hidden="true" /></span><span><strong>July 2027</strong>{schedule.length} albums, one for each day</span></a>
+    </nav>
+    {galleryPlaces.map((place, index) => {
+      const venue = venues.find((item) => item.name === place.venue)
+      return <section key={place.id} id={place.id} className="gallery-place wrap">
+        <header className="gallery-place-head">
+          <span className="gallery-place-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+          <div><p className="eyebrow">{venue?.role} · {place.when}</p><h2>{place.venue}</h2></div>
+          <div><p>{venue?.detail}</p><a className="text-link" href={place.about.href}>{place.about.label} <ArrowRight size={15} /></a></div>
+        </header>
+        <div className="gallery-photos">{place.photos.map((photo) => <button key={photo.src} type="button" className={`gallery-photo${photo.size ? ` gallery-photo-${photo.size}` : ''}`} aria-haspopup="dialog" aria-label={`View photo: ${photo.caption}`} onClick={() => setOpen(galleryPhotos.findIndex((item) => item.src === photo.src))}>
+          <img src={photo.thumb} alt="" loading="lazy" decoding="async" /><span className="gallery-photo-caption">{photo.caption}</span><span className="gallery-photo-zoom" aria-hidden="true"><Maximize2 size={16} /></span>
+        </button>)}</div>
+        <GalleryCredits photos={place.photos} />
+      </section>
+    })}
+    <section id="albums" className="gallery-albums"><div className="wrap">
+      <header className="gallery-albums-head"><div><p className="eyebrow">July 2027</p><h2 className="mixed-heading">One album <em>for every day.</em></h2></div><p>Photographs from the Olympiad will be added after the July 2027 programme, sorted by day, from the first arrivals to the last departures.</p></header>
+      <ol className="gallery-albums-list">{schedule.map((item) => {
+        const Icon = dayIcons[item.day] ?? Camera
+        return <li key={item.day}><div className="gallery-album-cover" aria-hidden="true"><Icon size={24} /><strong>{item.date.split(' ')[0]}<small>{item.date.split(' ')[1]}</small></strong></div><p>{item.day}</p><h3>{item.title}</h3></li>
+      })}</ol>
+    </div></section>
+    <SectionLinks links={[{ href: '/programme', label: 'Schedule & venues', detail: 'What happens on each day, and where.' }, { href: '/event-guide/accommodation', label: 'Accommodation', detail: 'Mandarin Hotel Bangkok, the home base for the week.' }, { href: '/hosts', label: 'Hosts', detail: 'POSN, Chulalongkorn University and Kasetsart University.' }]} />
+    {open !== null && <GalleryViewer index={open} onIndex={setOpen} />}
+  </>
 }
 
 function People() {
-  return <><PageIntro eyebrow="People" title="Built by many kinds of minds." body="Committee, jury and volunteer information will be added when the approved names and roles are provided." /><SectionLinks links={[{ href: '/people/committee', label: 'Committee', detail: 'The full Thai-language roster of the organising committees and subcommittees.' }, { href: '/people/jury', label: 'Jury', detail: 'The international jury for the individual and team contests.' }, { href: '/people/problem-committee', label: 'Problem Committee', detail: 'The authors, translators and markers of the contest problems.' }, { href: '/people/volunteers', label: 'Volunteers', detail: 'The people who welcome and guide every team.' }]} /></>
+  return <><PageIntro eyebrow="People" title="The people behind IOL 2027." body="Committee, jury and volunteer information will be added when the approved names and roles are provided." /><SectionLinks links={[{ href: '/people/committee', label: 'Committee', detail: 'The full Thai-language roster of the organising committees and subcommittees.' }, { href: '/people/jury', label: 'Jury', detail: 'The international jury for the individual and team contests.' }, { href: '/people/problem-committee', label: 'Problem Committee', detail: 'The authors, translators and markers of the contest problems.' }, { href: '/people/volunteers', label: 'Volunteers', detail: 'The people who welcome and guide every team.' }]} /></>
 }
 
 function CommitteeRoster() {
@@ -624,11 +876,11 @@ function PeopleSubpage({ kind }: { kind: 'committee' | 'jury' | 'problem-committ
 }
 
 function Contact() {
-  return <><PageIntro eyebrow="Contact" title="Let's keep the signal clear." body="For enquiries regarding IOL 2027, visa-related issues, sponsorship, programme information, future announcements, or any other issues, please contact the Local Organising Committee through email." /><section className="contact-panel wrap"><div><p className="eyebrow">Central contact</p><a className="contact-email" href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a></div><div className="prose"><p>Please include a clear subject line and the participant's country or team where relevant so the enquiry can reach the appropriate organising team.</p><a className="pill" href="mailto:iol2027.th@gmail.com?subject=IOL%202027%20enquiry">Send an enquiry <span><ArrowRight size={16} /></span></a></div></section></>
+  return <><PageIntro eyebrow="Contact" title="Contact the organisers." body="For enquiries regarding IOL 2027, visa-related issues, sponsorship, programme information, future announcements, or any other issues, please contact the Local Organising Committee through email." /><section className="contact-panel wrap"><div><p className="eyebrow">Central contact</p><a className="contact-email" href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a></div><div className="prose"><p>Please include a clear subject line and the participant's country or team where relevant so the enquiry can reach the appropriate organising team.</p><a className="pill" href="mailto:iol2027.th@gmail.com?subject=IOL%202027%20enquiry">Send an enquiry <span><ArrowRight size={16} /></span></a></div></section></>
 }
 
 function Privacy() {
-  return <><PageIntro eyebrow="Privacy / PDPA" title="Respecting the people behind the data." body="IOL 2027 will collect and use participant information only for legitimate registration, safety and event-operation purposes." /><section className="two-col wrap"><div><p className="eyebrow">Privacy principles</p><h2>Clear purpose. Limited access. Responsible deletion.</h2></div><div className="prose"><p>Registration may include identity, passport, contact, accommodation, transport, dietary, accessibility, guardian, emergency-contact, payment-proof, check-in and event-operation data.</p><p>Access will be limited by staff role. The final notice will identify the legal data controller, applicable lawful bases, retention periods, service providers and contact route for rights requests under Thailand's Personal Data Protection Act.</p></div></section></>
+  return <><PageIntro eyebrow="Privacy / PDPA" title="How we handle personal data." body="IOL 2027 will collect and use participant information only for legitimate registration, safety and event-operation purposes." /><section className="two-col wrap"><div><p className="eyebrow">Privacy principles</p><h2>Clear purpose. Limited access. Responsible deletion.</h2></div><div className="prose"><p>Registration may include identity, passport, contact, accommodation, transport, dietary, accessibility, guardian, emergency-contact, payment-proof, check-in and event-operation data.</p><p>Access will be limited by staff role. The final notice will identify the legal data controller, applicable lawful bases, retention periods, service providers and contact route for rights requests under Thailand's Personal Data Protection Act.</p></div></section></>
 }
 
 function ExternalResultsRedirect() {
@@ -637,7 +889,7 @@ function ExternalResultsRedirect() {
 }
 
 function NotFound() {
-  return <><PageIntro eyebrow="404" title="That signal was lost." body="The page may have moved or is not published yet." /><div className="not-found-link wrap"><LinkButton href="/">Return home</LinkButton></div></>
+  return <><PageIntro eyebrow="404" title="Page not found." body="The page may have moved or is not published yet." /><div className="not-found-link wrap"><LinkButton href="/">Return home</LinkButton></div></>
 }
 
 function App() {
@@ -649,7 +901,7 @@ function App() {
     if (document.readyState !== 'complete') window.addEventListener('load', () => target.scrollIntoView(), { once: true })
   }, [])
   const requested = window.location.pathname.replace(/\/$/, '') || '/'
-  // While registration is closed, the portal and scanner addresses show the registration page.
+  // The portal is its own site now: its old addresses here send people there, or to this page while registration is closed.
   const path = !registrationOpen && ['/registration/team-leader', '/registration/check-in'].includes(requested) ? '/registration' : requested
   // Placeholder sections show the not-found page on the public site until launch (/media/press is the contact page, so it stays).
   const hidden = !placeholderPagesShown && (placeholderSections.some((section) => path === section || path.startsWith(`${section}/`)) || path === '/media' || path === '/media/gallery')
@@ -657,7 +909,7 @@ function App() {
     '/': <Home />,
     '/about': <About />, '/about/the-iol': <About />, '/about/thailand': <Thailand />, '/about/thai-language': <ThaiLanguage />, '/about/important-dates': <ImportantDates />, '/thailand': <Thailand />,
     '/hosts': <Hosts />, '/sponsors': <Sponsors />,
-    '/registration': <Registration />, '/registration/how-to-register': <RegistrationHow />, '/registration/team-leader': <TeamLeaderPortal />, '/registration/check-in': <BadgeCheckIn />, '/registration/fees-deadlines': <RegistrationFees />, '/registration/payment': <RegistrationFees />, '/registration/visas': <Visas />, '/registration/accredited-countries': <Registration />, '/registration/working-languages': <Registration />,
+    '/registration': <Registration />, '/registration/how-to-register': <RegistrationHow />, '/registration/team-leader': <PortalRedirect to={`${portalUrl}/${window.location.search}`} />, '/registration/check-in': <PortalRedirect to={`${portalUrl}/check-in`} />, '/registration/fees-deadlines': <RegistrationFees />, '/registration/payment': <RegistrationFees />, '/registration/visas': <Visas />, '/registration/accredited-countries': <Registration />, '/registration/working-languages': <Registration />,
     '/event-guide': <EventGuide />, '/programme': <Programme />, '/event-guide/accommodation': <Accommodation />, '/event-guide/transportation': <Transportation />, '/event-guide/guidebook': <Guidebook />,
     '/logistics': <EventGuide />, '/logistics/accommodation': <Accommodation />, '/logistics/transportation': <Transportation />, '/logistics/important-dates': <ImportantDates />, '/logistics/guidebook': <Guidebook />,
     '/explore': <Thailand />, '/explore/excursions': <Thailand />, '/explore/culture': <Thailand />, '/explore/city-guide': <Thailand />,
@@ -666,8 +918,7 @@ function App() {
     '/results': <ExternalResultsRedirect />, '/results/individual': <ExternalResultsRedirect />, '/results/team': <ExternalResultsRedirect />,
     '/contact': <Contact />, '/privacy': <Privacy />,
   }
-  const isRegistration = path === '/registration'
-  return <div className="app"><Header /><main>{(!hidden && pages[path]) || <NotFound />}</main>{!isRegistration && <Footer />}</div>
+  return <div className="app"><Header /><main>{(!hidden && pages[path]) || <NotFound />}</main><Footer /></div>
 }
 
 export default App

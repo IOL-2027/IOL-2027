@@ -18,7 +18,7 @@ export default function Overview({ onGo }: { onGo?: (section: string) => void })
   )
   const people = total(data?.stages)
   return (
-    <Panel id="overview" title="Overview" intro="Live totals across every country.">
+    <Panel id="overview" title="Statistics" intro="Live totals across every country.">
       <Problem message={error} />
       {data && <>
         <div className="reg-stats">

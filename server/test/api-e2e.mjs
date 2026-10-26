@@ -147,7 +147,9 @@ check('approving twice -> 409', (await S.finance.post(`/api/admin/payments/${pay
 // --- sign-up with an invite code
 const signup = new Client()
 check('invite verify (unused code)', (await signup.post('/api/registration/invite/verify', { code: 'iol2027-tst-0001' })).status === 200)
-check('used invite code is refused', (await signup.post('/api/registration/invite/verify', { code: 'IOL2027-THA-TEST' })).status === 404)
+const usedCode = await signup.post('/api/registration/invite/verify', { code: 'IOL2027-THA-TEST' })
+check('used invite code -> 409, sign in instead', usedCode.status === 409 && usedCode.json.codeUsed === true && usedCode.json.accountHint === 't•••••@iol2027.test')
+check('unknown invite code -> 404', (await signup.post('/api/registration/invite/verify', { code: 'IOL2027-ZZZ-0000' })).status === 404)
 check('sign-up with an existing email -> 409 (takeover fixed)', (await signup.post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'tl.thailand@iol2027.test', fullName: 'Attacker', password: 'attacker-password-1' })).status === 409)
 check('existing account still signs in with its own password', (await login('tl.thailand@iol2027.test')).r.status === 200)
 check('short password rejected', (await signup.post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'new.leader@iol2027.test', fullName: 'New Leader', password: 'short' })).status === 400)
@@ -161,6 +163,14 @@ check('right code verifies', (await signup.post('/api/auth/verify-email', { code
 const fresh = await signup.get(`/api/registration/delegations/${newId}`)
 check('verified account opens its delegation with 1 team auto-created', fresh.status === 200 && fresh.json.teams.length === 1, JSON.stringify(fresh.json?.teams))
 check('used invite code cannot create a second account (hijack fixed)', (await new Client().post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'hijacker@iol2027.test', fullName: 'H', password: 'another-long-password' })).status === 404)
+
+// --- the reusable test code (test servers only): each sign-up replaces the account made with it before
+const loop = { inviteCode: 'IOL2027-TST-LOOP', email: 'loop@iol2027.test', fullName: 'Loop Leader', password: 'a-long-enough-password' }
+const firstLoop = await new Client().post('/api/registration/team-leader-account', loop)
+check('reusable code creates an account', firstLoop.status === 201, JSON.stringify(firstLoop.json))
+check('reusable code still verifies after use', (await new Client().post('/api/registration/invite/verify', { code: 'IOL2027-TST-LOOP' })).status === 200)
+const secondLoop = await new Client().post('/api/registration/team-leader-account', loop)
+check('reusable code works again with the same email', secondLoop.status === 201 && secondLoop.json.user.id !== firstLoop.json.user?.id, JSON.stringify(secondLoop.json))
 
 // --- super admin changes a role; that user's sessions end
 const accounts = (await S.superadmin.get('/api/admin/accounts')).json.accounts

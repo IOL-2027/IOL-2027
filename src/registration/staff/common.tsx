@@ -8,11 +8,12 @@ export const when = (iso: string | null | undefined) => (iso ? new Date(iso).toL
 export const day = (iso: string | null | undefined) => (iso ? new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—')
 export const errorText = (e: unknown) => (e instanceof ApiError ? e.message : 'Something went wrong. Please try again.')
 
-/** Loads a GET endpoint and reloads on demand. */
-export function useLoad<T>(path: string) {
+/** Loads a GET endpoint and reloads on demand. A null path loads nothing (for data a role may not see). */
+export function useLoad<T>(path: string | null) {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState('')
   const load = useCallback(() => {
+    if (!path) return
     setError('')
     api<T>(path).then(setData).catch((e) => setError(errorText(e)))
   }, [path])

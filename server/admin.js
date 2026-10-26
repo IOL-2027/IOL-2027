@@ -8,7 +8,7 @@ import { calculateFees, cleanFees, cleanGuardianConsent, loadSettings, needsGuar
 import { issuePasswordCode } from './codes.js'
 import {
   asyncHandler, camelizeRow, camelizeRows, insertAudit, isEmail, missingMemberDetails, optionalString, query,
-  requireDb, requiredString, siteUrl, withTransaction,
+  requireDb, requiredString, portalUrl, withTransaction,
 } from './lib.js'
 
 /** Roles an organiser can give out directly. Team Leaders come from invitation codes, participants from their Team Leader. */
@@ -82,7 +82,7 @@ function newInviteCode(country) {
 async function sendInvite(invite, actorId) {
   if (invite.status !== 'active') throw new HttpError(409, 'Only active, unused codes can be sent.')
   if (!invite.contact_email) throw new HttpError(400, 'Add a contact email before sending.')
-  const { subject, html } = buildInviteEmail({ countryTerritory: invite.country_territory, organisation: invite.accredited_organisation, code: invite.code, siteUrl })
+  const { subject, html } = buildInviteEmail({ countryTerritory: invite.country_territory, organisation: invite.accredited_organisation, code: invite.code, portalUrl })
   let emailSent = false
   try {
     emailSent = (await sendEmail({ pool: requireDb(), to: invite.contact_email, subject, html, purpose: 'invite_code' })).configured
@@ -106,19 +106,20 @@ export function registerAdminRoutes(app, { signedIn }) {
   /* Overview ------------------------------------------------------- */
 
   app.get('/api/admin/dashboard', ...signedIn, requireRole('registration_admin', 'finance_admin', 'viewer'), asyncHandler(async (_req, res) => {
-    const [registration, payment, travel, people, proofQueue, invites, all] = await Promise.all([
+    const [registration, payment, travel, people, proofQueue, invites, unsent, all] = await Promise.all([
       query('SELECT registration_status AS status, count(*)::int AS count FROM delegations GROUP BY 1 ORDER BY 1'),
       query('SELECT payment_status AS status, count(*)::int AS count FROM delegations GROUP BY 1 ORDER BY 1'),
       query('SELECT travel_status AS status, count(*)::int AS count FROM delegations GROUP BY 1 ORDER BY 1'),
       query('SELECT role AS status, count(*)::int AS count FROM members GROUP BY 1 ORDER BY 1'),
       query(`SELECT count(*)::int AS count FROM payments WHERE status = 'awaiting_review'`),
       query('SELECT status, count(*)::int AS count FROM invite_codes GROUP BY 1 ORDER BY 1'),
+      query(`SELECT count(*)::int AS count FROM invite_codes WHERE status = 'active' AND sent_at IS NULL`),
       peopleRows(),
     ])
     const stages = STAGES.map((stage) => ({ status: stage, count: all.filter((p) => p.stage === stage).length }))
     res.json({
       registration: registration.rows, payment: payment.rows, travel: travel.rows, people: people.rows, invites: invites.rows,
-      stages, proofsWaiting: proofQueue.rows[0].count,
+      stages, proofsWaiting: proofQueue.rows[0].count, invitesNotSent: unsent.rows[0].count,
     })
   }))
 
@@ -164,7 +165,7 @@ export function registerAdminRoutes(app, { signedIn }) {
     const { subject, html } = buildPaymentConfirmedEmail({
       countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, paymentReference: approved.payment_reference,
       amountPaid: approved.amount_due, currency: approved.currency || 'USD', receiptNumber: approved.receipt_number,
-      travelUrl: `${siteUrl}/registration/team-leader?step=travel`, paymentUrl: `${siteUrl}/registration/team-leader?step=payment`,
+      travelUrl: `${portalUrl}/?step=travel`, paymentUrl: `${portalUrl}/?step=payment`,
     })
     // Awaited so Cloud Run does not slow it down after the response; a failure is logged, not shown.
     await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_confirmed', delegationId: approved.delegation_id })
@@ -366,13 +367,15 @@ export function registerAdminRoutes(app, { signedIn }) {
     const delegationId = optionalString(req.query.delegationId)
     if (delegationId && !/^[0-9a-f-]{36}$/i.test(delegationId)) throw new HttpError(400, 'Unknown delegation.')
     const eventType = optionalString(req.query.eventType)
+    // The back-office home shows only the latest few; the Activity log asks for the default 300.
+    const limit = Math.min(300, Math.max(1, Number.parseInt(req.query.limit, 10) || 300))
     const result = await query(
       `SELECT e.id, e.event_type, e.entity_type, e.entity_id, e.details, e.created_at, e.delegation_id,
          a.full_name AS actor_name, a.email AS actor_email, a.role AS actor_role, d.country_territory
        FROM audit_events e LEFT JOIN accounts a ON a.id = e.actor_account_id LEFT JOIN delegations d ON d.id = e.delegation_id
        WHERE ($1::uuid IS NULL OR e.delegation_id = $1) AND ($2::text IS NULL OR e.event_type = $2)
-       ORDER BY e.created_at DESC LIMIT 300`,
-      [delegationId, eventType],
+       ORDER BY e.created_at DESC LIMIT $3`,
+      [delegationId, eventType, limit],
     )
     res.json({ events: camelizeRows(result.rows) })
   }))

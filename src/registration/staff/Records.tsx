@@ -37,7 +37,7 @@ type AuditEvent = {
   actorName: string | null; actorEmail: string | null; actorRole: string | null; countryTerritory: string | null
 }
 
-const eventText: Record<string, string> = {
+export const eventText: Record<string, string> = {
   team_leader_account_created: 'Created the Team Leader account', delegation_updated: 'Changed the registration', invoice_saved: 'Saved invoice details',
   team_updated: 'Changed a team', member_added: 'Added a person', member_updated: 'Changed a person', member_removed: 'Removed a person',
   travel_saved: 'Saved a trip', payment_proof_uploaded: 'Uploaded proof of payment', payment_approved: 'Approved a payment', payment_rejected: 'Returned a proof',

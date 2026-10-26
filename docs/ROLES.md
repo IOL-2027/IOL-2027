@@ -61,7 +61,7 @@ The API enforces this matrix on every request (`server/auth.js`). Hiding a butto
 
 ## Test accounts
 
-These exist **only on the development environment**. Sign in at https://iol2027-dev.web.app/registration/team-leader. They use the reserved `.test` domain, so no real email is ever sent to them.
+These exist **only on the development environment**. Team Leaders sign in at https://iol2027-portal.web.app and staff at https://iol2027-portal.web.app/staff (either page works for any account; the role decides what opens). The badge scanner is at https://iol2027-portal.web.app/check-in. Until launch the portal is the test environment. They use the reserved `.test` domain, so no real email is ever sent to them.
 
 | Role | Email | Linked to |
 | --- | --- | --- |
@@ -102,3 +102,7 @@ Unused codes for trying the sign-up itself (invitation code, account, email veri
 | --- | --- |
 | `IOL2027-TST-0001` | Testland (TEST) |
 | `IOL2027-TST-0002` | Sampleland (TEST) |
+
+`IOL2027-TST-LOOP` (**Loopland (TEST)**) never gets used up: on the test server each sign-up with it replaces the account made with it before, so the whole account setup can be walked through again and again, with the same `.test` address if you like. A real (production) server treats it as an ordinary single-use code.
+
+A code that has already been used is not reported as wrong: the portal says which country's account it created (with the address partly hidden, e.g. `t•••••@iol2027.test`) and offers to sign in instead.

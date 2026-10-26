@@ -2,7 +2,7 @@
 import crypto from 'node:crypto'
 import { HttpError } from './auth.js'
 import { buildPasswordCodeEmail, buildVerificationEmail, sendEmail } from './email.js'
-import { exposeDevCodes, hashToken, query, requireDb } from './lib.js'
+import { exposeDevCodes, hashToken, portalUrl, query, requireDb } from './lib.js'
 
 const newCode = () => String(crypto.randomInt(100000, 1000000))
 
@@ -36,6 +36,6 @@ export async function issuePasswordCode(account, { setup = false } = {}) {
     `INSERT INTO password_reset_tokens (account_id, token_hash, expires_at) VALUES ($1, $2, now() + $3::interval)`,
     [account.id, hashToken(code), setup ? '7 days' : '30 minutes'],
   )
-  const { subject, html } = buildPasswordCodeEmail({ fullName: account.fullName, code, setup })
+  const { subject, html } = buildPasswordCodeEmail({ fullName: account.fullName, code, setup, portalUrl })
   return deliver({ account, subject, html, purpose: setup ? 'account_setup' : 'password_reset', code, failMessage: 'The email could not be sent. Please try again.' })
 }
