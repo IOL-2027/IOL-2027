@@ -1,6 +1,6 @@
 // Pieces shared by the back-office sections.
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { CircleAlert, Info } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CircleAlert, Info } from 'lucide-react'
 import { api, ApiError } from '../api'
 
 export const human = (value: string) => value.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
@@ -57,6 +57,23 @@ export const stageLabel: Record<string, string> = {
 /** A table that scrolls sideways on phones; focusable so keyboard users can scroll it too. */
 export function TableWrap({ label, children }: { label: string; children: ReactNode }) {
   return <div className="reg-table-wrap" role="region" aria-label={`${label} table`} tabIndex={0}><table className="reg-table">{children}</table></div>
+}
+
+/** Logs come 50 entries at a time, newest first. */
+export const PAGE_SIZE = 50
+
+/** "Showing 51–100 of 312" with Newer and Older, under a log that comes a page at a time. */
+export function Pager({ offset, count, total, onPage }: { offset: number; count: number; total: number; onPage: (offset: number) => void }) {
+  if (total <= PAGE_SIZE) return null
+  return (
+    <nav className="reg-pager" aria-label="Pages">
+      <p>Showing {offset + 1}–{offset + count} of {total}</p>
+      <div>
+        <button type="button" className="reg-btn reg-btn-secondary" disabled={offset === 0} onClick={() => onPage(Math.max(0, offset - PAGE_SIZE))}><ChevronLeft size={16} aria-hidden="true" />Newer</button>
+        <button type="button" className="reg-btn reg-btn-secondary" disabled={offset + count >= total} onClick={() => onPage(offset + PAGE_SIZE)}>Older<ChevronRight size={16} aria-hidden="true" /></button>
+      </div>
+    </nav>
+  )
 }
 
 /** A labelled search box or select used in filter bars. */
