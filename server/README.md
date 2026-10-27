@@ -95,7 +95,7 @@ Staff (routes in `admin.js`)
 - `GET /api/admin/welfare` (Welfare; no passport data)
 - `GET|POST /api/admin/invites`, `PATCH /api/admin/invites/:inviteId`, `POST /api/admin/invites/:inviteId/send` (Registration admin)
 - `GET /api/admin/exports`, `GET /api/admin/exports/:kind` (CSV; which kinds depends on the role)
-- `GET /api/admin/audit`, `GET /api/admin/email-deliveries` (Registration admin)
+- `GET /api/admin/audit`, `GET /api/admin/email-deliveries` (Registration admin): newest first, 50 a page; `?limit=` and `?offset=` page through, and the reply includes `total`
 - `GET /api/admin/settings`, `PUT /api/admin/settings/fees` (Finance), `PUT /api/admin/settings/invoice` (Finance: who the invoice is from and the bank account), `GET /api/admin/settings/invoice-sample` (a sample invoice PDF), `PUT /api/admin/settings/guardian-consent` (Registration admin)
 - `GET|POST /api/admin/accounts`, `PATCH /api/admin/accounts/:accountId` (role, disabled), `POST /api/admin/accounts/:accountId/setup-code` (Super admin; changes sign that person out)
 - `POST /api/registration/members/:memberId/badge`; `POST /api/registration/check-in/lookup` (whose badge a code is, and its latest check-ins) and `POST /api/registration/check-in/scan` (Check-in staff, Registration admin)

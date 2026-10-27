@@ -6,7 +6,7 @@ import TeamLeaderPortal from '../registration/TeamLeaderPortal'
 import { PageHead } from '../registration/ui'
 import BadgePage from './BadgePage'
 import CheckIn from './CheckIn'
-import mark from './iol2027-mark.png'
+import mark from './iol2027-mark-light.png'
 
 function Closed() {
   return (
