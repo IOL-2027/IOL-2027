@@ -25,6 +25,9 @@ export const defaultSettings = {
     issuerAddress: 'Faculty of Science, Chulalongkorn University, Phaya Thai Rd., Wang Mai, Pathumwan, Bangkok 10330 THAILAND',
     bank: null, // { beneficiaryName, beneficiaryAddress, bankName, bankAddress, accountNumber, swiftCode }
   },
+  // Badges changed after this day are printed at the registration desk rather than by the print shop.
+  // A placeholder until the organisers plan the printing.
+  badges: { printCutoff: '2027-07-01' },
 }
 
 export async function loadSettings(db) {
@@ -34,6 +37,7 @@ export async function loadSettings(db) {
     fees: { ...defaultSettings.fees, ...stored.fees, teamFee: { ...defaultSettings.fees.teamFee, ...stored.fees?.teamFee } },
     guardianConsent: { ...defaultSettings.guardianConsent, ...stored.guardianConsent },
     invoice: { ...defaultSettings.invoice, ...stored.invoice },
+    badges: { ...defaultSettings.badges, ...stored.badges },
   }
 }
 
@@ -100,6 +104,11 @@ export function cleanGuardianConsent(input) {
   if (!Number.isInteger(age) || age < 1 || age > 21) throw new Error('Age threshold must be a whole number from 1 to 21.')
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.referenceDate ?? ''))) throw new Error('Reference date must be a date.')
   return { required: Boolean(input.required), ageThreshold: age, referenceDate: input.referenceDate }
+}
+
+export function cleanBadgeSettings(input) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.printCutoff ?? ''))) throw new Error('Print cut-off must be a date.')
+  return { printCutoff: input.printCutoff }
 }
 
 export function feeTier(fees, on = new Date()) {

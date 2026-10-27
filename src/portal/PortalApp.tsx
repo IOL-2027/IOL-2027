@@ -1,9 +1,10 @@
 // The registration portal (iol2027-portal.web.app). Team Leaders sign in at /, organisers at /staff, and
-// check-in staff scan badges at /check-in. Until registration opens it only says when it opens.
+// check-in staff scan badges at /check-in; a badge's QR opens /b. Until registration opens it only says when it opens.
 import { ArrowRight, ArrowUpRight } from 'lucide-react'
 import { publicSiteUrl, registrationOpen } from '../launch'
 import TeamLeaderPortal from '../registration/TeamLeaderPortal'
 import { PageHead } from '../registration/ui'
+import BadgePage from './BadgePage'
 import CheckIn from './CheckIn'
 import mark from './iol2027-mark.png'
 
@@ -26,6 +27,7 @@ export default function PortalApp() {
   const page = !registrationOpen ? <Closed />
     : path === '/staff' ? <TeamLeaderPortal door="staff" />
     : path === '/check-in' ? <CheckIn />
+    : path === '/b' ? <BadgePage />
     : <TeamLeaderPortal door="team" />
   return (
     <div className="portal">

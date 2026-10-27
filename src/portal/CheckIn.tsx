@@ -7,13 +7,30 @@ import { Entry } from '../registration/AuthForms'
 import { Alert, PageHead, SessionBar, messageOf } from '../registration/ui'
 import '../registration/registration.css'
 
-const scanningRoles = ['checkin_staff', 'registration_admin', 'super_admin']
-const checkpoints = ['Arrival desk', 'Hotel departure', 'Contest venue entry', 'Cultural night', 'Awards ceremony']
+export const scanningRoles = ['checkin_staff', 'registration_admin', 'super_admin']
+export const checkpoints = ['Arrival desk', 'Hotel departure', 'Contest venue entry', 'Cultural night', 'Awards ceremony']
+export type BadgeHolder = { kind: 'member' | 'staff'; displayName: string; badgeName: string | null; officialName: string | null; role: string; place: string | null; team: string | null }
 type Result = { tone: 'idle' | 'working' | 'accepted' | 'rejected'; title: string; detail: string }
-type ScanResponse = { accepted: boolean; member: { displayName: string; badgeName: string | null; role: string; country: string } }
+type ScanResponse = { accepted: boolean; holder: BadgeHolder }
+
+export const holderRole: Record<string, string> = {
+  contestant: 'Contestant', team_leader: 'Team Leader', observer: 'Observer', staff: 'Staff', guide: 'Guide', volunteer: 'Volunteer', guest: 'Guest',
+}
+
+/** The checkpoint this device last scanned at, so a phone at the arrival desk keeps it between badges. */
+export function useCheckpoint() {
+  const [checkpoint, setCheckpoint] = useState(() => {
+    try { const saved = localStorage.getItem('iol-checkpoint'); return saved && checkpoints.includes(saved) ? saved : checkpoints[0] } catch { return checkpoints[0] }
+  })
+  const choose = (value: string) => {
+    setCheckpoint(value)
+    try { localStorage.setItem('iol-checkpoint', value) } catch { /* remembered for this page only */ }
+  }
+  return [checkpoint, choose] as const
+}
 
 function Scanner() {
-  const [checkpoint, setCheckpoint] = useState(checkpoints[0])
+  const [checkpoint, setCheckpoint] = useCheckpoint()
   const [manualCode, setManualCode] = useState('')
   const [cameraState, setCameraState] = useState<'starting' | 'ready' | 'unavailable'>('starting')
   const [result, setResult] = useState<Result>({ tone: 'idle', title: 'Ready to scan', detail: 'Hold one badge inside the camera frame.' })
@@ -25,7 +42,8 @@ function Scanner() {
     setResult({ tone: 'working', title: 'Checking badge', detail: checkpoint })
     try {
       const scan = await api<ScanResponse>('/api/registration/check-in/scan', { method: 'POST', body: { payload: payload.trim(), checkpoint } })
-      setResult({ tone: 'accepted', title: scan.member.badgeName || scan.member.displayName, detail: `${scan.member.displayName} · ${scan.member.country} · ${checkpoint} recorded` })
+      const { holder } = scan
+      setResult({ tone: 'accepted', title: holder.badgeName || holder.displayName, detail: [holder.displayName, holderRole[holder.role] ?? holder.role, holder.place, `${checkpoint} recorded`].filter(Boolean).join(' · ') })
       setManualCode('')
     } catch (e) {
       const detail = e instanceof ApiError && e.status === 409 ? 'This badge has been revoked. Send the person to the registration desk.' : messageOf(e)
@@ -59,13 +77,13 @@ function Scanner() {
     <section className="checkin-shell">
       <div className="checkin-controls">
         <div><p className="eyebrow">Current checkpoint</p><h2>Where are you scanning?</h2></div>
-        <label className="reg-label checkin-label">Checkpoint<select className="reg-input" value={checkpoint} onChange={(event) => setCheckpoint(event.target.value)}>{checkpoints.map((name) => <option key={name}>{name}</option>)}</select></label>
+        <label className="reg-label checkin-label">Checkpoint<select className="reg-control" value={checkpoint} onChange={(event) => setCheckpoint(event.target.value)}>{checkpoints.map((name) => <option key={name}>{name}</option>)}</select></label>
         <div className={`checkin-result checkin-result-${result.tone}`} role="status"><span>{result.tone === 'accepted' ? <CheckCircle /> : result.tone === 'rejected' ? <X /> : <ShieldCheck />}</span><div><strong>{result.title}</strong><p>{result.detail}</p></div></div>
       </div>
       <div className="checkin-camera">
         <div className="checkin-camera-head"><Camera size={18} /><strong>Badge camera</strong><span>{cameraState === 'ready' ? 'Live' : cameraState === 'starting' ? 'Starting' : 'Camera unavailable'}</span></div>
         <div id="iol-badge-reader" className="checkin-reader" />
-        <div className="checkin-manual"><span>Camera cannot read it? Enter the badge code.</span><div><input className="reg-input" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Badge code" aria-label="Badge code" /><button type="button" className="reg-btn-save" onClick={() => void submitScan(manualCode)}>Check badge</button></div></div>
+        <div className="checkin-manual"><span>Camera cannot read it? Paste the badge link or code, or look the person up by name in People.</span><div><input className="reg-control" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Badge code" aria-label="Badge code" /><button type="button" className="reg-btn reg-btn-secondary" onClick={() => void submitScan(manualCode)}>Check badge</button></div></div>
       </div>
     </section>
   )
