@@ -227,7 +227,7 @@ export default function Badges() {
             <a className="reg-btn reg-btn-primary" href={`/api/admin/badges/print?${query}&layout=shop`}><FileDown size={18} aria-hidden="true" />Print file for the print shop ({printable.length})</a>
             <a className="reg-btn reg-btn-secondary" href={`/api/admin/badges/print?${query}&layout=a4`}><FileDown size={18} aria-hidden="true" />A4 sheets, 4 per page</a>
             {state !== 'printed' && <button type="button" className="reg-btn-link" onClick={() => void markPrinted()}><Check size={16} aria-hidden="true" />Mark these {printable.length} as printed</button>}
-          </> : <p className="reg-muted">No badges to print with these filters.</p>}
+          </> : rows.length > 0 && <p className="reg-muted">No badges to print with these filters.</p>}
         </div>
         <p className="reg-hint">The print shop file has one badge per page: 10 × 14 cm, front only, with 3 mm bleed. Check it, send it, then mark the badges as printed.</p>
 

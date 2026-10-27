@@ -21,7 +21,7 @@ type ParticipantRecord = { displayName: string; countryTerritory: string; teamNa
 function ParticipantPanel() {
   const { data, error } = useLoad<{ member: ParticipantRecord }>('/api/participant/me')
   return (
-    <Panel id="me" title="Your registration" intro="Your Team Leader manages these details. Ask them if anything is wrong.">
+    <Panel id="me" title="Your details" intro="Your Team Leader manages these details. Ask them if anything is wrong.">
       <Problem message={error} />
       {data && <dl className="reg-facts">
         {[['Name', data.member.displayName], ['Country', data.member.countryTerritory], ['Team', data.member.teamName ?? 'Not assigned yet'], ['Exam language', data.member.examLanguage ?? '—'],

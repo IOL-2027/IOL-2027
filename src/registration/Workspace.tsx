@@ -845,7 +845,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
           {activeId === 'badges' && <>
             <Facts items={section.facts ?? []} />
-            <p className="reg-aside"><Info size={18} aria-hidden="true" />Staff use the <a href="/check-in">badge scanner</a> during event week.</p>
+            <p className="reg-aside"><Info size={18} aria-hidden="true" /><span>Staff use the <a href="/check-in">badge scanner</a> during event week.</span></p>
           </>}
         </section>
       </div>}
