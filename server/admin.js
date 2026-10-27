@@ -4,7 +4,7 @@ import crypto from 'node:crypto'
 import { HttpError, ROLES, filterMember, hashPassword, requireRole } from './auth.js'
 import { buildInviteEmail, buildPaymentConfirmedEmail, sendEmail } from './email.js'
 import { sendBadgesIfSettled } from './badges.js'
-import { calculateFees, cleanFees, cleanGuardianConsent, cleanInvoice, loadSettings, needsGuardianConsent } from './fees.js'
+import { calculateFees, cleanBadgeSettings, cleanFees, cleanGuardianConsent, cleanInvoice, loadSettings, needsGuardianConsent } from './fees.js'
 import { invoicePdf } from './invoice-pdf.js'
 import { issuePasswordCode } from './codes.js'
 import {
@@ -331,11 +331,13 @@ export function registerAdminRoutes(app, { signedIn }) {
     },
     checkins: {
       roles: ['registration_admin', 'checkin_staff'],
-      columns: [['scanned_at', 'Scanned at'], ['checkpoint', 'Checkpoint'], ['result', 'Result'], ['display_name', 'Person'], ['role', 'Role'], ['country_territory', 'Country'], ['scanned_by', 'Scanned by']],
+      columns: [['scanned_at', 'Scanned at'], ['checkpoint', 'Checkpoint'], ['result', 'Result'], ['display_name', 'Person'], ['role', 'Role'], ['country_territory', 'Country or assignment'], ['scanned_by', 'Scanned by']],
+      // Delegation members and event staff (staff, guides, volunteers, guests) alike.
       rows: async () => (await query(
-        `SELECT ce.*, m.display_name, m.role, d.country_territory, a.full_name AS scanned_by
-         FROM check_in_events ce JOIN members m ON m.id = ce.member_id JOIN delegations d ON d.id = m.delegation_id
-         LEFT JOIN accounts a ON a.id = ce.scanned_by_account_id ORDER BY ce.scanned_at DESC`,
+        `SELECT ce.*, COALESCE(m.display_name, s.full_name) AS display_name, COALESCE(m.role, s.category) AS role,
+           COALESCE(d.country_territory, s.assignment) AS country_territory, a.full_name AS scanned_by
+         FROM check_in_events ce LEFT JOIN members m ON m.id = ce.member_id LEFT JOIN delegations d ON d.id = m.delegation_id
+         LEFT JOIN event_staff s ON s.id = ce.staff_id LEFT JOIN accounts a ON a.id = ce.scanned_by_account_id ORDER BY ce.scanned_at DESC`,
       )).rows,
     },
     welfare: {
@@ -449,6 +451,13 @@ export function registerAdminRoutes(app, { signedIn }) {
     let policy
     try { policy = cleanGuardianConsent(req.body) } catch (error) { throw new HttpError(400, error.message) }
     await saveSetting(req, 'guardianConsent', policy)
+    res.json(await loadSettings(requireDb()))
+  }))
+
+  app.put('/api/admin/settings/badges', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
+    let badges
+    try { badges = cleanBadgeSettings(req.body) } catch (error) { throw new HttpError(400, error.message) }
+    await saveSetting(req, 'badges', badges)
     res.json(await loadSettings(requireDb()))
   }))
 

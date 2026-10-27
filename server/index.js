@@ -12,7 +12,7 @@ import {
 } from './email.js'
 import { readUpload, saveUpload } from './storage.js'
 import { invoicePdf } from './invoice-pdf.js'
-import { badgeQrDataUrl, issueBadge, missingTravel, sendBadgesIfSettled } from './badges.js'
+import { badgeQrDataUrl, findBadge, issueBadge, missingTravel, sendBadgesIfSettled } from './badges.js'
 import {
   DELEGATION_ADMINS, DELEGATION_READERS, HttpError,
   checkPasswordRules, createSession, destroySession, filterMember, hashPassword, loginBlocked, recordLogin,
@@ -25,6 +25,7 @@ import {
 } from './lib.js'
 import { issuePasswordCode, issueVerificationCode } from './codes.js'
 import { registerAdminRoutes } from './admin.js'
+import { registerBadgeRoutes } from './badge-admin.js'
 
 const port = Number(process.env.PORT || process.env.API_PORT || 4000)
 
@@ -772,40 +773,39 @@ app.get('/api/participant/me', ...signedIn, requireRole('participant'), asyncHan
 app.post('/api/registration/members/:memberId/badge', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
   const member = (await query('SELECT id, delegation_id, display_name, badge_name, role FROM members WHERE id = $1', [req.params.memberId])).rows[0]
   if (!member) throw new HttpError(404, 'Member not found.')
-  const { credential, payload } = await issueBadge(requireDb(), member.id)
+  const { credential, payload } = await issueBadge(requireDb(), { memberId: member.id })
   const qrDataUrl = await badgeQrDataUrl(payload)
   await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: member.delegation_id, eventType: 'badge_issued', entityType: 'member', entityId: member.id, details: { publicId: credential.public_id } })
   res.status(201).json({ badge: camelizeRow(credential), member: camelizeRow(member), qrDataUrl })
 }))
 
+/** Whose badge it is, as the scanner and the badge page show it: name, role, and country (or assignment, for staff). */
+const badgeHolder = (c) => ({
+  kind: c.staff_id ? 'staff' : 'member', displayName: c.display_name, badgeName: c.badge_name, officialName: c.official_name,
+  role: c.role, place: c.place, team: c.team_name,
+})
+
+// The badge page (/b) shows whose badge was scanned and its recent check-ins before anything is recorded.
+app.post('/api/registration/check-in/lookup', ...signedIn, requireRole('checkin_staff', 'registration_admin'), asyncHandler(async (req, res) => {
+  const credential = await findBadge(requiredString(req.body.payload, 'Badge code'))
+  const scans = await query(
+    `SELECT ce.checkpoint, ce.result, ce.scanned_at, a.full_name AS scanned_by FROM check_in_events ce LEFT JOIN accounts a ON a.id = ce.scanned_by_account_id
+     WHERE ce.member_id = $1 OR ce.staff_id = $2 ORDER BY ce.scanned_at DESC LIMIT 5`,
+    [credential.member_id, credential.staff_id],
+  )
+  res.json({ holder: badgeHolder(credential), active: credential.status === 'active', scans: camelizeRows(scans.rows) })
+}))
+
 app.post('/api/registration/check-in/scan', ...signedIn, requireRole('checkin_staff', 'registration_admin'), asyncHandler(async (req, res) => {
-  const payload = requiredString(req.body.payload, 'QR payload')
-  const checkpoint = requiredString(req.body.checkpoint, 'checkpoint')
-  const encoded = payload.startsWith('IOL2027:') ? payload.slice('IOL2027:'.length) : payload
-  const separator = encoded.indexOf('.')
-  if (separator < 1) throw new HttpError(400, 'Badge QR is invalid.')
-  const publicId = encoded.slice(0, separator)
-  const secret = encoded.slice(separator + 1)
-  const credential = (await query(
-    `SELECT bc.*, m.display_name, m.badge_name, m.role, d.country_territory
-     FROM badge_credentials bc JOIN members m ON m.id = bc.member_id JOIN delegations d ON d.id = m.delegation_id
-     WHERE bc.public_id = $1`,
-    [publicId],
-  )).rows[0]
-  if (!credential) throw new HttpError(404, 'Badge was not found.')
-  const supplied = Buffer.from(hashToken(secret), 'hex')
-  const stored = Buffer.from(credential.secret_hash, 'hex')
-  if (!(supplied.length === stored.length && crypto.timingSafeEqual(supplied, stored))) throw new HttpError(400, 'Badge QR is invalid.')
+  const checkpoint = requiredString(req.body.checkpoint, 'Checkpoint')
+  if (checkpoint.length > 80) throw new HttpError(400, 'Checkpoint must be at most 80 characters.')
+  const credential = await findBadge(requiredString(req.body.payload, 'Badge code'))
   const result = credential.status === 'active' ? 'accepted' : 'revoked'
   const scan = (await query(
-    `INSERT INTO check_in_events (badge_credential_id, member_id, scanned_by_account_id, checkpoint, result) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-    [credential.id, credential.member_id, req.user.id, checkpoint, result],
+    `INSERT INTO check_in_events (badge_credential_id, member_id, staff_id, scanned_by_account_id, checkpoint, result) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    [credential.id, credential.member_id, credential.staff_id, req.user.id, checkpoint, result],
   )).rows[0]
-  res.status(result === 'accepted' ? 201 : 409).json({
-    accepted: result === 'accepted',
-    member: { id: credential.member_id, displayName: credential.display_name, badgeName: credential.badge_name, role: credential.role, country: credential.country_territory },
-    scan: camelizeRow(scan),
-  })
+  res.status(result === 'accepted' ? 201 : 409).json({ accepted: result === 'accepted', holder: badgeHolder(credential), scan: camelizeRow(scan) })
 }))
 
 /* ------------------------------------------------------------------ */
@@ -813,6 +813,7 @@ app.post('/api/registration/check-in/scan', ...signedIn, requireRole('checkin_st
 /* ------------------------------------------------------------------ */
 
 registerAdminRoutes(app, { signedIn })
+registerBadgeRoutes(app, { signedIn })
 
 app.use('/api', (_req, _res, next) => next(new HttpError(404, 'Not found.')))
 
