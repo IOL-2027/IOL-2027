@@ -7,7 +7,7 @@ export type Committee = { number: string; nameTh: string; nameEn: string; groups
 
 export const committeeHeading = {
   titleTh: "คณะกรรมการและคณะอนุกรรมการดำเนินงาน",
-  subtitleTh: "จัดการแข่งขันภาษาศาสตร์โอลิมปิกระหว่างประเทศ ครั้งที่ 24 ในประเทศไทย ปี พ.ศ. 2570",
+  subtitleTh: "จัดการแข่งขันภาษาศาสตร์โอลิมปิกระหว่างประเทศ ครั้งที่ 24 ในประเทศไทย ปี\u00a0พ.ศ.\u00a02570",
 }
 
 export const royalPatron = {

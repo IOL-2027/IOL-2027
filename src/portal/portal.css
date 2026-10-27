@@ -17,6 +17,9 @@
 .portal-footer p { margin: 0; }
 .portal-footer a { border-bottom: 1px solid currentColor; }
 .portal .eyebrow { font: 700 12px 'Manrope', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--plum); margin: 0 0 12px; }
+.portal-brand small, .portal-site-link, .portal-footer a { white-space: nowrap; }
+.portal-site-short { display: none; }
 @media (max-width: 600px) {
-  .portal-site-link span { display: none; }
+  .portal-site-long { display: none; }
+  .portal-site-short { display: inline; }
 }
