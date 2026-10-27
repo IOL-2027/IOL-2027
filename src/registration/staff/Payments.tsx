@@ -8,6 +8,7 @@ type PaymentRow = {
   id: string; delegationId: string; countryTerritory: string; primaryTeamLeaderName: string; teamLeaderEmail: string
   numberOfTeams: number; numberOfObservers: number; paymentReference: string; amountDue: string; currency: string; feeTier: string
   status: string; invoiceRecipientName: string | null; invoiceRecipientAddress: string | null; invoiceCount: number; invoiceSplitNote: string | null
+  invoiceNumber: string | null; invoiceRecipientTin: string | null
   proofAttachmentId: string | null; proofFilename: string | null; proofMimeType: string | null
   reviewNote: string | null; reviewedByName: string | null; reviewedAt: string | null; receiptNumber: string | null; updatedAt: string
 }
@@ -57,7 +58,7 @@ export default function Payments({ canReview }: { canReview: boolean }) {
   }
 
   const term = search.trim().toLowerCase()
-  const rows = (data?.payments ?? []).filter((p) => !term || [p.countryTerritory, p.paymentReference, p.invoiceRecipientName ?? '', p.receiptNumber ?? ''].some((v) => v.toLowerCase().includes(term)))
+  const rows = (data?.payments ?? []).filter((p) => !term || [p.countryTerritory, p.paymentReference, p.invoiceNumber ?? '', p.invoiceRecipientName ?? '', p.receiptNumber ?? ''].some((v) => v.toLowerCase().includes(term)))
 
   return (
     <Panel id="payments" title="Payments" intro={canReview ? 'Check each proof against the สอวน bank statement, then approve it or return it with a reason. Approving issues a numbered e-receipt.' : 'Read-only. Approving payments is a Finance task.'}>
@@ -68,7 +69,7 @@ export default function Payments({ canReview }: { canReview: boolean }) {
           ))}
         </div>
         <FilterField id="pay-search" label="Search">
-          <input id="pay-search" className="reg-control reg-control-compact" type="search" placeholder="Country, reference or receipt" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input id="pay-search" className="reg-control reg-control-compact" type="search" placeholder="Country, reference, invoice or receipt" value={search} onChange={(e) => setSearch(e.target.value)} />
         </FilterField>
       </div>
       <Problem message={error || actionError} />
@@ -84,12 +85,13 @@ export default function Payments({ canReview }: { canReview: boolean }) {
             </div>
             <dl className="reg-pay-details">
               <div><dt>Team Leader</dt><dd>{p.primaryTeamLeaderName}<small>{p.teamLeaderEmail}</small></dd></div>
-              <div><dt>Invoice to</dt><dd>{p.invoiceRecipientName ?? '—'}{p.invoiceRecipientAddress && <small>{p.invoiceRecipientAddress}</small>}</dd></div>
+              <div><dt>Invoice to</dt><dd>{p.invoiceRecipientName ?? '—'}{p.invoiceRecipientTin && <small>TIN {p.invoiceRecipientTin}</small>}{p.invoiceRecipientAddress && <small>{p.invoiceRecipientAddress}</small>}</dd></div>
               <div><dt>Invoices</dt><dd>{p.invoiceCount}{p.invoiceSplitNote && <small>{p.invoiceSplitNote}</small>}</dd></div>
               <div><dt>Declared</dt><dd>{p.numberOfTeams} {p.numberOfTeams === 1 ? 'team' : 'teams'}, {p.numberOfObservers} {p.numberOfObservers === 1 ? 'observer' : 'observers'}</dd></div>
             </dl>
             {p.reviewNote && <p className="reg-pay-note"><strong>Note to the Team Leader:</strong> {p.reviewNote}</p>}
             <div className="reg-pay-files">
+              <a className="reg-btn-link" href={`/api/registration/delegations/${p.delegationId}/invoice`} target="_blank" rel="noreferrer"><FileText size={16} aria-hidden="true" />Invoice {p.invoiceNumber ?? ''}</a>
               {p.proofAttachmentId && <>
                 <button type="button" className="reg-btn-link" aria-expanded={previewing === p.id} onClick={() => setPreviewing(previewing === p.id ? null : p.id)}>
                   {previewing === p.id ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}{previewing === p.id ? 'Hide proof' : 'Preview proof'}

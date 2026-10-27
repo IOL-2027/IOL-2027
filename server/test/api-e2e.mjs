@@ -107,6 +107,9 @@ check('adding a person before payment -> 409', (await tl.post(`/api/registration
 check('proof before invoice -> 409', (await tl.post(`/api/registration/delegations/${thaiId}/payment-proof`, undefined, { form: (() => { const f = new FormData(); f.append('proof', new Blob(['%PDF-1.4'], { type: 'application/pdf' }), 'p.pdf'); return f })() })).status === 409)
 const inv = await tl.put(`/api/registration/delegations/${thaiId}/invoice`, { recipientName: 'National Linguistics Olympiad Thailand', invoiceCount: 1 })
 check('invoice saved, amount computed by server (2 teams = 2880)', inv.status === 200 && Number(inv.json.payment.amountDue) === 2880, JSON.stringify(inv.json))
+check('the invoice is numbered like IOL2027/23', /^IOL2027\/\d+$/.test(inv.json.payment?.invoiceNumber ?? ''), JSON.stringify(inv.json.payment))
+const invPdf = await tl.get(`/api/registration/delegations/${thaiId}/invoice`)
+check('the invoice downloads as a PDF', invPdf.status === 200 && invPdf.headers.get('content-type') === 'application/pdf' && invPdf.text.startsWith('%PDF'), invPdf.status)
 const form = new FormData(); form.append('proof', new Blob(['%PDF-1.4 test proof'], { type: 'application/pdf' }), 'transfer.pdf')
 const proof = await tl.post(`/api/registration/delegations/${thaiId}/payment-proof`, undefined, { form })
 check('proof upload -> awaiting_review', proof.status === 201 && proof.json.payment.status === 'awaiting_review', JSON.stringify(proof.json))
@@ -238,6 +241,12 @@ check('Finance sets the observer fee', s1.status === 200 && s1.json.fees.observe
 const thaiFees = (await S.admin.get(`/api/registration/delegations/${thaiId}`)).json.fees
 check('the observer fee reaches delegation invoices', thaiFees.lines.find((l) => l.key === 'observers').amount === 300 && thaiFees.observersPending === false, JSON.stringify(thaiFees))
 check('fees restored', (await S.finance.put('/api/admin/settings/fees', s0.json.fees)).json?.fees?.observerFee === null)
+const bankForm = { ...s0.json.invoice, bank: { beneficiaryName: 'Test Foundation', bankName: 'Test Bank', accountNumber: '000-000000-0', swiftCode: 'TESTTHBK' } }
+check('Admin cannot change the bank account (403)', (await S.admin.put('/api/admin/settings/invoice', bankForm)).status === 403)
+check('a malformed SWIFT code is refused (400)', (await S.finance.put('/api/admin/settings/invoice', { ...bankForm, bank: { ...bankForm.bank, swiftCode: 'TEST' } })).status === 400)
+check('Finance saves the bank account', (await S.finance.put('/api/admin/settings/invoice', bankForm)).json?.invoice?.bank?.swiftCode === 'TESTTHBK')
+check('the Payment step shows the bank account', (await tl.get(`/api/registration/delegations/${thaiId}`)).json?.bank?.accountNumber === '000-000000-0')
+check('bank account restored', (await S.finance.put('/api/admin/settings/invoice', s0.json.invoice)).status === 200)
 check('Finance cannot change the consent policy (403)', (await S.finance.put('/api/admin/settings/guardian-consent', { required: true, ageThreshold: 18, referenceDate: '2027-07-21' })).status === 403)
 const policy = await S.admin.put('/api/admin/settings/guardian-consent', { required: true, ageThreshold: 18, referenceDate: '2027-07-21' })
 check('Admin switches guardian consent on', policy.status === 200 && policy.json.guardianConsent.required === true)

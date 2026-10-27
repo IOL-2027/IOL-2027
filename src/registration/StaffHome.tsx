@@ -12,7 +12,7 @@ import Overview from './staff/Overview'
 import Payments from './staff/Payments'
 import { Countries, People, Welfare } from './staff/People'
 import { Activity, EmailLog, Exports } from './staff/Records'
-import { ConsentSettingsPanel, FeeSettingsPanel } from './staff/Settings'
+import { ConsentSettingsPanel, FeeSettingsPanel, InvoiceSettingsPanel } from './staff/Settings'
 import { Panel, Problem, human, useLoad } from './staff/common'
 
 type ParticipantRecord = { displayName: string; countryTerritory: string; teamName: string | null; role: string; badgeStatus: string | null; tshirtSize: string | null; poloSize: string | null; examLanguage: string | null }
@@ -61,7 +61,7 @@ const sectionDefs: SectionDef[] = [
   { id: 'welfare', label: 'Welfare', group: 'Registration', icon: HeartPulse, roles: ['welfare_staff'] },
   { id: 'checkin', label: 'Check-in', group: 'Registration', icon: QrCode, roles: ['checkin_staff'] },
   { id: 'payments', label: 'Payments', group: 'Finance', icon: CreditCard, roles: ['finance_admin', 'registration_admin'] },
-  { id: 'fees', label: 'Fees', group: 'Finance', icon: Banknote, roles: ['finance_admin', 'registration_admin'] },
+  { id: 'fees', label: 'Fees and invoice', group: 'Finance', icon: Banknote, roles: ['finance_admin', 'registration_admin'] },
   { id: 'exports', label: 'Exports', group: 'Records', icon: Download, roles: ['registration_admin', 'finance_admin', 'checkin_staff', 'welfare_staff'] },
   { id: 'activity', label: 'Activity log', group: 'Records', icon: History, roles: ['registration_admin'] },
   { id: 'email', label: 'Email log', group: 'Records', icon: Inbox, roles: ['registration_admin'] },
@@ -134,7 +134,7 @@ export default function StaffHome({ user, onSessionEnd, session }: { user: User;
     welfare: () => <Welfare />,
     checkin: () => <CheckinPanel />,
     payments: () => <Payments canReview={role === 'finance_admin' || isSuper} />,
-    fees: () => <FeeSettingsPanel canEdit={role === 'finance_admin' || isSuper} />,
+    fees: () => <><FeeSettingsPanel canEdit={role === 'finance_admin' || isSuper} /><InvoiceSettingsPanel canEdit={role === 'finance_admin' || isSuper} /></>,
     exports: () => <Exports />,
     activity: () => <Activity />,
     email: () => <EmailLog />,

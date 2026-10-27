@@ -78,7 +78,7 @@ Public
 
 Team Leader (own delegation; admins can open any)
 - `GET|PATCH /api/registration/delegations/:delegationId`
-- `PUT /api/registration/delegations/:delegationId/invoice`, `POST …/payment-proof`
+- `PUT /api/registration/delegations/:delegationId/invoice` (saves the invoice details; the first save numbers the invoice IOL2027/n), `GET …/invoice` (the invoice PDF), `POST …/payment-proof`
 - `POST …/teams`, `PATCH /api/registration/teams/:teamId`
 - `POST …/members`, `PATCH|DELETE /api/registration/members/:memberId`, `POST …/guardian-consent`
 - `POST …/travel`, `PATCH /api/registration/travel/:travelRecordId`
@@ -96,7 +96,7 @@ Staff (routes in `admin.js`)
 - `GET|POST /api/admin/invites`, `PATCH /api/admin/invites/:inviteId`, `POST /api/admin/invites/:inviteId/send` (Registration admin)
 - `GET /api/admin/exports`, `GET /api/admin/exports/:kind` (CSV; which kinds depends on the role)
 - `GET /api/admin/audit`, `GET /api/admin/email-deliveries` (Registration admin)
-- `GET /api/admin/settings`, `PUT /api/admin/settings/fees` (Finance), `PUT /api/admin/settings/guardian-consent` (Registration admin)
+- `GET /api/admin/settings`, `PUT /api/admin/settings/fees` (Finance), `PUT /api/admin/settings/invoice` (Finance: who the invoice is from and the bank account), `GET /api/admin/settings/invoice-sample` (a sample invoice PDF), `PUT /api/admin/settings/guardian-consent` (Registration admin)
 - `GET|POST /api/admin/accounts`, `PATCH /api/admin/accounts/:accountId` (role, disabled), `POST /api/admin/accounts/:accountId/setup-code` (Super admin; changes sign that person out)
 - `POST /api/registration/members/:memberId/badge`, `POST /api/registration/check-in/scan`
 

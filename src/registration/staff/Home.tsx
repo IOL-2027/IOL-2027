@@ -27,7 +27,7 @@ const shortcuts: { key: string; icon: Icon; title: (role: Role) => string; detai
   { key: 'exports', icon: Download, title: () => 'Download lists', detail: 'Spreadsheets of people, travel and more.', go: 'exports' },
   { key: 'accounts', icon: UserCog, title: () => 'Staff accounts', detail: 'Add organisers and set their roles.', go: 'accounts' },
   { key: 'countries', icon: Globe2, title: () => 'Countries', detail: 'Every delegation and how far it has got.', go: 'countries' },
-  { key: 'fees', icon: Banknote, title: () => 'Fees and early bird', detail: 'The amounts and dates the portal charges.', go: 'fees' },
+  { key: 'fees', icon: Banknote, title: () => 'Fees and invoice', detail: 'The amounts, due dates and bank account on invoices.', go: 'fees' },
 ]
 
 function ActionLink({ action, onGo, className, children }: { action: Action; onGo: (id: string) => void; className: string; children: ReactNode }) {

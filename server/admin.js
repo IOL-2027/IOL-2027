@@ -4,7 +4,8 @@ import crypto from 'node:crypto'
 import { HttpError, ROLES, filterMember, hashPassword, requireRole } from './auth.js'
 import { buildInviteEmail, buildPaymentConfirmedEmail, sendEmail } from './email.js'
 import { sendBadgesIfSettled } from './badges.js'
-import { calculateFees, cleanFees, cleanGuardianConsent, loadSettings, needsGuardianConsent } from './fees.js'
+import { calculateFees, cleanFees, cleanGuardianConsent, cleanInvoice, loadSettings, needsGuardianConsent } from './fees.js'
+import { invoicePdf } from './invoice-pdf.js'
 import { issuePasswordCode } from './codes.js'
 import {
   asyncHandler, camelizeRow, camelizeRows, insertAudit, isEmail, missingMemberDetails, optionalString, query,
@@ -309,8 +310,8 @@ export function registerAdminRoutes(app, { signedIn }) {
     },
     payments: {
       roles: ['finance_admin', 'registration_admin'],
-      columns: [['country_territory', 'Country'], ['payment_reference', 'Payment reference'], ['receipt_number', 'Receipt number'], ['status', 'Status'], ['amount_due', 'Amount'],
-        ['currency', 'Currency'], ['fee_tier', 'Fee tier'], ['invoice_recipient_name', 'Invoice recipient'], ['invoice_recipient_address', 'Invoice address'],
+      columns: [['country_territory', 'Country'], ['invoice_number', 'Invoice number'], ['payment_reference', 'Payment reference'], ['receipt_number', 'Receipt number'], ['status', 'Status'], ['amount_due', 'Amount'],
+        ['currency', 'Currency'], ['fee_tier', 'Fee tier'], ['invoice_recipient_name', 'Invoice recipient'], ['invoice_recipient_tin', 'Recipient TIN'], ['invoice_recipient_address', 'Invoice address'],
         ['invoice_count', 'Invoices'], ['invoice_split_note', 'Split'], ['review_note', 'Review note'], ['reviewed_by_name', 'Reviewed by'], ['reviewed_at', 'Reviewed at'], ['updated_at', 'Last change']],
       rows: async () => (await query(
         `SELECT p.*, d.country_territory, r.full_name AS reviewed_by_name FROM payments p JOIN delegations d ON d.id = p.delegation_id
@@ -418,6 +419,30 @@ export function registerAdminRoutes(app, { signedIn }) {
     }
     const settings = await loadSettings(requireDb())
     res.json({ ...settings, example: calculateFees(settings.fees, { numberOfTeams: 2, numberOfObservers: 1 }), recalculated: open.length })
+  }))
+
+  // Who invoices come from and the bank account they ask for. Saving applies to every invoice from then on,
+  // including ones already sent: a Team Leader who downloads theirs again gets the new details.
+  app.put('/api/admin/settings/invoice', ...signedIn, requireRole('finance_admin'), asyncHandler(async (req, res) => {
+    let invoice
+    try { invoice = cleanInvoice(req.body) } catch (error) { throw new HttpError(400, error.message) }
+    await saveSetting(req, 'invoice', invoice)
+    res.json(await loadSettings(requireDb()))
+  }))
+
+  // A sample invoice with the saved settings, so Finance can check the layout before any country has one.
+  app.get('/api/admin/settings/invoice-sample', ...signedIn, requireRole('finance_admin', 'registration_admin'), asyncHandler(async (_req, res) => {
+    const settings = await loadSettings(requireDb())
+    const pdf = await invoicePdf({
+      delegation: { country_territory: 'Sampleland', accredited_organisation: 'Sampleland Linguistics Olympiad' },
+      payment: {
+        invoice_number: 'IOL2027/0', invoice_recipient_name: 'Sampleland Linguistics Olympiad', invoice_recipient_tin: '12-3456789',
+        invoice_recipient_address: '1 Example Street, Sample City 10000, Sampleland', invoice_count: 1, payment_reference: 'SAM-IOL2027-0000',
+      },
+      fees: calculateFees(settings.fees, { numberOfTeams: 2, numberOfObservers: 1 }),
+      invoice: settings.invoice,
+    })
+    res.set('Content-Type', 'application/pdf').set('Content-Disposition', 'inline; filename="IOL2027-invoice-sample.pdf"').send(pdf)
   }))
 
   app.put('/api/admin/settings/guardian-consent', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
