@@ -17,7 +17,8 @@ export type User = {
 }
 
 export type FeeLine = { key: string; label: string; detail: string; amount: number | null }
-export type Fees = { tier: string; tierLabel: string; currency: string; lines: FeeLine[]; total: number; observersPending: boolean }
+/** dueDate is when an invoice at this tier must be paid: the last early-bird day, or the last day of registration. */
+export type Fees = { tier: string; tierLabel: string; currency: string; lines: FeeLine[]; total: number; observersPending: boolean; dueDate: string }
 
 export type Team = { id: string; name: string; code: string; contestLanguage: string | null; status: string }
 export type Member = {
@@ -37,8 +38,8 @@ export type TravelRecord = {
 export type Payment = {
   id: string; status: 'awaiting_proof' | 'awaiting_review' | 'approved' | 'rejected' | 'refunded'
   paymentReference: string; amountDue: string; invoiceCount: number; invoiceSplitNote: string | null
-  invoiceRecipientName: string | null; invoiceRecipientAddress: string | null; reviewNote: string | null
-  proofAttachmentId: string | null; feeTier: string; currency: string
+  invoiceRecipientName: string | null; invoiceRecipientAddress: string | null; invoiceRecipientTin: string | null; invoiceNumber: string | null
+  reviewNote: string | null; proofAttachmentId: string | null; feeTier: string; currency: string
   receiptNumber: string | null; reviewedAt: string | null
 }
 export type Delegation = {
@@ -50,12 +51,15 @@ export type Delegation = {
 export type Attachment = { id: string; memberId: string | null; kind: string; originalFilename: string; mimeType: string; createdAt: string }
 export type GuardianConsentPolicy = { required: boolean; ageThreshold: number; referenceDate: string }
 export type FeeSettings = {
-  currency: string; earlyBirdEnds: string; teamFee: { early_bird: number; normal: number }
+  currency: string; earlyBirdEnds: string; registrationEnds: string; teamFee: { early_bird: number; normal: number }
   roomsPerTeam: number; roomRate: number; observerFee: number | null
 }
+/** The account invoices ask for. Null until Finance enters it in the back office. */
+export type BankDetails = { beneficiaryName: string; beneficiaryAddress: string; bankName: string; bankAddress: string; accountNumber: string; swiftCode: string }
+export type InvoiceSettings = { issuerName: string; issuerTin: string; issuerAddress: string; bank: BankDetails | null }
 export type DelegationData = {
   delegation: Delegation; fees: Fees; teams: Team[]; members: Member[]; travelRecords: TravelRecord[]
-  payments: Payment[]; attachments: Attachment[]; guardianConsent: GuardianConsentPolicy
+  payments: Payment[]; attachments: Attachment[]; guardianConsent: GuardianConsentPolicy; bank: BankDetails | null
 }
 
 export class ApiError extends Error {

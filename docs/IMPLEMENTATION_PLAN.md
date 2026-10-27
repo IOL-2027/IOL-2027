@@ -144,8 +144,8 @@ Source §7.
 | Observer fee | Finance | ⬜ | Rate not set; Finance can now enter it under Fees |
 | Per-person fee for members added later | Finance | ⚠️ | Q1 |
 | Wire transfer only, OUR charges | Web/Dev | ✅ | Shown on the payment step and invoice |
-| SCB account name, number and SWIFT for สอวน | Finance | ⬜ | Q4; shown as "pending Finance approval" |
-| Invoice download | Web/Dev | ✅ | Printable invoice from the portal |
+| SCB account name, number and SWIFT for สอวน | Finance | ✅ | From Finance's invoice template (27 Oct 2026). Finance enters it in the back office (Fees and invoice), not in this public repository; until then the payment step and invoice say it is to come |
+| Invoice download | Web/Dev | ✅ | A PDF in Finance's template (27 Oct 2026): number IOL2027/n, issue and due dates, payer TIN, POSN as recipient, items, bank details. The same file is attached to the "registration submitted" email |
 | Proof upload (PDF, JPG, PNG, 10 MB) | Web/Dev | ✅ | Private Cloud Storage bucket |
 | Manual reconciliation with approve / reject | Web/Dev | ✅ | Finance back office; e-receipt PDF still to build |
 | Audit trail of who approved what and when | Web/Dev | ✅ | Activity log in the back office |
@@ -302,7 +302,7 @@ From the source document's §14, plus later ones. Each needs an owner before the
 | Q1 | Per-person price when members are added later | Finance | §4.1 step 11 |
 | Q2 | Refund or removal policy after payment | Finance, committee | Member deletion |
 | Q3 | Add a late-fee tier? | Finance | Fee configuration |
-| Q4 | SCB account name, number and SWIFT for สอวน | Finance | Payment step, invoice |
+| Q4 | ~~SCB account name, number and SWIFT for สอวน~~ Answered by Finance's invoice template; enter it on the production server | Finance | Payment step, invoice |
 | Q5 | Production hosting confirmed as Firebase + Cloud Run? | Committee | Sprint 4 |
 | Q6 | Open-source the code? | Committee | Post-event |
 | Q7 | Separate "Individual Observer" role; mandatory admin 2FA? | Committee | Roles, Sprint 2 |

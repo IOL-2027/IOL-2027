@@ -5,7 +5,7 @@ import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, Info,
 import { api, ApiError, type DelegationData, type Member } from './api'
 import { personFieldGroups, programmeWindow, sections, type Field, type PortalRecord, type Section, type SectionId } from './portalData'
 import { consentFor, personFields, personGaps, personPayload, personRecord, teamRecord, tripPayload, tripRecord, welfareFacts } from './live'
-import { openInvoice, openReceipt } from './invoice'
+import { openReceipt } from './invoice'
 import { Alert, Facts, FieldControl, PageHead, daysBetween, focusFirstError, formatDate, messageOf } from './ui'
 
 type StepStatus = 'done' | 'todo' | 'locked' | 'info' | 'waiting' | 'after'
@@ -268,6 +268,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     return {
       recipientName: String(form.get('Invoice recipient name') ?? '').trim(),
       recipientAddress: String(form.get('Invoice recipient address') ?? '').trim(),
+      recipientTin: String(form.get('Tax identification number (TIN)') ?? '').trim(),
       invoiceCount: Number(form.get('Number of invoices') || 1),
       splitNote: String(form.get('How to split the invoices') ?? '').trim(),
     }
@@ -614,6 +615,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                   </table>
                   <dl className="reg-ref">
                     <div><dt>Fee tier</dt><dd>{data.fees.tierLabel}</dd></div>
+                    <div><dt>Due date</dt><dd>{new Date(`${data.fees.dueDate}T12:00:00+07:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</dd></div>
+                    {payment?.invoiceNumber && <div><dt>Invoice number</dt><dd>{payment.invoiceNumber}</dd></div>}
                     <div><dt>Payment reference</dt><dd>{payment ? <>
                       <span className="reg-code">{payment.paymentReference}</span>
                       <button type="button" className="reg-copy" onClick={copyReference}><Copy size={14} aria-hidden="true" />{copied ? 'Copied' : 'Copy'}</button>
@@ -627,12 +630,19 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                   <ol className="reg-how">
                     <li>Fill in and save the invoice details below. Invoices can’t be split after you transfer.</li>
                     <li>{payment
-                      ? <button type="button" className="reg-inline-btn" onClick={() => openInvoice({ organisation: payment.invoiceRecipientName ?? d.countryTerritory, country: d.countryTerritory, recipientAddress: payment.invoiceRecipientAddress, reference: payment.paymentReference, fees: data.fees })}><Download size={14} aria-hidden="true" />Download the invoice</button>
+                      ? <a className="reg-inline-btn" href={`/api/registration/delegations/${d.id}/invoice`} target="_blank" rel="noreferrer"><Download size={14} aria-hidden="true" />Download the invoice (PDF)</a>
                       : 'Download the invoice (available once the details are saved).'}</li>
-                    <li>Transfer the <strong>full amount</strong> to สอวน (POSN) at SCB. Choose <strong>OUR</strong> for bank charges, and put the payment reference in the description.</li>
+                    <li>Transfer the <strong>full amount</strong> to the POSN Foundation account{data.bank ? ' below' : ' at SCB'}. Choose <strong>OUR</strong> for bank charges, and put the payment reference in the description.</li>
                     <li>Upload the bank’s proof of transfer. People opens straight after.</li>
                   </ol>
-                  <p className="reg-aside"><Info size={18} aria-hidden="true" />Account name, number and SWIFT code appear here once Finance approves them.</p>
+                  {data.bank
+                    ? <dl className="reg-ref reg-bank">
+                      <div><dt>Beneficiary</dt><dd>{data.bank.beneficiaryName}{data.bank.beneficiaryAddress && <small>{data.bank.beneficiaryAddress}</small>}</dd></div>
+                      <div><dt>Bank</dt><dd>{data.bank.bankName}{data.bank.bankAddress && <small>{data.bank.bankAddress}</small>}</dd></div>
+                      <div><dt>Account number</dt><dd><span className="reg-code">{data.bank.accountNumber}</span></dd></div>
+                      <div><dt>SWIFT code</dt><dd><span className="reg-code">{data.bank.swiftCode}</span></dd></div>
+                    </dl>
+                    : <p className="reg-aside"><Info size={18} aria-hidden="true" />The account name, number and SWIFT code appear here, and on the invoice, once Finance confirms them.</p>}
                 </section>
               </div>
 
@@ -651,6 +661,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                 {paymentDone && <p className="reg-hint">Locked while Finance reviews your payment. Contact the organisers to change them.</p>}
                 <div className="reg-grid">
                   <FieldControl idPrefix="payment" disabled={paymentDone} error={fieldErrors['Invoice recipient name']} field={{ label: 'Invoice recipient name', value: payment?.invoiceRecipientName ?? d.accreditedOrganisation ?? '', help: 'The organisation named on the invoice.' }} />
+                  <FieldControl idPrefix="payment" disabled={paymentDone} field={{ label: 'Tax identification number (TIN)', value: payment?.invoiceRecipientTin ?? '', optional: true, help: 'Only if your institution needs it on the invoice.' }} />
                   <FieldControl idPrefix="payment" disabled={paymentDone} field={{ label: 'Invoice recipient address', value: payment?.invoiceRecipientAddress ?? '', kind: 'textarea', optional: true, help: 'Only if your institution needs a postal address on the invoice.' }} />
                   <FieldControl idPrefix="payment" disabled={paymentDone} error={fieldErrors['Number of invoices']} field={{ label: 'Number of invoices', value: String(payment?.invoiceCount ?? 1), kind: 'number', help: 'Invoices cannot be split after the transfer.' }} />
                   <FieldControl idPrefix="payment" disabled={paymentDone} field={{ label: 'How to split the invoices', value: payment?.invoiceSplitNote ?? '', kind: 'textarea', optional: true, help: 'Only for more than one invoice. Example: “National Olympiad Foundation, USD 1,200; University Fund, USD 1,680”.' }} />
