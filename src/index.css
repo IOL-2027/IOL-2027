@@ -907,3 +907,9 @@ html.viewer-open{overflow:hidden}
 .thai-intro .mixed-heading em{white-space:nowrap}
 /* Registration sub-pages open at their section, clear of the fixed header. */
 #accredited-countries,#working-languages,#payment{scroll-margin-top:120px}
+/* Pills keep their round ends while the label fits on one line, and become rounded rectangles when it wraps on a phone. */
+.pill,.reg-period p{border-radius:24px}
+.how-phase li .how-step-tag{border-radius:13px}
+/* The guidebook labels and the hotel photo caption use Manrope, like the site's other small labels. */
+.guidebook-placeholder span,.guidebook-placeholder small{font:700 12px 'Manrope','Noto Sans Thai',sans-serif;letter-spacing:.08em;text-transform:uppercase}
+.hotel-feature figcaption{font-family:'Manrope','Noto Sans Thai',sans-serif;font-weight:600}

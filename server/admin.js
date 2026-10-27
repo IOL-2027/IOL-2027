@@ -366,26 +366,39 @@ export function registerAdminRoutes(app, { signedIn }) {
 
   /* Activity log --------------------------------------------------- */
 
+  /** ?limit and ?offset for the logs: 50 a page unless asked for fewer (or up to `max`). */
+  const page = (q, max) => ({
+    limit: Math.min(max, Math.max(1, Number.parseInt(q.limit, 10) || 50)),
+    offset: Math.max(0, Number.parseInt(q.offset, 10) || 0),
+  })
+
   app.get('/api/admin/audit', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
     const delegationId = optionalString(req.query.delegationId)
     if (delegationId && !/^[0-9a-f-]{36}$/i.test(delegationId)) throw new HttpError(400, 'Unknown delegation.')
     const eventType = optionalString(req.query.eventType)
-    // The back-office home shows only the latest few; the Activity log asks for the default 300.
-    const limit = Math.min(300, Math.max(1, Number.parseInt(req.query.limit, 10) || 300))
-    const result = await query(
-      `SELECT e.id, e.event_type, e.entity_type, e.entity_id, e.details, e.created_at, e.delegation_id,
-         a.full_name AS actor_name, a.email AS actor_email, a.role AS actor_role, d.country_territory
-       FROM audit_events e LEFT JOIN accounts a ON a.id = e.actor_account_id LEFT JOIN delegations d ON d.id = e.delegation_id
-       WHERE ($1::uuid IS NULL OR e.delegation_id = $1) AND ($2::text IS NULL OR e.event_type = $2)
-       ORDER BY e.created_at DESC LIMIT $3`,
-      [delegationId, eventType, limit],
-    )
-    res.json({ events: camelizeRows(result.rows) })
+    // The back-office home shows only the latest few; the Activity log pages through 50 at a time.
+    const { limit, offset } = page(req.query, 300)
+    const filters = 'WHERE ($1::uuid IS NULL OR e.delegation_id = $1) AND ($2::text IS NULL OR e.event_type = $2)'
+    const [result, count] = await Promise.all([
+      query(
+        `SELECT e.id, e.event_type, e.entity_type, e.entity_id, e.details, e.created_at, e.delegation_id,
+           a.full_name AS actor_name, a.email AS actor_email, a.role AS actor_role, d.country_territory
+         FROM audit_events e LEFT JOIN accounts a ON a.id = e.actor_account_id LEFT JOIN delegations d ON d.id = e.delegation_id
+         ${filters} ORDER BY e.created_at DESC LIMIT $3 OFFSET $4`,
+        [delegationId, eventType, limit, offset],
+      ),
+      query(`SELECT count(*)::int AS total FROM audit_events e ${filters}`, [delegationId, eventType]),
+    ])
+    res.json({ events: camelizeRows(result.rows), total: count.rows[0].total })
   }))
 
-  app.get('/api/admin/email-deliveries', ...signedIn, requireRole('registration_admin'), asyncHandler(async (_req, res) => {
-    const result = await query('SELECT id, recipient_email, purpose, status, error_message, sent_at, created_at FROM email_deliveries ORDER BY created_at DESC LIMIT 200')
-    res.json({ deliveries: camelizeRows(result.rows) })
+  app.get('/api/admin/email-deliveries', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
+    const { limit, offset } = page(req.query, 200)
+    const [result, count] = await Promise.all([
+      query('SELECT id, recipient_email, purpose, status, error_message, sent_at, created_at FROM email_deliveries ORDER BY created_at DESC LIMIT $1 OFFSET $2', [limit, offset]),
+      query('SELECT count(*)::int AS total FROM email_deliveries'),
+    ])
+    res.json({ deliveries: camelizeRows(result.rows), total: count.rows[0].total })
   }))
 
   /* Settings ------------------------------------------------------- */

@@ -91,7 +91,7 @@ function Header() {
   }, [open])
   return <>
     <header className="topbar">
-      <a className="wordmark" href="/" aria-label="IOL 2027 home"><img src="/assets/iol-mark.png" alt="" /><span>IOL 2027</span></a>
+      <a className="wordmark" href="/" aria-label="IOL 2027 home"><img src="/assets/iol-mark-light.png" alt="" /><span>IOL 2027</span></a>
       <nav className="desktop-nav" aria-label="Main navigation">
         {navigation.map((item) => item.children ? <div className="nav-dropdown" key={item.href}><NavLink item={item} className="nav-parent" /><ChevronRight size={13} /><div className="nav-menu">{item.children.map((child) => <a key={child.href} href={child.href}>{child.label}</a>)}</div></div> : <NavLink key={item.href} item={item} />)}
       </nav>
@@ -104,7 +104,7 @@ function Header() {
 }
 
 function Footer() {
-  return <footer className="site-footer"><a className="footer-identity" href="/"><img src="/assets/iol-mark.png" alt="IOL 2027 mark" /><span><strong>IOL 2027</strong>{event.dates}<br />{event.city}</span></a><nav className="footer-links" aria-label="Footer navigation">{navigation.map((item) => <NavLink key={item.href} item={item} />)}</nav></footer>
+  return <footer className="site-footer"><a className="footer-identity" href="/"><img src="/assets/iol-mark-light.png" alt="IOL 2027 mark" /><span><strong>IOL 2027</strong>{event.dates}<br />{event.city}</span></a><nav className="footer-links" aria-label="Footer navigation">{navigation.map((item) => <NavLink key={item.href} item={item} />)}</nav></footer>
 }
 
 function PageIntro({ eyebrow, title, body }: { eyebrow?: string; title: string; body: string }) {
@@ -180,7 +180,7 @@ function Home() {
         <div className="hero-actions"><LinkButton href="/registration" light>Registration details</LinkButton><a href="/programme" className="text-link">View the programme <ChevronRight size={16} /></a></div>
         <div className="hero-event-row"><Countdown /><div className="hero-event-place"><strong>21-28 JULY 2027</strong><span>BANGKOK, THAILAND</span></div></div>
       </div>
-      <div className="hero-mark"><img src="/assets/iol-mark.png" alt="Official IOL 2027 Thailand mark" /></div>
+      <div className="hero-mark"><img src="/assets/iol-mark-light.png" alt="Official IOL 2027 Thailand mark" /></div>
     </section>
     <NewsCarousel />
     <section className="statement"><h2>A world championship<br />for <em>thinking in languages.</em></h2><div className="statement-grid"><div className="statement-mark"><img src="/assets/iol-wordmark-transparent.png" alt="International Linguistics Olympiad logo" /></div><div className="statement-copy"><p>The International Linguistics Olympiad brings high-school students together to solve complex puzzles drawn from languages around the world using reasoning, intuition and curiosity rather than prior linguistic knowledge.</p><LinkButton href="/about">Discover the Olympiad</LinkButton></div></div></section>
@@ -553,7 +553,7 @@ function Registration() {
     'Review and submit',
   ]
   return <>
-    <section className="coming-soon grain"><div className="coming-mark"><img src="/assets/iol-mark.png" alt="IOL 2027 Thailand mark" /></div><div>
+    <section className="coming-soon grain"><div className="coming-mark"><img src="/assets/iol-mark-light.png" alt="IOL 2027 Thailand mark" /></div><div>
       <p className="system-label">{registrationOpen ? 'REGISTRATION / OPEN' : 'REGISTRATION / OPENS 18 JANUARY 2027'}</p>
       {registrationOpen ? <h1>REGISTER<br /><em>YOUR TEAM.</em></h1> : <h1>OPENS<br /><em>18 JAN 2027.</em></h1>}
       <p>{registrationOpen

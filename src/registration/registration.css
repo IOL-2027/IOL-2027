@@ -722,9 +722,6 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 @media (max-width: 900px) { .reg-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) {
   .reg-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  /* Filter tabs stay on one line and scroll sideways. */
-  .reg-filter, .reg-switch-small { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  .reg-filter button, .reg-switch-small button { flex: 0 0 auto; white-space: nowrap; }
   /* A shorter page header, so the page itself starts sooner. */
   .reg-head { padding-top: 16px; padding-bottom: 24px; }
   .reg-head-main { margin-top: 16px; }
@@ -735,3 +732,34 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .checkin-manual input { flex: 1 1 200px; }
 .checkin-manual .reg-control { margin-top: 0; }
 .checkin-camera-head strong, .checkin-camera-head span { white-space: nowrap; }
+/* Scanner on phones: a short header, then checkpoint, camera and result, so the camera is on the first screen. */
+@media (max-width: 640px) {
+  .reg-head-compact { padding-bottom: 18px; }
+  .reg-head-compact .reg-head-main { margin-top: 8px; }
+  .reg-head-compact h1 { font-size: 26px; }
+  .reg-head-compact .reg-head-intro { display: none; }
+  .checkin-shell { gap: 14px; }
+  .checkin-controls { display: contents; }
+  .checkin-controls > div:first-child { display: none; }
+  .checkin-label { order: 1; }
+  .checkin-camera { order: 2; }
+  .checkin-result { order: 3; }
+}
+/* Pills keep their round ends while the label fits on one line, and become rounded rectangles with matching corners when it wraps. */
+.reg-switch { border-radius: 26px; }
+.reg-switch button { border-radius: 22px; }
+.reg-check { border-radius: 22px; }
+.reg-chip { border-radius: 12px; }
+/* On phones, switches and filter tabs share the width in even columns instead of stacking or running off the edge. */
+@media (max-width: 640px) {
+  .reg-switch, .reg-filter { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .reg-switch button, .reg-filter button { min-width: 0; padding: 8px 12px; line-height: 1.25; text-align: center; white-space: normal; }
+  .reg-switch button:last-child:nth-child(odd), .reg-filter button:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+/* Logs: a page at a time, with Newer and Older under the table. */
+.reg-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; margin-top: 16px; }
+.reg-pager p { margin: 0; font-size: 14px; color: var(--reg-muted); font-variant-numeric: tabular-nums; }
+.reg-pager div { display: flex; gap: 8px; }
+.reg-pager .reg-btn { min-height: 40px; padding: 0 16px; font-size: 15px; }
+.reg-pager .reg-btn:disabled { opacity: .45; cursor: default; }
+.reg-email-status { min-width: 16rem; }
