@@ -4,7 +4,8 @@ import crypto from 'node:crypto'
 import { HttpError, ROLES, filterMember, hashPassword, requireRole } from './auth.js'
 import { buildInviteEmail, buildPaymentConfirmedEmail, sendEmail } from './email.js'
 import { sendBadgesIfSettled } from './badges.js'
-import { calculateFees, cleanFees, cleanGuardianConsent, loadSettings, needsGuardianConsent } from './fees.js'
+import { calculateFees, cleanBadgeSettings, cleanFees, cleanGuardianConsent, cleanInvoice, loadSettings, needsGuardianConsent } from './fees.js'
+import { invoicePdf } from './invoice-pdf.js'
 import { issuePasswordCode } from './codes.js'
 import {
   asyncHandler, camelizeRow, camelizeRows, insertAudit, isEmail, missingMemberDetails, optionalString, query,
@@ -309,8 +310,8 @@ export function registerAdminRoutes(app, { signedIn }) {
     },
     payments: {
       roles: ['finance_admin', 'registration_admin'],
-      columns: [['country_territory', 'Country'], ['payment_reference', 'Payment reference'], ['receipt_number', 'Receipt number'], ['status', 'Status'], ['amount_due', 'Amount'],
-        ['currency', 'Currency'], ['fee_tier', 'Fee tier'], ['invoice_recipient_name', 'Invoice recipient'], ['invoice_recipient_address', 'Invoice address'],
+      columns: [['country_territory', 'Country'], ['invoice_number', 'Invoice number'], ['payment_reference', 'Payment reference'], ['receipt_number', 'Receipt number'], ['status', 'Status'], ['amount_due', 'Amount'],
+        ['currency', 'Currency'], ['fee_tier', 'Fee tier'], ['invoice_recipient_name', 'Invoice recipient'], ['invoice_recipient_tin', 'Recipient TIN'], ['invoice_recipient_address', 'Invoice address'],
         ['invoice_count', 'Invoices'], ['invoice_split_note', 'Split'], ['review_note', 'Review note'], ['reviewed_by_name', 'Reviewed by'], ['reviewed_at', 'Reviewed at'], ['updated_at', 'Last change']],
       rows: async () => (await query(
         `SELECT p.*, d.country_territory, r.full_name AS reviewed_by_name FROM payments p JOIN delegations d ON d.id = p.delegation_id
@@ -330,11 +331,13 @@ export function registerAdminRoutes(app, { signedIn }) {
     },
     checkins: {
       roles: ['registration_admin', 'checkin_staff'],
-      columns: [['scanned_at', 'Scanned at'], ['checkpoint', 'Checkpoint'], ['result', 'Result'], ['display_name', 'Person'], ['role', 'Role'], ['country_territory', 'Country'], ['scanned_by', 'Scanned by']],
+      columns: [['scanned_at', 'Scanned at'], ['checkpoint', 'Checkpoint'], ['result', 'Result'], ['display_name', 'Person'], ['role', 'Role'], ['country_territory', 'Country or assignment'], ['scanned_by', 'Scanned by']],
+      // Delegation members and event staff (staff, guides, volunteers, guests) alike.
       rows: async () => (await query(
-        `SELECT ce.*, m.display_name, m.role, d.country_territory, a.full_name AS scanned_by
-         FROM check_in_events ce JOIN members m ON m.id = ce.member_id JOIN delegations d ON d.id = m.delegation_id
-         LEFT JOIN accounts a ON a.id = ce.scanned_by_account_id ORDER BY ce.scanned_at DESC`,
+        `SELECT ce.*, COALESCE(m.display_name, s.full_name) AS display_name, COALESCE(m.role, s.category) AS role,
+           COALESCE(d.country_territory, s.assignment) AS country_territory, a.full_name AS scanned_by
+         FROM check_in_events ce LEFT JOIN members m ON m.id = ce.member_id LEFT JOIN delegations d ON d.id = m.delegation_id
+         LEFT JOIN event_staff s ON s.id = ce.staff_id LEFT JOIN accounts a ON a.id = ce.scanned_by_account_id ORDER BY ce.scanned_at DESC`,
       )).rows,
     },
     welfare: {
@@ -420,10 +423,41 @@ export function registerAdminRoutes(app, { signedIn }) {
     res.json({ ...settings, example: calculateFees(settings.fees, { numberOfTeams: 2, numberOfObservers: 1 }), recalculated: open.length })
   }))
 
+  // Who invoices come from and the bank account they ask for. Saving applies to every invoice from then on,
+  // including ones already sent: a Team Leader who downloads theirs again gets the new details.
+  app.put('/api/admin/settings/invoice', ...signedIn, requireRole('finance_admin'), asyncHandler(async (req, res) => {
+    let invoice
+    try { invoice = cleanInvoice(req.body) } catch (error) { throw new HttpError(400, error.message) }
+    await saveSetting(req, 'invoice', invoice)
+    res.json(await loadSettings(requireDb()))
+  }))
+
+  // A sample invoice with the saved settings, so Finance can check the layout before any country has one.
+  app.get('/api/admin/settings/invoice-sample', ...signedIn, requireRole('finance_admin', 'registration_admin'), asyncHandler(async (_req, res) => {
+    const settings = await loadSettings(requireDb())
+    const pdf = await invoicePdf({
+      delegation: { country_territory: 'Sampleland', accredited_organisation: 'Sampleland Linguistics Olympiad' },
+      payment: {
+        invoice_number: 'IOL2027/0', invoice_recipient_name: 'Sampleland Linguistics Olympiad', invoice_recipient_tin: '12-3456789',
+        invoice_recipient_address: '1 Example Street, Sample City 10000, Sampleland', invoice_count: 1, payment_reference: 'SAM-IOL2027-0000',
+      },
+      fees: calculateFees(settings.fees, { numberOfTeams: 2, numberOfObservers: 1 }),
+      invoice: settings.invoice,
+    })
+    res.set('Content-Type', 'application/pdf').set('Content-Disposition', 'inline; filename="IOL2027-invoice-sample.pdf"').send(pdf)
+  }))
+
   app.put('/api/admin/settings/guardian-consent', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
     let policy
     try { policy = cleanGuardianConsent(req.body) } catch (error) { throw new HttpError(400, error.message) }
     await saveSetting(req, 'guardianConsent', policy)
+    res.json(await loadSettings(requireDb()))
+  }))
+
+  app.put('/api/admin/settings/badges', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
+    let badges
+    try { badges = cleanBadgeSettings(req.body) } catch (error) { throw new HttpError(400, error.message) }
+    await saveSetting(req, 'badges', badges)
     res.json(await loadSettings(requireDb()))
   }))
 

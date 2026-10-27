@@ -467,7 +467,7 @@ function Hosts() {
     </a>)}</nav>
     <section className="host-profiles wrap">{hostDetails.map((host) => <HostProfile key={host.id} host={host} />)}</section>
     <section className="thai-iol"><div className="wrap">
-      <header className="thai-iol-head"><div><p className="eyebrow">Thailand at the IOL</p><h2 className="mixed-heading">From first team <em>to host.</em></h2></div><p>Thailand sent its first team to the IOL in 2022. The team is chosen through the Thailand Linguistics Olympiad, held every year by POSN with the Department of Linguistics at Chulalongkorn University: a national contest, then a training camp, then the team for the IOL.</p></header>
+      <header className="thai-iol-head"><div><p className="eyebrow">Thailand at the IOL</p><h2 className="mixed-heading">Five olympiads, <em>then hosting in&nbsp;2027.</em></h2></div><p>Thailand sent its first team to the IOL in 2022. The team is chosen through the Thailand Linguistics Olympiad, held every year by POSN with the Department of Linguistics at Chulalongkorn University: a national contest, then a training camp, then the team for the IOL.</p></header>
       <ol className="thai-iol-years">
         {thailandAtIol.map(({ year, awards }) => <li key={year}><strong>{year}</strong><small>{iolHost(year)?.city}, {iolHost(year)?.country}</small>{year === 2022 && <p>Thailand’s first IOL</p>}
           <ul>{awards.map((award) => <li key={award.label} className={`thai-iol-${award.kind}`}>{award.label}</li>)}</ul></li>)}

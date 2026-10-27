@@ -1,5 +1,4 @@
-import type { Fees } from './api'
-
+// The printable e-receipt. The invoice itself is a PDF from the API (server/invoice-pdf.js), in Finance's template.
 const amount = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2 })
 const escape = (text: string) => text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
 const longDate = (date: Date) => date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -31,32 +30,6 @@ function openPrintable(title: string, body: string) {
   win.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${escape(title)}</title><style>${styles}</style></head><body>${body}
   <script>window.onload=()=>window.print()<\/script></body></html>`)
   win.document.close()
-}
-
-type InvoiceInput = { organisation: string; country: string; recipientAddress?: string | null; reference: string; fees: Fees }
-
-/** The invoice. Amounts come from the server's fee calculation. */
-export function openInvoice({ organisation, country, recipientAddress, reference, fees }: InvoiceInput) {
-  const rows = fees.lines.map((line) => `<tr><td>${escape(line.label)}</td><td>${escape(line.detail)}</td><td class="num">${line.amount === null ? (fees.observersPending ? 'To be confirmed' : '—') : amount(line.amount)}</td></tr>`).join('')
-  openPrintable(`IOL 2027 invoice, ${country}`, `
-    <div class="head"><p>IOL 2027 · Bangkok, Thailand</p><h1>Registration invoice</h1></div>
-    <div class="meta">
-      <div><small>Bill to</small><strong>${escape(organisation)}${recipientAddress ? `\n${escape(recipientAddress)}` : ''}</strong></div>
-      <div><small>Payment reference</small><strong>${escape(reference)}</strong></div>
-      <div><small>Invoice date</small><strong>${longDate(new Date())}</strong></div>
-      <div><small>Fee tier</small><strong>${escape(fees.tierLabel)}</strong></div>
-    </div>
-    <table>
-      <thead><tr><th>Item</th><th>Calculation</th><th class="num">Amount (${fees.currency})</th></tr></thead>
-      <tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="2">Total to transfer</td><td class="num">${fees.currency} ${amount(fees.total)}${fees.observersPending ? ' + observer fees' : ''}</td></tr></tfoot>
-    </table>
-    <div class="box"><h2>How to pay</h2>
-      <p>Transfer the full amount to มูลนิธิส่งเสริมโอลิมปิกวิชาการและพัฒนามาตรฐานวิทยาศาสตร์ศึกษา ในพระอุปถัมภ์สมเด็จพระเจ้าพี่นางเธอ เจ้าฟ้ากัลยาณิวัฒนา กรมหลวงนราธิวาสราชนครินทร์ (สอวน., POSN) at Siam Commercial Bank (SCB).</p>
-      <p>Choose <strong>OUR</strong> for bank charges so the organisers receive the full amount. Put <strong>${escape(reference)}</strong> in the transfer description.</p>
-      <p>Account name, number and SWIFT code are shown in the registration system once Finance approves them.</p>
-    </div>
-    <div class="foot">IOL 2027 Local Organising Committee · iol2027.th@gmail.com<br>This invoice is not a tax receipt. An e-receipt is available after Finance confirms the transfer.</div>`)
 }
 
 type ReceiptInput = {

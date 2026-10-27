@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { api, type FeeSettings, type Fees, type GuardianConsentPolicy } from '../api'
+import { api, type FeeSettings, type Fees, type GuardianConsentPolicy, type InvoiceSettings } from '../api'
 import { Alert, Facts } from '../ui'
 import { Done, Note, Panel, Problem, day, errorText, useLoad } from './common'
 
-type SettingsData = { fees: FeeSettings; guardianConsent: GuardianConsentPolicy; example: Fees; recalculated?: number }
+type SettingsData = { fees: FeeSettings; guardianConsent: GuardianConsentPolicy; invoice: InvoiceSettings; example: Fees; recalculated?: number }
 
 const usd = (n: number) => `USD ${n.toLocaleString('en-US')}`
 
@@ -32,7 +32,7 @@ export function FeeSettingsPanel({ canEdit }: { canEdit: boolean }) {
       const result = await api<SettingsData>('/api/admin/settings/fees', {
         method: 'PUT',
         body: {
-          earlyBirdEnds: value('earlyBirdEnds'), teamFee: { early_bird: value('earlyTeamFee'), normal: value('normalTeamFee') },
+          earlyBirdEnds: value('earlyBirdEnds'), registrationEnds: value('registrationEnds'), teamFee: { early_bird: value('earlyTeamFee'), normal: value('normalTeamFee') },
           roomsPerTeam: value('roomsPerTeam'), roomRate: value('roomRate'), observerFee: value('observerFee') === '' ? null : value('observerFee'),
         },
       })
@@ -57,6 +57,11 @@ export function FeeSettingsPanel({ canEdit }: { canEdit: boolean }) {
               <p className="reg-hint" id="set-earlyBirdEnds-hint">Last day of the early-bird rate, Bangkok time.</p>
               <input id="set-earlyBirdEnds" name="earlyBirdEnds" className="reg-control" type="date" defaultValue={fees.earlyBirdEnds} disabled={!canEdit} aria-describedby="set-earlyBirdEnds-hint" />
             </div>
+            <div className="reg-field">
+              <label htmlFor="set-registrationEnds">Registration ends</label>
+              <p className="reg-hint" id="set-registrationEnds-hint">Invoices at the normal rate are due on this day; early-bird ones when the early bird ends.</p>
+              <input id="set-registrationEnds" name="registrationEnds" className="reg-control" type="date" defaultValue={fees.registrationEnds} disabled={!canEdit} aria-describedby="set-registrationEnds-hint" />
+            </div>
             <NumberField name="earlyTeamFee" label="Team fee, early bird (USD)" value={fees.teamFee.early_bird} disabled={!canEdit} />
             <NumberField name="normalTeamFee" label="Team fee, normal (USD)" value={fees.teamFee.normal} disabled={!canEdit} />
             <NumberField name="roomRate" label="Room rate (USD)" value={fees.roomRate} hint="Per room for the whole stay." disabled={!canEdit} />
@@ -68,6 +73,84 @@ export function FeeSettingsPanel({ canEdit }: { canEdit: boolean }) {
           {canEdit && <>
             <Alert>{saveError}</Alert>
             <div className="reg-staff-form-actions"><button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save fees'}</button></div>
+          </>}
+          <Done message={done} />
+        </form>
+      )}
+    </Panel>
+  )
+}
+
+function TextField({ name, label, value, hint, disabled, wide, optional }: { name: string; label: string; value: string; hint?: string; disabled?: boolean; wide?: boolean; optional?: boolean }) {
+  return (
+    <div className={`reg-field${wide ? ' reg-field-wide' : ''}`}>
+      <label htmlFor={`set-${name}`}>{label}{optional && <span className="reg-optional"> (optional)</span>}</label>
+      {hint && <p className="reg-hint" id={`set-${name}-hint`}>{hint}</p>}
+      <input id={`set-${name}`} name={name} className="reg-control" defaultValue={value} disabled={disabled} aria-describedby={hint ? `set-${name}-hint` : undefined} />
+    </div>
+  )
+}
+
+/** Who invoices come from and the account they ask for, as on Finance's invoice template. */
+export function InvoiceSettingsPanel({ canEdit }: { canEdit: boolean }) {
+  const { data, error, reload } = useLoad<SettingsData>('/api/admin/settings')
+  const [saveError, setSaveError] = useState('')
+  const [done, setDone] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const save = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const value = (name: string) => String(form.get(name) ?? '').trim()
+    setSaveError(''); setDone(''); setBusy(true)
+    try {
+      const result = await api<SettingsData>('/api/admin/settings/invoice', {
+        method: 'PUT',
+        body: {
+          issuerName: value('issuerName'), issuerTin: value('issuerTin'), issuerAddress: value('issuerAddress'),
+          bank: {
+            beneficiaryName: value('beneficiaryName'), beneficiaryAddress: value('beneficiaryAddress'), bankName: value('bankName'),
+            bankAddress: value('bankAddress'), accountNumber: value('accountNumber'), swiftCode: value('swiftCode'),
+          },
+        },
+      })
+      setDone(result.invoice.bank ? 'Saved. Invoices and the Payment step now show this account.' : 'Saved. Invoices say the bank account is still to come.')
+      reload()
+    } catch (e) {
+      setSaveError(errorText(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const invoice = data?.invoice
+  const bank = invoice?.bank
+  return (
+    <Panel id="invoice" title="Invoice and bank account" intro={canEdit
+      ? 'What every invoice says about the organisers. The bank account also appears on each Team Leader’s Payment step. Leave the bank fields empty until the account is confirmed.'
+      : 'Set by Finance. Shown here for reference.'}>
+      <Problem message={error} />
+      {invoice && (
+        <form onSubmit={save} noValidate key={JSON.stringify(invoice)}>
+          <h3 className="reg-staff-subhead">Recipient on the invoice</h3>
+          <div className="reg-grid">
+            <TextField name="issuerName" label="Name" value={invoice.issuerName} disabled={!canEdit} />
+            <TextField name="issuerTin" label="Tax identification number (TIN)" value={invoice.issuerTin} disabled={!canEdit} optional />
+            <TextField name="issuerAddress" label="Address" value={invoice.issuerAddress} disabled={!canEdit} wide />
+          </div>
+          <h3 className="reg-staff-subhead">Bank transfer details</h3>
+          <div className="reg-grid">
+            <TextField name="beneficiaryName" label="Beneficiary name" value={bank?.beneficiaryName ?? ''} disabled={!canEdit} />
+            <TextField name="bankName" label="Bank name" value={bank?.bankName ?? ''} disabled={!canEdit} />
+            <TextField name="beneficiaryAddress" label="Beneficiary address" value={bank?.beneficiaryAddress ?? ''} disabled={!canEdit} optional wide />
+            <TextField name="bankAddress" label="Bank address" value={bank?.bankAddress ?? ''} disabled={!canEdit} optional wide />
+            <TextField name="accountNumber" label="Account number" value={bank?.accountNumber ?? ''} disabled={!canEdit} />
+            <TextField name="swiftCode" label="SWIFT code" value={bank?.swiftCode ?? ''} hint="8 or 11 letters and digits." disabled={!canEdit} />
+          </div>
+          <p><a className="reg-btn-link" href="/api/admin/settings/invoice-sample" target="_blank" rel="noreferrer">See a sample invoice with the saved details</a></p>
+          {canEdit && <>
+            <Alert>{saveError}</Alert>
+            <div className="reg-staff-form-actions"><button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save invoice details'}</button></div>
           </>}
           <Done message={done} />
         </form>

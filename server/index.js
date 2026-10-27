@@ -12,7 +12,7 @@ import {
 } from './email.js'
 import { readUpload, saveUpload } from './storage.js'
 import { invoicePdf } from './invoice-pdf.js'
-import { badgeQrDataUrl, issueBadge, missingTravel, sendBadgesIfSettled } from './badges.js'
+import { badgeQrDataUrl, findBadge, issueBadge, missingTravel, sendBadgesIfSettled } from './badges.js'
 import {
   DELEGATION_ADMINS, DELEGATION_READERS, HttpError,
   checkPasswordRules, createSession, destroySession, filterMember, hashPassword, loginBlocked, recordLogin,
@@ -25,6 +25,7 @@ import {
 } from './lib.js'
 import { issuePasswordCode, issueVerificationCode } from './codes.js'
 import { registerAdminRoutes } from './admin.js'
+import { registerBadgeRoutes } from './badge-admin.js'
 
 const port = Number(process.env.PORT || process.env.API_PORT || 4000)
 
@@ -372,8 +373,10 @@ app.get('/api/registration/delegations/:delegationId', ...signedIn, delegationAc
   ])
   res.json({
     delegation: camelizeRow(delegation),
-    fees: calculateFees(settings.fees, { numberOfTeams: delegation.number_of_teams, numberOfObservers: delegation.number_of_observers }),
+    // Once an invoice exists, at its fee tier, so the Payment step and the invoice agree.
+    fees: calculateFees(settings.fees, { numberOfTeams: delegation.number_of_teams, numberOfObservers: delegation.number_of_observers }, new Date(), payments.rows[0]?.fee_tier),
     guardianConsent: settings.guardianConsent,
+    bank: settings.invoice.bank,
     teams: camelizeRows(teams.rows),
     members: camelizeRows(members.rows.map((m) => ({ ...filterMember(m, req.user.role), needs_guardian_consent: needsGuardianConsent(m, settings.guardianConsent) }))),
     travelRecords: camelizeRows(travel.rows),
@@ -436,22 +439,25 @@ app.put('/api/registration/delegations/:delegationId/invoice', ...signedIn, dele
   const payment = await withTransaction(async (client) => {
     const delegation = (await client.query('SELECT * FROM delegations WHERE id = $1 FOR UPDATE', [req.params.delegationId])).rows[0]
     const fees = calculateFees(settings.fees, { numberOfTeams: delegation.number_of_teams, numberOfObservers: delegation.number_of_observers })
-    const values = [requiredString(req.body.recipientName, 'Invoice recipient name'), optionalString(req.body.recipientAddress), invoiceCount, optionalString(req.body.splitNote), fees.total, fees.tier]
+    const tin = optionalString(req.body.recipientTin)
+    if (tin && tin.length > 40) throw new HttpError(400, 'Tax identification number must be at most 40 characters.')
+    const values = [requiredString(req.body.recipientName, 'Invoice recipient name'), optionalString(req.body.recipientAddress), invoiceCount, optionalString(req.body.splitNote), fees.total, fees.tier, tin]
     const open = (await openPaymentQuery(client, delegation.id)).rows[0]
     if (open?.status === 'awaiting_review') throw new HttpError(409, 'Your proof is being reviewed. Contact the organisers to change invoice details.')
     let row
     if (open) {
       row = (await client.query(
         `UPDATE payments SET invoice_recipient_name = $1, invoice_recipient_address = $2, invoice_count = $3, invoice_split_note = $4,
-           amount_due = $5, fee_tier = $6, updated_at = now() WHERE id = $7 RETURNING *`,
+           amount_due = $5, fee_tier = $6, invoice_recipient_tin = $7, updated_at = now() WHERE id = $8 RETURNING *`,
         [...values, open.id],
       )).rows[0]
     } else {
       const short = delegation.country_territory.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase()
       const reference = `${short}-IOL2027-${crypto.randomBytes(2).toString('hex').toUpperCase()}`
       row = (await client.query(
-        `INSERT INTO payments (delegation_id, invoice_recipient_name, invoice_recipient_address, invoice_count, invoice_split_note, amount_due, fee_tier, currency, payment_reference, status)
-         VALUES ($7, $1, $2, $3, $4, $5, $6, 'USD', $8, 'awaiting_proof') RETURNING *`,
+        `INSERT INTO payments (delegation_id, invoice_recipient_name, invoice_recipient_address, invoice_count, invoice_split_note, amount_due, fee_tier, invoice_recipient_tin,
+           currency, payment_reference, status, invoice_number)
+         VALUES ($8, $1, $2, $3, $4, $5, $6, $7, 'USD', $9, 'awaiting_proof', 'IOL2027/' || nextval('invoice_number_seq')) RETURNING *`,
         [...values, delegation.id, reference],
       )).rows[0]
     }
@@ -459,6 +465,15 @@ app.put('/api/registration/delegations/:delegationId/invoice', ...signedIn, dele
     return row
   })
   res.json({ payment: camelizeRow(payment) })
+}))
+
+// The invoice as a PDF: the same document the "registration submitted" email attaches.
+app.get('/api/registration/delegations/:delegationId/invoice', ...signedIn, delegationAccess('read'), asyncHandler(async (req, res) => {
+  const d = (await query('SELECT * FROM delegations WHERE id = $1', [req.params.delegationId])).rows[0]
+  if (!d) throw new HttpError(404, 'Delegation not found.')
+  const payment = (await query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC LIMIT 1', [d.id])).rows[0]
+  if (!payment) throw new HttpError(409, 'Save the invoice details first.')
+  res.set('Content-Type', 'application/pdf').set('Content-Disposition', `inline; filename="${invoiceFilename(d, payment)}"`).send(await delegationInvoice(d, payment))
 }))
 
 app.post('/api/registration/delegations/:delegationId/teams', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
@@ -709,20 +724,29 @@ app.post('/api/registration/delegations/:delegationId/submit', ...signedIn, dele
 
 /** The "registration submitted" email with the invoice PDF attached, then the QR badges if everything is already in. */
 async function notifySubmitted(d) {
-  const [payment, settings, travelGaps] = await Promise.all([
+  const [payment, travelGaps] = await Promise.all([
     query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC LIMIT 1', [d.id]).then((r) => r.rows[0] ?? null),
-    loadSettings(requireDb()),
     missingTravel(d.id),
   ])
-  const fees = calculateFees(settings.fees, { numberOfTeams: d.number_of_teams, numberOfObservers: d.number_of_observers })
-  const invoice = await invoicePdf({ delegation: d, payment, fees })
+  const invoice = await delegationInvoice(d, payment)
   const { subject, html } = buildRegistrationSubmittedEmail({
     countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, numberOfTeams: d.number_of_teams, numberOfObservers: d.number_of_observers,
     paymentConfirmed: payment?.status === 'approved', travelComplete: !travelGaps.length, travelUrl: `${portalUrl}/?step=travel`,
   })
-  const filename = `IOL2027-invoice-${d.country_territory.replace(/[^\w-]+/g, '-')}.pdf`
-  await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, attachments: [{ filename, content: invoice, contentType: 'application/pdf' }], purpose: 'registration_submitted', delegationId: d.id })
+  await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, attachments: [{ filename: invoiceFilename(d, payment), content: invoice, contentType: 'application/pdf' }], purpose: 'registration_submitted', delegationId: d.id })
   await sendBadgesIfSettled(d.id)
+}
+
+/** The delegation's invoice PDF, priced at the fee tier the invoice was issued at, so its total and due date hold. */
+async function delegationInvoice(d, payment) {
+  const settings = await loadSettings(requireDb())
+  const fees = calculateFees(settings.fees, { numberOfTeams: d.number_of_teams, numberOfObservers: d.number_of_observers }, new Date(), payment?.fee_tier)
+  return invoicePdf({ delegation: d, payment, fees, invoice: settings.invoice })
+}
+
+function invoiceFilename(d, payment) {
+  const number = payment?.invoice_number?.split('/')[1]
+  return `IOL2027-invoice-${number ? `${number}-` : ''}${d.country_territory.replace(/[^\w-]+/g, '-').replace(/^-|-$/g, '')}.pdf`
 }
 
 /* ------------------------------------------------------------------ */
@@ -749,40 +773,39 @@ app.get('/api/participant/me', ...signedIn, requireRole('participant'), asyncHan
 app.post('/api/registration/members/:memberId/badge', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
   const member = (await query('SELECT id, delegation_id, display_name, badge_name, role FROM members WHERE id = $1', [req.params.memberId])).rows[0]
   if (!member) throw new HttpError(404, 'Member not found.')
-  const { credential, payload } = await issueBadge(requireDb(), member.id)
+  const { credential, payload } = await issueBadge(requireDb(), { memberId: member.id })
   const qrDataUrl = await badgeQrDataUrl(payload)
   await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: member.delegation_id, eventType: 'badge_issued', entityType: 'member', entityId: member.id, details: { publicId: credential.public_id } })
   res.status(201).json({ badge: camelizeRow(credential), member: camelizeRow(member), qrDataUrl })
 }))
 
+/** Whose badge it is, as the scanner and the badge page show it: name, role, and country (or assignment, for staff). */
+const badgeHolder = (c) => ({
+  kind: c.staff_id ? 'staff' : 'member', displayName: c.display_name, badgeName: c.badge_name, officialName: c.official_name,
+  role: c.role, place: c.place, team: c.team_name,
+})
+
+// The badge page (/b) shows whose badge was scanned and its recent check-ins before anything is recorded.
+app.post('/api/registration/check-in/lookup', ...signedIn, requireRole('checkin_staff', 'registration_admin'), asyncHandler(async (req, res) => {
+  const credential = await findBadge(requiredString(req.body.payload, 'Badge code'))
+  const scans = await query(
+    `SELECT ce.checkpoint, ce.result, ce.scanned_at, a.full_name AS scanned_by FROM check_in_events ce LEFT JOIN accounts a ON a.id = ce.scanned_by_account_id
+     WHERE ce.member_id = $1 OR ce.staff_id = $2 ORDER BY ce.scanned_at DESC LIMIT 5`,
+    [credential.member_id, credential.staff_id],
+  )
+  res.json({ holder: badgeHolder(credential), active: credential.status === 'active', scans: camelizeRows(scans.rows) })
+}))
+
 app.post('/api/registration/check-in/scan', ...signedIn, requireRole('checkin_staff', 'registration_admin'), asyncHandler(async (req, res) => {
-  const payload = requiredString(req.body.payload, 'QR payload')
-  const checkpoint = requiredString(req.body.checkpoint, 'checkpoint')
-  const encoded = payload.startsWith('IOL2027:') ? payload.slice('IOL2027:'.length) : payload
-  const separator = encoded.indexOf('.')
-  if (separator < 1) throw new HttpError(400, 'Badge QR is invalid.')
-  const publicId = encoded.slice(0, separator)
-  const secret = encoded.slice(separator + 1)
-  const credential = (await query(
-    `SELECT bc.*, m.display_name, m.badge_name, m.role, d.country_territory
-     FROM badge_credentials bc JOIN members m ON m.id = bc.member_id JOIN delegations d ON d.id = m.delegation_id
-     WHERE bc.public_id = $1`,
-    [publicId],
-  )).rows[0]
-  if (!credential) throw new HttpError(404, 'Badge was not found.')
-  const supplied = Buffer.from(hashToken(secret), 'hex')
-  const stored = Buffer.from(credential.secret_hash, 'hex')
-  if (!(supplied.length === stored.length && crypto.timingSafeEqual(supplied, stored))) throw new HttpError(400, 'Badge QR is invalid.')
+  const checkpoint = requiredString(req.body.checkpoint, 'Checkpoint')
+  if (checkpoint.length > 80) throw new HttpError(400, 'Checkpoint must be at most 80 characters.')
+  const credential = await findBadge(requiredString(req.body.payload, 'Badge code'))
   const result = credential.status === 'active' ? 'accepted' : 'revoked'
   const scan = (await query(
-    `INSERT INTO check_in_events (badge_credential_id, member_id, scanned_by_account_id, checkpoint, result) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-    [credential.id, credential.member_id, req.user.id, checkpoint, result],
+    `INSERT INTO check_in_events (badge_credential_id, member_id, staff_id, scanned_by_account_id, checkpoint, result) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    [credential.id, credential.member_id, credential.staff_id, req.user.id, checkpoint, result],
   )).rows[0]
-  res.status(result === 'accepted' ? 201 : 409).json({
-    accepted: result === 'accepted',
-    member: { id: credential.member_id, displayName: credential.display_name, badgeName: credential.badge_name, role: credential.role, country: credential.country_territory },
-    scan: camelizeRow(scan),
-  })
+  res.status(result === 'accepted' ? 201 : 409).json({ accepted: result === 'accepted', holder: badgeHolder(credential), scan: camelizeRow(scan) })
 }))
 
 /* ------------------------------------------------------------------ */
@@ -790,6 +813,7 @@ app.post('/api/registration/check-in/scan', ...signedIn, requireRole('checkin_st
 /* ------------------------------------------------------------------ */
 
 registerAdminRoutes(app, { signedIn })
+registerBadgeRoutes(app, { signedIn })
 
 app.use('/api', (_req, _res, next) => next(new HttpError(404, 'Not found.')))
 

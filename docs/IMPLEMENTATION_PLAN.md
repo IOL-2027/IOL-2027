@@ -112,7 +112,7 @@ Source §5. Front end: `src/registration/`. API: `server/index.js`.
 | 7 | Team Leader transfers outside the system, then uploads proof | ✅ | Invoice details saved first, then proof upload unlocks People |
 | 8 | Admin sees the proof in a review queue | ✅ | Payment queue with inline preview, filters and search |
 | 9 | Staff check the proof against สอวน's statement, then approve or reject | ✅ | Approval bug fixed; returning a proof needs a reason, which the Team Leader sees |
-| 10 | On approval, email (a) e-receipt PDF, (b) ID badge with QR, (c) invitation letter | 🟡 | (a) done: the confirmation email links to the e-receipt and to the Travel step. (b) done 24 Oct 2026: once submitted, paid and everyone has an arrival and departure, the Team Leader is emailed every person’s QR code; the printed badge design is still to come (§8). (c) letters in Sprint 3; the letter needs its template (Q12) |
+| 10 | On approval, email (a) e-receipt PDF, (b) ID badge with QR, (c) invitation letter | 🟡 | (a) done: the confirmation email links to the e-receipt and to the Travel step. (b) done 24 Oct 2026: once submitted, paid and everyone has an arrival and departure, the Team Leader is emailed every person’s QR code; printed badges in §8. (c) letters in Sprint 3; the letter needs its template (Q12) |
 | 11 | Add members later; pay only for the added people | ⬜ | ⚠️ Per-person price formula is open question Q1 |
 
 ### 4.2 After registration, before the event (source §5.2)
@@ -144,8 +144,8 @@ Source §7.
 | Observer fee | Finance | ⬜ | Rate not set; Finance can now enter it under Fees |
 | Per-person fee for members added later | Finance | ⚠️ | Q1 |
 | Wire transfer only, OUR charges | Web/Dev | ✅ | Shown on the payment step and invoice |
-| SCB account name, number and SWIFT for สอวน | Finance | ⬜ | Q4; shown as "pending Finance approval" |
-| Invoice download | Web/Dev | ✅ | Printable invoice from the portal |
+| SCB account name, number and SWIFT for สอวน | Finance | ✅ | From Finance's invoice template (27 Oct 2026). Finance enters it in the back office (Fees and invoice), not in this public repository; until then the payment step and invoice say it is to come |
+| Invoice download | Web/Dev | ✅ | A PDF in Finance's template (27 Oct 2026): number IOL2027/n, issue and due dates, payer TIN, POSN as recipient, items, bank details. The same file is attached to the "registration submitted" email |
 | Proof upload (PDF, JPG, PNG, 10 MB) | Web/Dev | ✅ | Private Cloud Storage bucket |
 | Manual reconciliation with approve / reject | Web/Dev | ✅ | Finance back office; e-receipt PDF still to build |
 | Audit trail of who approved what and when | Web/Dev | ✅ | Activity log in the back office |
@@ -200,13 +200,14 @@ Source §8.
 
 | Task | Status | Notes |
 | --- | --- | --- |
-| QR holds only a random reference, never personal data | ✅ | Signed badge credential |
-| Scan from phone camera or webcam, no app install | ✅ | `/check-in` on the registration portal, for signed-in check-in staff (24 Oct 2026) |
+| QR holds only a random reference, never personal data | ✅ | Signed badge credential. Since 27 Oct 2026 the QR is a link to the portal's badge page, `/b#<code>`: staff who open it sign in and see whose badge it is; anyone else sees only that it is an IOL 2027 badge. The code is after `#`, so it never reaches a server log. QR codes emailed earlier still scan |
+| Scan from phone camera or webcam, no app install | ✅ | `/check-in` on the registration portal, for signed-in check-in staff (24 Oct 2026). A phone's own camera also works: the QR opens `/b`, which shows the person and records the check-in at the chosen checkpoint (27 Oct 2026) |
 | Fallback search by name or passport | 🟡 | Check-in staff can search People by name; marking someone checked in by hand is not built |
 | Offline or cached mode for weak venue Wi-Fi | ⬜ | Q8 with LOC |
-| Printed badges with QR from a vendor | ⬜ | Source §12.1; LOC procurement |
-| Badge design (lanyard badge, front only, 10 cm × 14 cm) with each person’s QR | ⬜ | Professor’s feedback, 24 Oct 2026. Badge QRs can already be redrawn for printing |
-| QR codes with the IOL logo in the middle | ⬜ | Professor’s feedback, 24 Oct 2026. Needs a higher error-correction level (H) so the logo does not stop scans |
+| Printed badges with QR from a vendor | 🟡 | Source §12.1. The print file is ready (back office, Badges, 27 Oct 2026): one badge per page with 3 mm bleed, or four to an A4 sheet for the registration desk. Badges are marked printed, and a later change to a name, role, country or QR lists the badge under Needs reprint. Vendor and material (likely a PVC card in a plastic sleeve) with LOC. Print cut-off 1 July 2027 for now, editable there |
+| Badge design (lanyard badge, front only, 10 cm × 14 cm) with each person’s QR | ✅ | 27 Oct 2026, from the brand colours and logo: plum for delegation members, gold for staff. Badge name large, then the official name, the country (or assignment), and the role and team beside the QR. Long names get smaller or take two lines; Latin, Vietnamese, Cyrillic, Greek and Thai print. A name in a script without a font (Chinese, Japanese, Korean) falls back to the person's other name, and the back office warns |
+| QR codes with the IOL logo in the middle | ✅ | 27 Oct 2026: the flame from the logo on a white tile, at error-correction level H. Read in every simulated phone capture, down to under 2 pixels per QR square. Check with real phones on a printed sample before the print run |
+| Badges for staff, guides, volunteers and guests | ✅ | 27 Oct 2026: added in the back office (Badges, Staff and volunteers), one at a time or pasted from a spreadsheet, with a role and an assignment; their badges scan like everyone else's |
 | Rehearsal at the venue | ⬜ | Before event |
 
 ---
@@ -302,7 +303,7 @@ From the source document's §14, plus later ones. Each needs an owner before the
 | Q1 | Per-person price when members are added later | Finance | §4.1 step 11 |
 | Q2 | Refund or removal policy after payment | Finance, committee | Member deletion |
 | Q3 | Add a late-fee tier? | Finance | Fee configuration |
-| Q4 | SCB account name, number and SWIFT for สอวน | Finance | Payment step, invoice |
+| Q4 | ~~SCB account name, number and SWIFT for สอวน~~ Answered by Finance's invoice template; enter it on the production server | Finance | Payment step, invoice |
 | Q5 | Production hosting confirmed as Firebase + Cloud Run? | Committee | Sprint 4 |
 | Q6 | Open-source the code? | Committee | Post-event |
 | Q7 | Separate "Individual Observer" role; mandatory admin 2FA? | Committee | Roles, Sprint 2 |

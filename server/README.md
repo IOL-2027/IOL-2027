@@ -78,7 +78,7 @@ Public
 
 Team Leader (own delegation; admins can open any)
 - `GET|PATCH /api/registration/delegations/:delegationId`
-- `PUT /api/registration/delegations/:delegationId/invoice`, `POST …/payment-proof`
+- `PUT /api/registration/delegations/:delegationId/invoice` (saves the invoice details; the first save numbers the invoice IOL2027/n), `GET …/invoice` (the invoice PDF), `POST …/payment-proof`
 - `POST …/teams`, `PATCH /api/registration/teams/:teamId`
 - `POST …/members`, `PATCH|DELETE /api/registration/members/:memberId`, `POST …/guardian-consent`
 - `POST …/travel`, `PATCH /api/registration/travel/:travelRecordId`
@@ -96,12 +96,13 @@ Staff (routes in `admin.js`)
 - `GET|POST /api/admin/invites`, `PATCH /api/admin/invites/:inviteId`, `POST /api/admin/invites/:inviteId/send` (Registration admin)
 - `GET /api/admin/exports`, `GET /api/admin/exports/:kind` (CSV; which kinds depends on the role)
 - `GET /api/admin/audit`, `GET /api/admin/email-deliveries` (Registration admin)
-- `GET /api/admin/settings`, `PUT /api/admin/settings/fees` (Finance), `PUT /api/admin/settings/guardian-consent` (Registration admin)
+- `GET /api/admin/settings`, `PUT /api/admin/settings/fees` (Finance), `PUT /api/admin/settings/invoice` (Finance: who the invoice is from and the bank account), `GET /api/admin/settings/invoice-sample` (a sample invoice PDF), `PUT /api/admin/settings/guardian-consent` (Registration admin)
 - `GET|POST /api/admin/accounts`, `PATCH /api/admin/accounts/:accountId` (role, disabled), `POST /api/admin/accounts/:accountId/setup-code` (Super admin; changes sign that person out)
-- `POST /api/registration/members/:memberId/badge`, `POST /api/registration/check-in/scan`
+- `POST /api/registration/members/:memberId/badge`; `POST /api/registration/check-in/lookup` (whose badge a code is, and its latest check-ins) and `POST /api/registration/check-in/scan` (Check-in staff, Registration admin)
+- `GET /api/admin/badges`, `GET /api/admin/badges/print` (PDF: `layout` shop, a4 or preview; the same filters as the list, or one `id`), `POST /api/admin/badges/printed`, `POST /api/admin/badges/:badgeId/new-qr`, `POST /api/admin/event-staff`, `PATCH|DELETE /api/admin/event-staff/:staffId`, `PUT /api/admin/settings/badges` (print cut-off) (Registration admin)
 
 Country comes from the invitation and cannot be changed. Creating the account also creates the Team Leader's member record, so their identity is not entered twice. People can be saved with only a display name and completed in stages; completeness (and guardian consent, when the policy is on) is checked on submission. Fees are calculated on the server from the `settings` table, with defaults in `fees.js`.
 
-Code layout: `index.js` (accounts, registration, badges), `admin.js` (back office), `lib.js` (database helpers), `codes.js` (emailed codes), `auth.js` (sessions and roles), `fees.js` (fees and organiser settings), `email.js` (templates and sending), `storage.js` (uploads).
+Code layout: `index.js` (accounts, registration, check-in), `admin.js` (back office), `badges.js` (badge codes and the QR email), `badge-admin.js` (the Badges section), `badge-pdf.js` (the printed badge), `lib.js` (database helpers), `codes.js` (emailed codes), `auth.js` (sessions and roles), `fees.js` (fees and organiser settings), `email.js` (templates and sending), `storage.js` (uploads).
 
-Badge issuance returns a QR image containing a random public ID and secret, never personal information. Scan events store the member, checkpoint, result, operator account and timestamp.
+A badge's QR is a link, `<PORTAL_URL>/b#<public id>.<secret>`: a random public ID and secret, never personal information. Scan events store the person (delegation member or event staff), checkpoint, result, operator account and timestamp. The QR is printed with the domain in `PORTAL_URL`, so set it to the final portal address before the print run. Badge PDFs use Manrope and Noto Sans (Latin, Greek, Cyrillic, Vietnamese) and Noto Sans Thai, in `assets/fonts` with their licences.
