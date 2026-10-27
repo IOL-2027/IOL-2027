@@ -1,11 +1,12 @@
 // The staff back office: a section list on the left, one section at a time on the right, opening on a home page
 // with what is waiting and quick actions. Each role sees only its sections; the API enforces the same rules (docs/ROLES.md).
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react'
-import { BarChart3, Banknote, CreditCard, Download, Globe2, HeartPulse, History, House, Inbox, Mail, QrCode, ShieldCheck, UserCog, Users } from 'lucide-react'
+import { BarChart3, Banknote, CreditCard, Download, Globe2, HeartPulse, History, House, IdCardLanyard, Inbox, Mail, QrCode, ShieldCheck, UserCog, Users } from 'lucide-react'
 import { roleLabel, type Role, type User } from './api'
 import Workspace from './Workspace'
 import { PageHead, daysBetween } from './ui'
 import Accounts from './staff/Accounts'
+import Badges from './staff/Badges'
 import Home from './staff/Home'
 import Invites from './staff/Invites'
 import Overview from './staff/Overview'
@@ -58,6 +59,7 @@ const sectionDefs: SectionDef[] = [
   { id: 'countries', label: 'Countries', group: 'Registration', icon: Globe2, roles: ['registration_admin', 'finance_admin', 'welfare_staff'] },
   { id: 'people', label: 'People', group: 'Registration', icon: Users, roles: ['registration_admin', 'finance_admin', 'checkin_staff'] },
   { id: 'invites', label: 'Invitation codes', group: 'Registration', icon: Mail, roles: ['registration_admin'] },
+  { id: 'badges', label: 'Badges', group: 'Registration', icon: IdCardLanyard, roles: ['registration_admin'] },
   { id: 'welfare', label: 'Welfare', group: 'Registration', icon: HeartPulse, roles: ['welfare_staff'] },
   { id: 'checkin', label: 'Check-in', group: 'Registration', icon: QrCode, roles: ['checkin_staff'] },
   { id: 'payments', label: 'Payments', group: 'Finance', icon: CreditCard, roles: ['finance_admin', 'registration_admin'] },
@@ -131,6 +133,7 @@ export default function StaffHome({ user, onSessionEnd, session }: { user: User;
     countries: () => <Countries onOpen={openCountry} />,
     people: () => <People onOpen={openCountry} />,
     invites: () => <Invites />,
+    badges: () => <Badges />,
     welfare: () => <Welfare />,
     checkin: () => <CheckinPanel />,
     payments: () => <Payments canReview={role === 'finance_admin' || isSuper} />,

@@ -11,7 +11,7 @@ The source requirements list Guest, Team Leader and Admin, and later Super Admin
 | **Guest** (no account) | Public visitors | Read the public website | Anything behind login |
 | **Team Leader** (`team_leader`) | One per country, created with that country's invite code | Manage **their own** delegation: team counts, payment details and proof, teams, people, travel, submission | Any other country's data; staff tools |
 | **Participant** (`participant`) | Contestants and observers, invited by their Team Leader (planned) | See their own record, badge and invitation letter status | Other people's records, including their teammates' sensitive fields |
-| **Registration admin** (`registration_admin`) | Registration team | View and edit every delegation, issue badges, read the email log, manage invite codes | Payment approval (Finance only) |
+| **Registration admin** (`registration_admin`) | Registration team | View and edit every delegation, issue and print badges (including for staff, guides, volunteers and guests), read the email log, manage invite codes | Payment approval (Finance only) |
 | **Finance admin** (`finance_admin`) | Finance team | Payment review queue, approve or reject proofs, see amounts and contacts | Passport numbers, health and food notes, emergency contacts |
 | **Check-in staff** (`checkin_staff`) | Event-week desk volunteers | Scan badges and search people by name | Passport numbers, health notes, payment data |
 | **Welfare staff** (`welfare_staff`) | Welfare, food and medical team | Read food, medical, accessibility and emergency-contact data for everyone | Payment data; cannot edit registrations |
@@ -32,6 +32,7 @@ The source requirements list Guest, Team Leader and Admin, and later Super Admin
 | Dashboard totals | | | ✅ | ✅ | | | ✅ | ✅ |
 | List all delegations | | | ✅ | ✅ | | ✅ | | ✅ |
 | Issue badges | | | ✅ | | | | | ✅ |
+| Badges: print files, new QR, staff and volunteer badges | | | ✅ | | | | | ✅ |
 | Invitation codes: create, send, revoke | | | ✅ | | | | | ✅ |
 | People status list (all countries) | | | ✅ with missing details | ✅ names and stage | ✅ names and stage | | | ✅ |
 | Open any country's registration and edit it | | | ✅ | | | | | ✅ |
@@ -61,7 +62,7 @@ The API enforces this matrix on every request (`server/auth.js`). Hiding a butto
 
 ## Test accounts
 
-These exist **only on the development environment**. Team Leaders sign in at https://iol2027-portal.web.app and staff at https://iol2027-portal.web.app/staff (either page works for any account; the role decides what opens). The badge scanner is at https://iol2027-portal.web.app/check-in. Until launch the portal is the test environment. They use the reserved `.test` domain, so no real email is ever sent to them.
+These exist **only on the development environment**. Team Leaders sign in at https://iol2027-portal.web.app and staff at https://iol2027-portal.web.app/staff (either page works for any account; the role decides what opens). The badge scanner is at https://iol2027-portal.web.app/check-in, and a badge's QR opens https://iol2027-portal.web.app/b (check-in staff and registration admins see whose badge it is and can record the check-in). Until launch the portal is the test environment. They use the reserved `.test` domain, so no real email is ever sent to them.
 
 | Role | Email | Linked to |
 | --- | --- | --- |

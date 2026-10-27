@@ -1,12 +1,16 @@
-// QR badges. Each person gets one credential; the QR holds `IOL2027:<public id>.<secret>` and no personal data.
-// The secret is derived from the public id with BADGE_SIGNING_KEY, so the same QR can be drawn again later
-// (printed badges, a lost email) without storing the secret; only its hash is kept for checking scans.
+// QR badges. Each person gets one credential. The QR is a link to the portal's badge page,
+// `<portal>/b#<public id>.<secret>`, with no personal data in it: staff who open it sign in and see whose badge it is.
+// The code sits after `#`, so it never reaches a server log. The secret is derived from the public id with
+// BADGE_SIGNING_KEY, so the same QR can be drawn again later (printed badges, a lost email) without storing the
+// secret; only its hash is kept for checking scans.
 // Once a registration is settled (submitted, payment approved, everyone's arrival and departure entered),
-// every person gets a credential and the Team Leader is emailed all the QR codes.
+// every person gets a credential and the Team Leader is emailed all the QR codes. Staff, guides, volunteers and
+// guests (event_staff) get theirs when they are added in the back office.
 import crypto from 'node:crypto'
 import QRCode from 'qrcode'
+import { HttpError } from './auth.js'
 import { buildBadgesEmail, sendEmail } from './email.js'
-import { hashToken, insertAudit, query, requireDb, withTransaction } from './lib.js'
+import { hashToken, insertAudit, portalUrl, query, requireDb, withTransaction } from './lib.js'
 
 const signingKey = process.env.BADGE_SIGNING_KEY
 
@@ -16,23 +20,76 @@ export function badgeSecret(publicId) {
   return crypto.createHmac('sha256', signingKey).update(publicId).digest('base64url').slice(0, 32)
 }
 
-export const badgePayload = (publicId, secret) => `IOL2027:${publicId}.${secret}`
+// The public id (a UUID) is written in 22 characters rather than 36, which keeps the QR less dense.
+const shortId = (publicId) => Buffer.from(publicId.replace(/-/g, ''), 'hex').toString('base64url')
+const longId = (short) => Buffer.from(short, 'base64url').toString('hex').replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5')
+
+export const badgePayload = (publicId, secret) => `${portalUrl}/b#${shortId(publicId)}.${secret}`
+
+/**
+ * The public id and secret in whatever a scanner read or someone typed: the badge link, the code after its `#`,
+ * or the `IOL2027:<uuid>.<secret>` form of the QR codes emailed before badges became links. Null if it is none of these.
+ */
+export function parseBadgeCode(text) {
+  let code = String(text ?? '').trim()
+  if (code.includes('#')) code = code.slice(code.lastIndexOf('#') + 1)
+  else if (code.startsWith('IOL2027:')) code = code.slice('IOL2027:'.length)
+  const separator = code.indexOf('.')
+  if (separator < 1) return null
+  let publicId = code.slice(0, separator)
+  const secret = code.slice(separator + 1)
+  if (/^[A-Za-z0-9_-]{22}$/.test(publicId)) publicId = longId(publicId)
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(publicId) || !/^[A-Za-z0-9_-]{16,64}$/.test(secret)) return null
+  return { publicId: publicId.toLowerCase(), secret }
+}
+
+/** The badge's QR content drawn again from the signing key, or null if it was issued without the key (reissue it). */
+export function redrawPayload(credential) {
+  const secret = badgeSecret(credential.public_id)
+  return hashToken(secret) === credential.secret_hash ? badgePayload(credential.public_id, secret) : null
+}
 
 const qrOptions = { errorCorrectionLevel: 'M', margin: 1, width: 480, color: { dark: '#160c1b', light: '#ffffff' } }
 export const badgeQrDataUrl = (payload) => QRCode.toDataURL(payload, qrOptions)
 const badgeQrPng = (payload) => QRCode.toBuffer(payload, { ...qrOptions, type: 'png', width: 360 })
 
-/** Issues (or reissues) one person's credential and returns it with its QR payload. */
-export async function issueBadge(db, memberId) {
+/** Issues (or reissues) a credential for a delegation member ({ memberId }) or an event staff member ({ staffId }). */
+export async function issueBadge(db, { memberId = null, staffId = null }) {
   const publicId = crypto.randomUUID()
   const secret = badgeSecret(publicId)
   const credential = (await db.query(
-    `INSERT INTO badge_credentials (member_id, public_id, secret_hash, status) VALUES ($1, $2, $3, 'active')
-     ON CONFLICT (member_id) DO UPDATE SET public_id = EXCLUDED.public_id, secret_hash = EXCLUDED.secret_hash, status = 'active', issued_at = now(), revoked_at = NULL
-     RETURNING id, member_id, public_id, status, issued_at`,
-    [memberId, publicId, hashToken(secret)],
+    `INSERT INTO badge_credentials (member_id, staff_id, public_id, secret_hash, status) VALUES ($1, $2, $3, $4, 'active')
+     ON CONFLICT (${memberId ? 'member_id' : 'staff_id'}) DO UPDATE SET public_id = EXCLUDED.public_id, secret_hash = EXCLUDED.secret_hash,
+       status = 'active', issued_at = now(), revoked_at = NULL
+     RETURNING id, member_id, staff_id, public_id, status, issued_at`,
+    [memberId, staffId, publicId, hashToken(secret)],
   )).rows[0]
   return { credential, payload: badgePayload(publicId, secret) }
+}
+
+/**
+ * The credential a scanned code belongs to, with whose badge it is. Throws 400 for a code that is not a badge or
+ * whose secret does not match, and 404 for one that is no longer on file (replaced by a new QR, or removed).
+ */
+export async function findBadge(text) {
+  const code = parseBadgeCode(text)
+  if (!code) throw new HttpError(400, 'This is not an IOL 2027 badge code.')
+  const credential = (await query(
+    `SELECT bc.id, bc.member_id, bc.staff_id, bc.secret_hash, bc.status, bc.issued_at,
+       COALESCE(m.display_name, s.full_name) AS display_name, COALESCE(m.badge_name, s.badge_name) AS badge_name,
+       COALESCE(m.official_name, s.full_name) AS official_name, COALESCE(m.role, s.category) AS role,
+       COALESCE(d.country_territory, s.assignment) AS place, t.name AS team_name
+     FROM badge_credentials bc
+     LEFT JOIN members m ON m.id = bc.member_id LEFT JOIN delegations d ON d.id = m.delegation_id LEFT JOIN teams t ON t.id = m.team_id
+     LEFT JOIN event_staff s ON s.id = bc.staff_id
+     WHERE bc.public_id = $1`,
+    [code.publicId],
+  )).rows[0]
+  if (!credential) throw new HttpError(404, 'This badge is no longer valid. It may have been replaced by a new one.')
+  const supplied = Buffer.from(hashToken(code.secret), 'hex')
+  const stored = Buffer.from(credential.secret_hash, 'hex')
+  if (!(supplied.length === stored.length && crypto.timingSafeEqual(supplied, stored))) throw new HttpError(400, 'This badge code is not valid.')
+  return credential
 }
 
 /** People who still need an arrival or a departure (with a date) in the Travel step, e.g. "Mali Phan: departure details". */
@@ -79,7 +136,7 @@ export async function sendBadgesIfSettled(delegationId) {
       [delegationId],
     )).rows
     const payloads = new Map()
-    for (const { id } of missing) payloads.set(id, (await issueBadge(client, id)).payload)
+    for (const { id } of missing) payloads.set(id, (await issueBadge(client, { memberId: id })).payload)
     if (missing.length) await insertAudit(client, { delegationId, eventType: 'badges_issued', entityType: 'delegation', entityId: delegationId, details: { count: missing.length } })
     return payloads
   })
@@ -96,12 +153,8 @@ export async function sendBadgesIfSettled(delegationId) {
   const attachments = []
   const listed = []
   for (const [index, person] of people.entries()) {
-    let payload = issued.get(person.id)
-    if (!payload) {
-      const secret = badgeSecret(person.public_id)
-      if (hashToken(secret) !== person.secret_hash) continue // issued without the signing key; staff can reissue it
-      payload = badgePayload(person.public_id, secret)
-    }
+    const payload = issued.get(person.id) ?? redrawPayload(person)
+    if (!payload) continue // issued without the signing key; staff can reissue it
     const cid = `badge-${index}@iol2027`
     attachments.push({ filename: `IOL2027-badge-${(person.badge_name || person.display_name).replace(/[^\w-]+/g, '-')}.png`, content: await badgeQrPng(payload), contentType: 'image/png', cid })
     listed.push({ name: person.display_name, role: person.role, team: person.team_name, cid })

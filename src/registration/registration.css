@@ -440,7 +440,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-stat-group dl > div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--reg-border); font-size: 15px; }
 .reg-stat-group dt { color: var(--reg-muted); }
 .reg-stat-group dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
-.reg-table-wrap { overflow-x: auto; border: 1px solid var(--reg-border); border-radius: var(--reg-radius); background: var(--reg-field-bg); }
+.reg-table-wrap { position: relative; overflow-x: auto; border: 1px solid var(--reg-border); border-radius: var(--reg-radius); background: var(--reg-field-bg); }
 .reg-table-wrap:focus-visible { outline: 3px solid var(--reg-focus); outline-offset: 3px; }
 .reg-table { width: 100%; border-collapse: collapse; font-size: 15px; }
 .reg-table th, .reg-table td { padding: 12px 14px; border-bottom: 1px solid var(--reg-border); text-align: left; vertical-align: top; }
@@ -656,4 +656,36 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 
 @media (max-width: 860px) {
   .checkin-shell { grid-template-columns: 1fr; }
+}
+
+/* Back office: Badges */
+.reg-badge-print { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin: 4px 0 8px; }
+.reg-badge-print + .reg-hint { margin: 0 0 20px; }
+.reg-table small.reg-attn-text { color: var(--reg-attn-text); font-weight: 700; }
+.reg-confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 12px; font-size: 14px; font-weight: 700; color: var(--reg-attn-text); }
+.reg-badge-edit-row > td { background: var(--reg-tint); }
+.reg-badge-edit { padding: 8px 0; }
+.reg-badge-edit .reg-staff-form-actions { margin-top: 16px; }
+.reg-inline-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; }
+.reg-inline-fields .reg-field { flex: 0 1 380px; }
+
+/* The badge page (/b): whose badge it is, coloured like the printed badge (plum for delegations, gold for staff) */
+.badge-check { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+.badge-check-card { padding: clamp(24px, 4vw, 36px); border-radius: var(--reg-radius-lg); background: var(--plum); color: #fff; }
+.badge-check-staff { background: var(--orange); color: var(--ink); }
+.badge-check-card h2 { margin: 8px 0 0; font-size: clamp(34px, 6vw, 52px); line-height: 1.05; letter-spacing: -.03em; overflow-wrap: anywhere; }
+.badge-check-role { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.badge-check-full { margin: 10px 0 0; font-size: 18px; font-weight: 500; }
+.badge-check-place { margin: 18px 0 0; font-size: 16px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--orange); }
+.badge-check-staff .badge-check-place { color: var(--plum); }
+.badge-check-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+.badge-check-actions .checkin-label { align-self: stretch; }
+.badge-check-actions h3 { margin: 8px 0 0; font-size: 16px; }
+.badge-check-scans { align-self: stretch; margin: 0; padding: 0; list-style: none; }
+.badge-check-scans li { padding: 10px 0; border-top: 1px solid var(--reg-border); font-size: 15px; }
+.badge-check-scans small { display: block; color: var(--reg-muted); font-size: 13px; }
+.badge-check-done { margin: 0; }
+
+@media (max-width: 860px) {
+  .badge-check { grid-template-columns: 1fr; }
 }
