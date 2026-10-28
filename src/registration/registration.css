@@ -147,6 +147,8 @@
 .has-error .reg-control { border-color: var(--reg-error); }
 select.reg-control { appearance: none; padding-right: 42px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23160c1b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; }
 textarea.reg-control { min-height: 96px; resize: vertical; }
+/* The back of the badge is edited line by line, so the lines keep their length and Thai fits beside Latin. */
+.reg-badge-back { max-width: 720px; font-family: inherit; line-height: 1.55; white-space: pre; overflow-x: auto; }
 .reg-control-code { letter-spacing: .04em; font-variant-numeric: tabular-nums; text-transform: uppercase; }
 .reg-control-otp { max-width: 240px; font-size: 26px; font-weight: 700; letter-spacing: .4em; font-variant-numeric: tabular-nums; }
 .reg-checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

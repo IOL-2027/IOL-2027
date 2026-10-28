@@ -32,7 +32,7 @@ The source requirements list Guest, Team Leader and Admin, and later Super Admin
 | Dashboard totals | | | ✅ | ✅ | | | ✅ | ✅ |
 | List all delegations | | | ✅ | ✅ | | ✅ | | ✅ |
 | Issue badges | | | ✅ | | | | | ✅ |
-| Badges: print files, new QR, staff and volunteer badges | | | ✅ | | | | | ✅ |
+| Badges: print files, new QR, staff and volunteer badges, the contacts on the back | | | ✅ | | | | | ✅ |
 | Invitation codes: create, send, revoke | | | ✅ | | | | | ✅ |
 | People status list (all countries) | | | ✅ with missing details | ✅ names and stage | ✅ names and stage | | | ✅ |
 | Open any country's registration and edit it | | | ✅ | | | | | ✅ |

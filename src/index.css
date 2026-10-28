@@ -879,7 +879,9 @@ html.viewer-open{overflow:hidden}
 /* Hosts carousel: the arrows stay on screen, and on phones the profile link lines up with the text. */
 @media(min-width:901px) and (max-width:1600px){.sponsor-stage .carousel-arrow-left{left:-24px}.sponsor-stage .carousel-arrow-right{right:-24px}}
 @media(max-width:600px){.sponsor-profile-link{right:auto;bottom:auto;justify-self:start}}
-/* Registration hero: the emblem gives way first, then the dates move under the text, so the buttons never squeeze. */
+/* Registration hero: the emblem gives way first, then the dates move under the text, so the buttons never squeeze.
+   The heading keeps its words whole, so on wide screens the text column takes the width "REGISTER" needs. */
+.coming-soon h1{overflow-wrap:normal}
 .hero-actions{flex-wrap:wrap;row-gap:18px}
 .hero-actions>*{flex-shrink:0}
 @media(min-width:1101px){.coming-soon{padding-inline:max(5vw,calc((100% - 1408px) / 2))}}

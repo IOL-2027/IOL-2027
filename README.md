@@ -84,9 +84,9 @@ development  ──merge──▶  prelaunch  ──PR──▶  main (public si
 - Registration stays closed on the public website because of how it is **built**, not because of its code: the workflow that deploys `main` (`.github/workflows/firebase-hosting-merge.yml`) builds with `VITE_REGISTRATION_OPEN=false`, and so do pull-request previews into `main`. `src/launch.ts` reads that setting, and the website then shows no link to the portal. The portal itself is deployed from `development` until launch (it is the test environment and says so); a portal built with `VITE_REGISTRATION_OPEN=false` only says that registration opens on 18 January 2027. Every other build, including local development, has registration open.
 - `prelaunch` carries the same code as `development`; it is the staging step before the public site.
 - To publish public-site changes: merge `development` into `prelaunch`, then open a PR from `prelaunch` to `main` and check its preview. Do not commit to `main` directly.
-- The placeholder pages (Gallery, People, Sponsors, and the sponsor block on the home page) are hidden the same way, with `VITE_SHOW_PLACEHOLDER_PAGES=false`; their addresses show the not-found page on the public site.
+- The placeholder pages (People, Sponsors, and the sponsor block on the home page) are hidden the same way, with `VITE_SHOW_PLACEHOLDER_PAGES=false`; their addresses show the not-found page on the public site. The Gallery has been public since 29 Oct 2026.
 - To see the public website locally: `VITE_REGISTRATION_OPEN=false VITE_SHOW_PLACEHOLDER_PAGES=false npm run build && npm run preview`.
-- When registration opens (or a placeholder section is ready): delete its `VITE_...` line from `firebase-hosting-merge.yml` and from `firebase-hosting-pull-request.yml`, then merge as usual.
+- When registration opens (or a placeholder section is ready): delete its `VITE_...` line from `firebase-hosting-merge.yml` and from `firebase-hosting-pull-request.yml`, then merge as usual. To publish one placeholder section while the others wait, take it out of `placeholderSections` in `src/App.tsx` instead.
 
 ## Useful Thai audio
 
