@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Download } from 'lucide-react'
-import { roleLabel, type Role } from '../api'
-import { FilterField, Note, PAGE_SIZE, Pager, Panel, Problem, TableWrap, human, useLoad, when } from './common'
+import { Download, RotateCw } from 'lucide-react'
+import { api, roleLabel, type Role } from '../api'
+import { Done, FilterField, Note, PAGE_SIZE, Pager, Panel, Problem, TableWrap, errorText, human, useLoad, when } from './common'
 
 const exportInfo: Record<string, { title: string; description: string }> = {
   people: { title: 'People', description: 'Everyone with every detail, including passports, health notes and status. Handle as confidential.' },
@@ -47,6 +47,7 @@ export const eventText: Record<string, string> = {
   account_created: 'Created a staff account', account_disabled: 'Disabled an account', account_enabled: 'Enabled an account', password_reset: 'Reset their password',
   badges_issued: 'Issued badges', badge_new_qr: 'Gave a badge a new QR code', badges_print_file: 'Downloaded a badge print file', badges_marked_printed: 'Marked badges as printed',
   event_staff_added: 'Added staff badges', event_staff_updated: 'Changed a staff badge', event_staff_removed: 'Removed a staff badge',
+  email_retried: 'Tried an email again',
 }
 
 const settingName: Record<string, string> = { fees: 'Fees', guardianConsent: 'Guardian consent policy', invoice: 'Invoice and bank account', badges: 'Badge print cut-off' }
@@ -106,20 +107,69 @@ export function Activity() {
   )
 }
 
-type EmailRow = { id: string; recipientEmail: string; purpose: string; status: string; errorMessage: string | null; createdAt: string }
+type EmailRow = {
+  id: string; recipientEmail: string; purpose: string; subject: string | null; status: string; errorMessage: string | null
+  attempts: number; nextAttemptAt: string | null; canRetry: boolean; createdAt: string
+}
+
+const purposeText: Record<string, string> = {
+  account_verification: 'Email check code', password_reset: 'Password reset code', account_setup: 'Staff account set-up code',
+  invite_code: 'Invitation code', payment_proof_received: 'Proof received', finance_proof_alert: 'Proof alert to Finance',
+  payment_confirmed: 'Payment confirmed', registration_submitted: 'Registration submitted, with invoice',
+  badges_issued: 'Badges', badges_updated: 'Badge update', daily_summary: 'Daily summary',
+}
+const statusText: Record<string, string> = { queued: 'Queued', sending: 'Sending', sent: 'Sent', retrying: 'Trying again', failed: 'Failed', skipped: 'Skipped' }
 
 export function EmailLog() {
   const [offset, setOffset] = useState(0)
-  const { data, error } = useLoad<{ deliveries: EmailRow[]; total: number }>(`/api/admin/email-deliveries?limit=${PAGE_SIZE}&offset=${offset}`)
+  const [show, setShow] = useState('')
+  const [busy, setBusy] = useState('')
+  const [done, setDone] = useState('')
+  const [problem, setProblem] = useState('')
+  const { data, error, reload } = useLoad<{ deliveries: EmailRow[]; total: number }>(`/api/admin/email-deliveries?limit=${PAGE_SIZE}&offset=${offset}${show ? `&show=${show}` : ''}`)
+  const retry = async (row: EmailRow) => {
+    setBusy(row.id); setDone(''); setProblem('')
+    try {
+      const { delivery } = await api<{ delivery: EmailRow }>(`/api/admin/email-deliveries/${row.id}/retry`, { method: 'POST' })
+      if (delivery.status === 'sent') setDone(`Sent to ${delivery.recipientEmail}.`)
+      else setProblem(`Not sent: ${delivery.errorMessage ?? 'unknown error'}.${delivery.status === 'retrying' ? ` It will be tried again ${when(delivery.nextAttemptAt)}.` : ''}`)
+      reload()
+    } catch (e) {
+      setProblem(errorText(e))
+    } finally {
+      setBusy('')
+    }
+  }
   return (
-    <Panel id="email" title="Email log" intro="Every email the system tried to send. “Skipped” is a test address (ending in .test), which is never really sent. “Queued” means email is switched off on this server. “Failed” shows the reason.">
-      <Problem message={error} />
-      {data && <TableWrap label="Email log">
-        <thead><tr><th scope="col">When</th><th scope="col">To</th><th scope="col">Purpose</th><th scope="col">Status</th></tr></thead>
-        <tbody>{data.deliveries.map((d) => (
-          <tr key={d.id}><td className="reg-nowrap">{when(d.createdAt)}</td><td>{d.recipientEmail}</td><td>{human(d.purpose)}</td><td className="reg-email-status">{human(d.status)}{d.errorMessage && <small>{d.errorMessage}</small>}</td></tr>
-        ))}</tbody>
-      </TableWrap>}
+    <Panel id="email" title="Email log" intro="Every email the system tried to send, newest first. When sending fails, the emails that go out on their own (payment, registration, badges, the daily summary) are tried again for about a day and a half, then marked Failed with Try again. Codes and invitations are not: whoever sent them sees the error. Skipped is a test address (.test); Queued means email is switched off on this server.">
+      <div className="reg-filter-bar">
+        <FilterField id="email-show" label="Show">
+          <select id="email-show" className="reg-control reg-control-compact" value={show} onChange={(e) => { setShow(e.target.value); setOffset(0) }}>
+            <option value="">Everything</option>
+            <option value="unsent">Not sent: trying again or failed</option>
+          </select>
+        </FilterField>
+      </div>
+      <Problem message={error || problem} />
+      <Done message={done} />
+      {data && (data.deliveries.length === 0 ? <Note>{show ? 'Every email went out.' : 'No emails yet.'}</Note> : (
+        <TableWrap label="Email log">
+          <thead><tr><th scope="col">When</th><th scope="col">To</th><th scope="col">Email</th><th scope="col">Status</th></tr></thead>
+          <tbody>{data.deliveries.map((d) => (
+            <tr key={d.id}>
+              <td className="reg-nowrap">{when(d.createdAt)}</td>
+              <td>{d.recipientEmail}</td>
+              <td>{purposeText[d.purpose] ?? human(d.purpose)}{d.subject && <small>{d.subject}</small>}</td>
+              <td className="reg-email-status">
+                {statusText[d.status] ?? human(d.status)}
+                {d.status === 'retrying' && <small>Attempt {d.attempts} failed. Next try {when(d.nextAttemptAt)}.</small>}
+                {d.errorMessage && <small>{d.errorMessage}</small>}
+                {d.canRetry && <button type="button" className="reg-btn-link" disabled={busy === d.id} onClick={() => void retry(d)}><RotateCw size={15} aria-hidden="true" />{busy === d.id ? 'Sending…' : 'Try again'}</button>}
+              </td>
+            </tr>
+          ))}</tbody>
+        </TableWrap>
+      ))}
       {data && <Pager offset={offset} count={data.deliveries.length} total={data.total} onPage={showPage('email', setOffset)} />}
     </Panel>
   )
