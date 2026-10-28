@@ -4,8 +4,8 @@
 // build with VITE_REGISTRATION_OPEN=false until registration opens. Every other build, including the dev site, is open.
 export const registrationOpen: boolean = import.meta.env.VITE_REGISTRATION_OPEN !== 'false'
 
-// Placeholder pages (Gallery, People, Sponsors, and the sponsor block on the home page) work the same way: the public
-// site builds with VITE_SHOW_PLACEHOLDER_PAGES=false until launch, so they are hidden there and shown everywhere else.
+// Placeholder pages (People, Sponsors, and the sponsor block on the home page) work the same way: the public site
+// builds with VITE_SHOW_PLACEHOLDER_PAGES=false until launch, so they are hidden there and shown everywhere else.
 export const placeholderPagesShown: boolean = import.meta.env.VITE_SHOW_PLACEHOLDER_PAGES !== 'false'
 
 // The registration portal is its own site (iol2027-portal.web.app); the website links to it and the portal links back.

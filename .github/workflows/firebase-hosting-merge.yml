@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # Until launch the public site shows no link to the registration portal (registration opens 18 January 2027)
-      # and hides the placeholder pages (Gallery, People, Sponsors) (src/launch.ts). Delete VITE_REGISTRATION_OPEN or
+      # and hides the placeholder pages (People, Sponsors) (src/launch.ts). Delete VITE_REGISTRATION_OPEN or
       # VITE_SHOW_PLACEHOLDER_PAGES when that part goes live. The portal itself deploys from development until launch.
       - run: npm ci && npm run build
         env:
