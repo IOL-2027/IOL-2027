@@ -1,7 +1,7 @@
 // Badges: every lanyard badge, for delegation members and for event staff, ready for the print shop. Download a
 // print file of what the filters show, send it to print, then mark those badges printed; a badge whose name, role,
 // place or QR changes afterwards comes back under "Needs reprint". Staff, guides, volunteers and guests are added
-// here, since they are not in any delegation.
+// here, since they are not in any delegation, and the contacts on the back of every badge are edited at the end.
 import { useRef, useState, type FormEvent } from 'react'
 import { Check, Eye, FileDown, Pencil, Plus, QrCode, Trash2 } from 'lucide-react'
 import { api } from '../api'
@@ -15,7 +15,7 @@ type Badge = {
   status: string; issuedAt: string; printedAt: string | null; fingerprint: string
   printState: 'not_printed' | 'printed' | 'reprint'; unprintable: string; canPrint: boolean
 }
-type BadgeData = { badges: Badge[]; waiting: { country: string; people: number }[]; printCutoff: string; categories: string[] }
+type BadgeData = { badges: Badge[]; waiting: { country: string; people: number }[]; printCutoff: string; back: string; categories: string[] }
 type State = 'not_printed' | 'reprint' | 'printed' | 'all'
 
 const categoryLabel: Record<string, string> = { staff: 'Staff', guide: 'Guide', volunteer: 'Volunteer', guest: 'Guest' }
@@ -148,6 +148,36 @@ function PrintCutoff({ value, onSaved }: { value: string; onSaved: (message: str
   )
 }
 
+function BadgeBack({ value, onSaved }: { value: string; onSaved: (message: string) => void }) {
+  const [error, setError] = useState('')
+  const save = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const text = String(new FormData(event.currentTarget).get('back') ?? '')
+    setError('')
+    try {
+      await api('/api/admin/settings/badge-back', { method: 'PUT', body: { text } })
+      onSaved('Back of the badge saved. Print files from now on use it.')
+    } catch (e) {
+      setError(errorText(e))
+    }
+  }
+  return (
+    <form onSubmit={save} noValidate key={value}>
+      <h3 className="reg-staff-subhead">Back of the badge</h3>
+      <div className="reg-field">
+        <label htmlFor="badge-back">Contacts</label>
+        <p className="reg-hint" id="badge-back-hint">The same on every badge, above Thailand’s emergency numbers (1669, 191, 1155, 199), which are always printed. Start each place with a line beginning with #, then its Thai name after a | if it has one. Lines under it get an icon: a phone number gets a phone, an email address an envelope, and the first other line (the address) a map pin. Up to 5 places, 4 lines each; the text shrinks to fit.</p>
+        <textarea id="badge-back" name="back" className="reg-control reg-badge-back" rows={18} defaultValue={value} aria-describedby="badge-back-hint" spellCheck={false} />
+      </div>
+      <Alert>{error}</Alert>
+      <div className="reg-staff-form-actions">
+        <button type="submit" className="reg-btn reg-btn-secondary">Save the back</button>
+        <a className="reg-btn-link" href="/api/admin/badges/back" target="_blank" rel="noreferrer"><Eye size={15} aria-hidden="true" />Preview the saved back</a>
+      </div>
+    </form>
+  )
+}
+
 export default function Badges() {
   const { data, error, reload } = useLoad<BadgeData>('/api/admin/badges')
   const [kind, setKind] = useState<'member' | 'staff'>('member')
@@ -230,7 +260,7 @@ export default function Badges() {
             {state !== 'printed' && <button type="button" className="reg-btn-link" onClick={() => void markPrinted()}><Check size={16} aria-hidden="true" />Mark these {printable.length} as printed</button>}
           </> : rows.length > 0 && <p className="reg-muted">No badges to print with these filters.</p>}
         </div>
-        <p className="reg-hint">The print shop file has one badge per page: 10 × 14 cm, front only, with 3 mm bleed. Check it, send it, then mark the badges as printed.</p>
+        <p className="reg-hint">The print shop file has one page per side: each badge’s front, then its back, 10 × 14 cm with 3 mm bleed, to print double-sided. The A4 file has a sheet of backs after each sheet of fronts; print it double-sided, flipping on the long edge. Check the file, send it, then mark the badges as printed.</p>
 
         <Problem message={actionError} />
         <Done message={done} />
@@ -270,6 +300,7 @@ export default function Badges() {
         )}
 
         <PrintCutoff value={data.printCutoff} onSaved={finished} />
+        <BadgeBack value={data.back} onSaved={finished} />
       </>}
     </Panel>
   )

@@ -1,8 +1,9 @@
 // The back office's Badges section: every badge, for delegation members and for event staff, ready to send to
 // print. Registration admins (and super admins) download print files, mark them printed, give a badge a new QR,
-// and add the staff, guides, volunteers and guests who are not in any delegation. See docs/ROLES.md.
+// and add the staff, guides, volunteers and guests who are not in any delegation. Print files carry the back too:
+// the contacts the admins edit here, above Thailand's emergency numbers. See docs/ROLES.md.
 import { HttpError, requireRole } from './auth.js'
-import { badgesPdf, unprintable } from './badge-pdf.js'
+import { badgeBackPdf, badgesPdf, unprintable } from './badge-pdf.js'
 import { badgeContent, issueBadge, redrawPayload } from './badges.js'
 import { loadSettings } from './fees.js'
 import { asyncHandler, insertAudit, isEmail, optionalString, query, requireDb, withTransaction } from './lib.js'
@@ -92,10 +93,17 @@ export function registerBadgeRoutes(app, { signedIn }) {
 
   app.get('/api/admin/badges', ...admin, asyncHandler(async (_req, res) => {
     const [rows, waiting, settings] = await Promise.all([badgeRows(), waitingForBadges(), loadSettings(requireDb())])
-    res.json({ badges: rows.rows.map(listed), waiting: waiting.rows, printCutoff: settings.badges.printCutoff, categories: STAFF_CATEGORIES })
+    res.json({ badges: rows.rows.map(listed), waiting: waiting.rows, printCutoff: settings.badges.printCutoff, back: settings.badgeBack.text, categories: STAFF_CATEGORIES })
   }))
 
-  // A print file for the badges matching the filters (or one badge, `id`): `layout` shop, a4 or preview.
+  // The back as it will print, from the saved text.
+  app.get('/api/admin/badges/back', ...admin, asyncHandler(async (_req, res) => {
+    const pdf = await badgeBackPdf((await loadSettings(requireDb())).badgeBack.text)
+    res.set('Content-Type', 'application/pdf').set('Content-Disposition', 'inline; filename="IOL2027-badge-back.pdf"').send(pdf)
+  }))
+
+  // A print file for the badges matching the filters (or one badge, `id`): `layout` shop, a4 or preview, each badge
+  // followed by its back.
   app.get('/api/admin/badges/print', ...admin, asyncHandler(async (req, res) => {
     const layout = ['shop', 'a4', 'preview'].includes(req.query.layout) ? req.query.layout : 'shop'
     const id = optionalString(req.query.id)
@@ -106,7 +114,8 @@ export function registerBadgeRoutes(app, { signedIn }) {
     const byId = new Map(rows.map((row) => [row.id, row]))
     const chosen = (id ? rows.map(listed) : matching(rows.map(listed), filters)).filter((b) => b.canPrint)
     if (!chosen.length) throw new HttpError(404, id ? 'This badge cannot be printed. Give it a new QR first.' : 'No badges match, or none of them can be printed yet.')
-    const pdf = await badgesPdf(chosen.map((b) => ({ ...b, payload: redrawPayload(byId.get(b.id)) })), { layout, title: id ? `IOL 2027 badge, ${chosen[0].name}` : 'IOL 2027 badges' })
+    const { badgeBack } = await loadSettings(requireDb())
+    const pdf = await badgesPdf(chosen.map((b) => ({ ...b, payload: redrawPayload(byId.get(b.id)) })), { layout, title: id ? `IOL 2027 badge, ${chosen[0].name}` : 'IOL 2027 badges', back: badgeBack.text })
     await insertAudit(requireDb(), { actorAccountId: req.user.id, eventType: 'badges_print_file', entityType: 'badge', entityId: id, details: { count: chosen.length, layout, ...filters } })
     const name = id ? `IOL2027-badge-${fileSafe(chosen[0].name)}` : `IOL2027-badges-${filters.kind ?? 'all'}-${filters.state ?? 'all'}-${new Date().toISOString().slice(0, 10)}`
     res.set('Content-Type', 'application/pdf')
