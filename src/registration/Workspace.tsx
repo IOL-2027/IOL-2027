@@ -20,6 +20,7 @@ const paymentLabel: Record<string, string> = {
 function StatusMark({ status, number }: { status: StepStatus; number: number }) {
   if (status === 'done') return <span className="reg-mark is-done" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" /></svg></span>
   if (status === 'locked') return <span className="reg-mark is-locked" aria-hidden="true"><Lock size={13} strokeWidth={2.4} /></span>
+  if (status === 'info') return <span className="reg-mark is-info" aria-hidden="true"><Info size={13} strokeWidth={2.4} /></span>
   return <span className={`reg-mark is-${status}`} aria-hidden="true">{number}</span>
 }
 
@@ -31,6 +32,8 @@ function recordChip(record: PortalRecord) {
 
 const NEW_PERSON = 'new-person'
 const main = sections.filter((s) => !s.afterSubmission)
+// "Before you begin" is an introduction, not a step: the numbered steps run from Team and observers to Review and submit.
+const numbered = main.filter((s) => s.id !== 'start')
 const after = sections.filter((s) => s.afterSubmission)
 const required = sections.filter((s) => s.required)
 
@@ -142,7 +145,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const status = statusOf(section)
   const locked = status === 'locked'
   const firstOpenStep = main.find((s) => s.required && !isDone(s.id) && statusOf(s) !== 'locked') ?? main.find((s) => s.id === 'review')
-  const stepNumber = (s: Section) => main.indexOf(s) + 1
+  const stepNumber = (s: Section) => numbered.indexOf(s) + 1
+  const stepsDone = numbered.filter((s) => isDone(s.id)).length
   const nextOf = (id: SectionId) => main[main.findIndex((s) => s.id === id) + 1]?.id
 
   const open = (id: SectionId) => {
@@ -394,10 +398,10 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       { key: 'code', title: 'Invitation code', detail: `Linked this account to ${d.countryTerritory}.`, state: 'done', label: 'Done' },
       { key: 'account', title: 'Team Leader account', detail: `${d.teamLeaderEmail}, email checked.`, state: 'done', label: 'Done' },
     ] },
-    { title: 'Registration', steps: main.filter((s) => s.id !== 'start').map(trackOf) },
+    { title: 'Registration', steps: numbered.map(trackOf) },
     { title: 'Before the Olympiad', steps: [
       { key: 'letters', title: 'Invitation letters', detail: paymentStatus === 'approved' ? 'Your payment is confirmed, so letters for visa applications follow by email.' : 'One for each person, sent once the payment is confirmed.', state: 'after', label: 'Later' },
-      { key: 'badges', title: 'QR badges', detail: 'Emailed once the payment is confirmed and everyone’s arrival and departure are in.', state: 'after', label: 'Later', to: 'badges' },
+      { key: 'badges', title: 'QR badges', detail: 'Emailed to you as PDFs once the payment is confirmed and everyone’s arrival and departure are in.', state: 'after', label: 'Later', to: 'badges' },
       { key: 'arrival', title: 'Arrival in Bangkok', detail: 'From 21 July 2027. Badges are scanned at the arrival desk.', state: 'after', label: 'Later' },
     ] },
   ]
@@ -468,9 +472,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       intro={`${d.primaryTeamLeaderName} · Team Leader${staff ? ` · ${d.teamLeaderEmail}` : ''}`}
       aside={
         <div className="reg-head-progress">
-          <p><strong>{submitted ? 'Submitted' : `${doneCount} of ${required.length}`}</strong>{submitted ? ' · people and travel can still change' : ' steps done'}</p>
-          <div className="reg-meter" role="progressbar" aria-label="Registration progress" aria-valuemin={0} aria-valuemax={required.length} aria-valuenow={doneCount}>
-            <span style={{ transform: `scaleX(${doneCount / required.length})` }} />
+          <p><strong>{submitted ? 'Submitted' : `${stepsDone} of ${numbered.length}`}</strong>{submitted ? ' · people and travel can still change' : ' steps done'}</p>
+          <div className="reg-meter" role="progressbar" aria-label="Registration progress" aria-valuemin={0} aria-valuemax={numbered.length} aria-valuenow={stepsDone}>
+            <span style={{ transform: `scaleX(${stepsDone / numbered.length})` }} />
           </div>
           {!home && !submitted && firstOpenStep && firstOpenStep.id !== activeId && (
             <button type="button" className="reg-btn reg-btn-quiet" onClick={() => open(firstOpenStep.id)}>
@@ -497,7 +501,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       {!home && <div className="reg-ws-body">
         <nav className={`reg-rail${navOpen ? ' is-open' : ''}`} aria-label="Registration steps">
           <button type="button" className="reg-rail-toggle" aria-expanded={navOpen} onClick={() => setNavOpen((v) => !v)}>
-            <span>{section.afterSubmission ? 'After you submit' : `Step ${stepNumber(section)} of ${main.length}`}</span>
+            <span>{section.afterSubmission ? 'After you submit' : section.id === 'start' ? 'Start here' : `Step ${stepNumber(section)} of ${numbered.length}`}</span>
             <strong>{section.title}</strong>
           </button>
           <button type="button" className="reg-rail-item reg-rail-home" onClick={goHome}>
@@ -845,7 +849,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
           {activeId === 'badges' && <>
             <Facts items={section.facts ?? []} />
-            <p className="reg-aside"><Info size={18} aria-hidden="true" />Staff use the <a href="/check-in">badge scanner</a> during event week.</p>
+            <p className="reg-aside"><Info size={18} aria-hidden="true" /><span>Staff use the <a href="/check-in">badge scanner</a> during event week.</span></p>
           </>}
         </section>
       </div>}

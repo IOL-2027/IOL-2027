@@ -5,7 +5,9 @@
  *   - Gmail (the organisers' own mailbox, iol2027.th@gmail.com) when GMAIL_USER and GMAIL_APP_PASSWORD are set, or
  *   - Resend when RESEND_API_KEY and EMAIL_FROM are set (needs a verified domain to reach anyone but the account owner), or
  *   - nothing: the email is only recorded ("queued").
- * Nothing is retried; callers send again if they need to. See docs/EMAIL_SETUP.md.
+ * Emails that go out on their own (payment, registration, badges, the daily summary) are sent with `retry`: if
+ * sending fails, the message is kept and the scheduled job (jobs.js) tries again later. Codes and invitations are
+ * not: whoever asked for them sees the failure and can send again. See docs/EMAIL_SETUP.md.
  */
 import nodemailer from 'nodemailer'
 
@@ -27,7 +29,11 @@ const SMALL = `font-size:14px;color:${C.muted}`
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 
 // ── shared layout ─────────────────────────────────────────────────────────────
-function layout(previewText, bodyHtml) {
+// Why the reader got the email, in the footer.
+const TEAM_LEADER_REASON = 'This message was sent to you because you are registered or registering as a Team Leader for IOL 2027.'
+const ORGANISER_REASON = 'This message was sent to you because you are an IOL 2027 organiser with access to the registration back office.'
+
+function layout(previewText, bodyHtml, reason = TEAM_LEADER_REASON) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -64,7 +70,7 @@ function layout(previewText, bodyHtml) {
           <a href="mailto:iol2027.th@gmail.com" style="color:${C.ink}">iol2027.th@gmail.com</a>
         </p>
         <p style="margin:12px 0 0;font-size:13px;color:${C.muted};line-height:1.5">
-          This message was sent to you because you are registered or registering as a Team Leader for IOL 2027.
+          ${reason}
           Do not share this email with unauthorised parties.
         </p>
       </td></tr>
@@ -175,7 +181,7 @@ export function buildFinanceAlertEmail({ countryTerritory, paymentReference, amo
     ])}
     ${notice(`Use the admin dashboard to confirm or reject this payment. Confirming will automatically send a confirmation email to the Team Leader.`, C.orange)}
   `
-  return { subject, html: layout(preview, body) }
+  return { subject, html: layout(preview, body, ORGANISER_REASON) }
 }
 
 export function buildPaymentConfirmedEmail({ countryTerritory, fullName, paymentReference, amountPaid, currency, receiptNumber, travelUrl, paymentUrl }) {
@@ -191,7 +197,7 @@ export function buildPaymentConfirmedEmail({ countryTerritory, fullName, payment
       ['Amount confirmed', amountPaid ? `${Number(amountPaid).toLocaleString()} ${currency || 'USD'}` : '—'],
       ...(receiptNumber ? [['Receipt number', receiptNumber]] : []),
     ])}
-    ${notice('<strong>Next: add your flights.</strong> Enter each person’s arrival and departure, with flight number, date and time, in the Travel step. Once your registration is submitted and everyone’s travel is in, we will email the QR codes for their badges.')}
+    ${notice('<strong>Next: add your flights.</strong> Enter each person’s arrival and departure, with flight number, date and time, in the Travel step. Once your registration is submitted and everyone’s travel is in, we will email you everyone’s badges.')}
     ${button('Add flight details', travelUrl)}
     ${p(`Your e-receipt is in the Payment step of the registration system: <a href="${paymentUrl}" style="color:${C.ink}">download the receipt</a>.`, SMALL)}
   `
@@ -206,8 +212,8 @@ export function buildRegistrationSubmittedEmail({ countryTerritory, fullName, nu
     !paymentConfirmed && 'Finance is checking your transfer. We will email you when the payment is confirmed.',
     !travelComplete && 'Add each person’s arrival and departure in the Travel step.',
     settled
-      ? 'Everything is in. The QR codes for everyone’s badges follow in a separate email.'
-      : 'Once the payment is confirmed and everyone’s travel is in, we will email the QR codes for their badges.',
+      ? 'Everything is in. Everyone’s badges follow in a separate email.'
+      : 'Once the payment is confirmed and everyone’s travel is in, we will email you everyone’s badges.',
   ].filter(Boolean)
   const body = `
     ${h1('Registration submitted')}
@@ -227,31 +233,96 @@ export function buildRegistrationSubmittedEmail({ countryTerritory, fullName, nu
   return { subject, html: layout(preview, body) }
 }
 
-const roleLabel = (role) => ({ team_leader: 'Team Leader', contestant: 'Contestant', observer: 'Observer' }[role] ?? role.replace(/_/g, ' '))
+/** "1 July 2027" from "2027-07-01". */
+const longDate = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
 
-export function buildBadgesEmail({ countryTerritory, fullName, people, newCount }) {
-  const subject = `QR badges for ${countryTerritory} — IOL 2027`
-  const preview = `The QR codes for ${people.length} people in ${countryTerritory} are ready.`
-  const card = (person) => person ? `<td width="50%" valign="top" style="padding:8px">
-      <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border:1px solid ${C.line};border-radius:10px">
-        <tr><td align="center" style="padding:16px 12px 6px"><img src="cid:${person.cid}" width="150" height="150" alt="QR code for ${esc(person.name)}" style="display:block;width:150px;height:150px"></td></tr>
-        <tr><td align="center" style="padding:0 12px 16px">
-          <p style="margin:0;font-size:16px;font-weight:700;color:${C.ink}">${esc(person.name)}</p>
-          <p style="margin:4px 0 0;font-size:14px;color:${C.muted}">${esc(roleLabel(person.role))}${person.team ? ` · ${esc(person.team)}` : ''}</p>
-        </td></tr>
-      </table></td>` : '<td width="50%" style="padding:8px"></td>'
-  const rows = []
-  for (let i = 0; i < people.length; i += 2) rows.push(`<tr>${card(people[i])}${card(people[i + 1])}</tr>`)
+function tag(text) {
+  return `<span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:10px;background:#fdf4ea;font-size:12px;font-weight:700;line-height:1.5;color:${C.ink};vertical-align:2px">${text}</span>`
+}
+
+const changeTag = { new: 'New', changed: 'Changed', new_qr: 'New QR code' }
+const changeText = {
+  new: (name) => `New badge for ${name}`,
+  changed: (name) => `Name, role or team changed for ${name}`,
+  new_qr: (name) => `New QR code for ${name}. The old one no longer scans`,
+}
+
+/**
+ * Every person's badge, attached to the email as a PDF. `people` is what each badge says ({ name, fullName, role,
+ * detail, change, skippedName }). An `update` follows a change since the last email: `change` marks each badge that
+ * is new or different, and `removed` names the people no longer in the delegation.
+ */
+export function buildBadgesEmail({ countryTerritory, fullName, people, removed = [], update = false, printCutoff, cutoffPassed, portalUrl }) {
+  const subject = update ? `Badge update for ${countryTerritory} — IOL 2027` : `Badges for ${countryTerritory}: please check the names — IOL 2027`
+  const preview = update
+    ? `The badges for ${countryTerritory} have changed. Every badge is attached again.`
+    : `${people.length} badges for ${countryTerritory}, attached as PDFs. Please check the names${cutoffPassed ? '' : ` by ${longDate(printCutoff)}`}.`
+  const changes = [
+    ...people.filter((person) => person.change).map((person) => changeText[person.change](esc(person.name))),
+    ...removed.map((name) => `${esc(name)} is no longer in the delegation, so their badge no longer scans`),
+  ]
+  const rows = people.map((person, i) => {
+    const rule = i < people.length - 1 ? `border-bottom:1px solid ${C.line};` : ''
+    return `<tr><td style="padding:14px 16px;${rule}">
+      <p style="margin:0;font-size:17px;font-weight:700;line-height:1.35;color:${C.ink}">${esc(person.name)}${person.change ? tag(changeTag[person.change]) : ''}</p>
+      ${person.fullName ? `<p style="margin:2px 0 0;font-size:14px;line-height:1.45;color:${C.text}">${esc(person.fullName)}</p>` : ''}
+      <p style="margin:2px 0 0;font-size:14px;line-height:1.45;color:${C.muted}">${esc(person.role)}${person.detail ? ` · ${esc(person.detail)}` : ''}</p>
+      ${person.skippedName ? `<p style="margin:6px 0 0;font-size:13px;line-height:1.45;color:${C.muted}">“${esc(person.skippedName)}” has characters the badge fonts cannot print, so the name above is printed instead.</p>` : ''}
+    </td></tr>`
+  }).join('')
+  const cutoff = cutoffPassed
+    ? `The print cut-off (${longDate(printCutoff)}) has passed, so a change made now is printed at the registration desk when you arrive.`
+    : `<strong>Please check every name by ${longDate(printCutoff)}.</strong> That is the last day for changes to go to the print shop. Anything changed later is printed at the registration desk when you arrive.`
   const body = `
-    ${h1('Your QR badges are ready')}
+    ${h1(update ? 'Your badges have changed' : 'Your badges are ready')}
     ${p(`Hi ${esc(fullName)},`)}
-    ${p(`Everything for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> is in: the registration is submitted, the payment is confirmed and everyone’s travel is added. Here is the QR code for each person in your delegation.`)}
-    ${newCount < people.length ? p(`This email includes ${newCount} new ${newCount === 1 ? 'badge' : 'badges'}. Everyone else’s code is unchanged.`) : ''}
-    ${notice('Each code is personal. Staff scan it at the arrival desk and at event checkpoints, and the printed badges you receive in Bangkok carry the same codes. The images are also attached, so you can forward each person their own.')}
-    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:8px 0 16px">${rows.join('')}</table>
-    ${p('If a code is lost or someone’s details change, reply to this email and we will issue a new one.', SMALL)}
+    ${update
+      ? p(`The badges for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> have changed since our last email. Every badge is attached again, so this email replaces the earlier one.`)
+      : p(`Everything for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> is in: the registration is submitted, the payment is confirmed and everyone’s travel is added. Each person’s badge is attached as a PDF, exactly as it will be printed.`)}
+    ${changes.length ? notice(`<strong>What changed</strong><ul style="margin:8px 0 0;padding-left:20px">${changes.map((line) => `<li style="margin:4px 0">${line}</li>`).join('')}</ul>`) : ''}
+    ${notice(cutoff, C.orange)}
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border:1px solid ${C.line};border-radius:8px;border-collapse:separate;margin:24px 0">
+      <tbody>${rows}</tbody>
+    </table>
+    ${notice('Each badge has a personal QR code. Staff scan it at the arrival desk and at event checkpoints. Forward each person their own PDF: the code scans from a phone screen as well as from the printed badge you collect in Bangkok.')}
+    ${p(`To correct a name, change it in the People step of the <a href="${portalUrl}/?step=people" style="color:${C.ink}">registration system</a>, or reply to this email. Changes reach you the next morning, with every badge attached again.`, SMALL)}
   `
   return { subject, html: layout(preview, body) }
+}
+
+/**
+ * The registration admins' morning summary: badges waiting to be printed, the print cut-off, and emails that could not
+ * be sent. Rows with nothing to report are left out.
+ */
+export function buildSummaryEmail({ fullName, toPrint, staffToPrint, reprint, needQr, waiting, badgeEmails, failedEmails, printCutoff, daysToCutoff, portalUrl }) {
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
+  const headline = [
+    toPrint && plural(toPrint, 'badge to print', 'badges to print'),
+    reprint && `${reprint} to print again`,
+    failedEmails && plural(failedEmails, 'email not sent', 'emails not sent'),
+  ].filter(Boolean).join(', ')
+  const subject = `IOL 2027 registration: ${headline}`
+  const cutoff = daysToCutoff > 1 ? `${longDate(printCutoff)}, in ${daysToCutoff} days` : daysToCutoff === 1 ? `${longDate(printCutoff)}, tomorrow`
+    : daysToCutoff === 0 ? `${longDate(printCutoff)}, today` : `${longDate(printCutoff)}, passed`
+  const rows = [
+    toPrint && ['Badges to print', staffToPrint ? `${toPrint}, of which ${staffToPrint} for staff, guides, volunteers or guests` : String(toPrint)],
+    reprint && ['Badges to print again', `${reprint}, changed after they were printed`],
+    needQr && ['Badges that need a new QR first', String(needQr)],
+    ['Print cut-off', cutoff],
+    waiting.people && ['Countries still finishing registration', `${plural(waiting.countries, 'country', 'countries')}, ${plural(waiting.people, 'person', 'people')} without a badge yet`],
+    ['Badge emails to Team Leaders in the last day', String(badgeEmails)],
+    failedEmails && ['Emails not sent', `${failedEmails}, after trying for a day and a half`],
+  ].filter(Boolean)
+  const body = `
+    ${h1('Daily summary')}
+    ${p(`Hi ${esc(fullName)},`)}
+    ${p('Here is what is waiting in the registration back office this morning.')}
+    ${infoTable(rows)}
+    ${button('Open Badges', `${portalUrl}/staff#badges`)}
+    ${failedEmails ? p(`<a href="${portalUrl}/staff#email" style="color:${C.ink}">Open the email log</a> to see why emails were not sent and to try them again.`) : ''}
+    ${p('Sent at 8:00 Bangkok time on days when these numbers change. Printing stays with you: download the print file in Badges, send it to the print shop, then mark the badges as printed.', SMALL)}
+  `
+  return { subject, html: layout(headline, body, ORGANISER_REASON) }
 }
 
 export function buildPasswordCodeEmail({ fullName, code, setup, portalUrl }) {
@@ -334,41 +405,113 @@ async function sendWithResend({ to, subject, html, attachments }) {
   return payload.id
 }
 
+// After a failed send, an email kept for retrying is tried again after these waits (about a day and a half in all),
+// then given up: the email log shows it as Failed, with Try again.
+const RETRY_AFTER_MINUTES = [15, 60, 180, 480, 1440]
+const MAX_ATTEMPTS = RETRY_AFTER_MINUTES.length + 1
+// How long a send may take before the scheduled job assumes the server stopped mid-send and tries again.
+const SENDING_LEASE = "interval '15 minutes'"
+
 /**
- * Send one email and record the delivery.
+ * Records an email, without sending it. `db` may be a transaction client, so the email is recorded with the change
+ * that caused it; send it after the commit with deliverEmail().
  *
  * @param {object} opts
- * @param {pg.Pool} opts.pool
  * @param {string}  opts.to           - recipient email address
  * @param {string}  opts.subject
  * @param {string}  opts.html
  * @param {string}  opts.purpose      - stored in email_deliveries
  * @param {{ filename: string, content: Buffer, contentType?: string, cid?: string }[]} [opts.attachments]
  *   files to attach; one with a cid can be shown in the body as <img src="cid:...">
+ * @param {boolean} [opts.retry]      - keep the message so a failed send is tried again later
  * @param {string}  [opts.accountId]
  * @param {string}  [opts.delegationId]
- * @returns {{ delivery: object, configured: boolean }} configured is true only when the email really went out.
+ * @returns the email_deliveries row: status 'sending' when it is ready to send, otherwise 'queued' (no email
+ *   service configured) or 'skipped' (a test address).
  */
-export async function sendEmail({ pool, to, subject, html, purpose, attachments = [], accountId = null, delegationId = null }) {
+export async function queueEmail(db, { to, subject, html, purpose, attachments = [], retry = false, accountId = null, delegationId = null }) {
   const provider = emailProvider()
-  const skip = provider && isTestAddress(to)
-  const delivery = (await pool.query(
-    `INSERT INTO email_deliveries (account_id, delegation_id, recipient_email, purpose, provider, status, error_message)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+  const status = !provider ? 'queued' : isTestAddress(to) ? 'skipped' : 'sending'
+  const message = status === 'sending' && retry
+    ? { html, attachments: attachments.map(({ content, ...file }) => ({ ...file, content: content.toString('base64') })) }
+    : null
+  return (await db.query(
+    `INSERT INTO email_deliveries (account_id, delegation_id, recipient_email, purpose, subject, provider, status, error_message, message, next_attempt_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CASE WHEN $9::jsonb IS NULL THEN NULL ELSE now() + ${SENDING_LEASE} END)
      RETURNING *`,
-    [accountId, delegationId, to, purpose, provider ?? 'none', skip ? 'skipped' : 'queued', skip ? 'Test address: not sent.' : null],
+    [accountId, delegationId, to, purpose, subject, provider ?? 'none', status, status === 'skipped' ? 'Test address: not sent.' : null, message],
   )).rows[0]
-  if (!provider || skip) return { delivery, configured: false }
+}
 
+/**
+ * Sends a recorded email ('sending'), from `content` or from the message kept for retrying. Resolves with the updated
+ * row: 'sent', or 'retrying' when it failed and will be tried again. Throws when it failed and will not be.
+ */
+export async function deliverEmail(pool, delivery, content = null) {
+  const kept = delivery.message && { html: delivery.message.html, attachments: delivery.message.attachments.map((file) => ({ ...file, content: Buffer.from(file.content, 'base64') })) }
+  const { html, attachments = [] } = content ?? kept
+  const attempts = delivery.attempts + 1
   try {
-    const messageId = provider === 'gmail' ? await sendWithGmail({ to, subject, html, attachments }) : await sendWithResend({ to, subject, html, attachments })
-    const sent = await pool.query(
-      `UPDATE email_deliveries SET status = 'sent', provider_message_id = $1, sent_at = now() WHERE id = $2 RETURNING *`,
-      [messageId, delivery.id],
-    )
-    return { delivery: sent.rows[0], configured: true }
+    const send = emailProvider() === 'gmail' ? sendWithGmail : emailProvider() === 'resend' ? sendWithResend : null
+    if (!send) throw new Error('Email is switched off on this server.')
+    const messageId = await send({ to: delivery.recipient_email, subject: delivery.subject, html, attachments })
+    return (await pool.query(
+      `UPDATE email_deliveries SET status = 'sent', provider_message_id = $1, sent_at = now(), attempts = $2, error_message = NULL,
+         message = NULL, next_attempt_at = NULL WHERE id = $3 RETURNING *`,
+      [messageId, attempts, delivery.id],
+    )).rows[0]
   } catch (error) {
-    await pool.query(`UPDATE email_deliveries SET status = 'failed', error_message = $1 WHERE id = $2`, [error.message, delivery.id])
-    throw error
+    const again = Boolean(delivery.message) && attempts < MAX_ATTEMPTS
+    const row = (await pool.query(
+      `UPDATE email_deliveries SET status = $1, attempts = $2, error_message = $3,
+         next_attempt_at = CASE WHEN $4::int IS NULL THEN NULL ELSE now() + make_interval(mins => $4::int) END WHERE id = $5 RETURNING *`,
+      [again ? 'retrying' : 'failed', attempts, error.message, again ? RETRY_AFTER_MINUTES[attempts - 1] : null, delivery.id],
+    )).rows[0]
+    if (!again) throw error
+    return row
   }
+}
+
+/**
+ * Sends one email and records it (see queueEmail for the options). Resolves with `configured` true only when the email
+ * really went out. With `retry`, a failed send resolves too (it is tried again later); otherwise it throws.
+ */
+export async function sendEmail({ pool, ...email }) {
+  const delivery = await queueEmail(pool, email)
+  if (delivery.status !== 'sending') return { delivery, configured: false }
+  const sent = await deliverEmail(pool, delivery, { html: email.html, attachments: email.attachments })
+  return { delivery: sent, configured: sent.status === 'sent' }
+}
+
+/** Takes a kept email for one more attempt now, unless another attempt has it. Null if it cannot be sent again. */
+async function claim(pool, id, { due }) {
+  return (await pool.query(
+    `UPDATE email_deliveries SET status = 'sending', next_attempt_at = now() + ${SENDING_LEASE}
+     WHERE id = $1 AND message IS NOT NULL AND (${due ? `status IN ('retrying', 'sending') AND next_attempt_at <= now()` : `status IN ('retrying', 'failed')`})
+     RETURNING *`,
+    [id],
+  )).rows[0] ?? null
+}
+
+/** Try again (the email log's button): one more attempt now. Throws the error if it fails and will not be retried. */
+export async function retryEmail(pool, id) {
+  const delivery = await claim(pool, id, { due: false })
+  return delivery && deliverEmail(pool, delivery)
+}
+
+/** The scheduled job's part: kept emails whose next attempt is due, oldest first. */
+export async function retryDueEmails(pool, { limit = 25 } = {}) {
+  const due = (await pool.query(
+    `SELECT id FROM email_deliveries WHERE message IS NOT NULL AND status IN ('retrying', 'sending') AND next_attempt_at <= now()
+     ORDER BY created_at LIMIT $1`,
+    [limit],
+  )).rows
+  let sent = 0
+  for (const { id } of due) {
+    const delivery = await claim(pool, id, { due: true })
+    if (!delivery) continue
+    const row = await deliverEmail(pool, delivery).catch((error) => { console.error(`email ${id} failed again`, error.message); return null })
+    if (row?.status === 'sent') sent++
+  }
+  return { due: due.length, sent }
 }

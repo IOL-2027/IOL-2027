@@ -7,7 +7,7 @@ import { eventText } from './Records'
 import { Panel, Problem, useLoad, when } from './common'
 
 type Count = { status: string; count: number }
-type Dashboard = { registration: Count[]; invites: Count[]; stages: Count[]; proofsWaiting: number; invitesNotSent: number }
+type Dashboard = { registration: Count[]; invites: Count[]; stages: Count[]; proofsWaiting: number; invitesNotSent: number; emailsFailed: number }
 type AuditEvent = { id: string; eventType: string; createdAt: string; actorName: string | null; countryTerritory: string | null }
 type Icon = ComponentType<{ size?: number; 'aria-hidden'?: boolean | 'true' }>
 type Action = { label: string; go?: string; href?: string }
@@ -52,6 +52,7 @@ export default function Home({ role, sections, onGo }: { role: Role; sections: s
   }
   if (d && can('registration_admin')) {
     tasks.push({ key: 'invites', count: d.invitesNotSent, text: d.invitesNotSent === 1 ? 'invitation code not sent yet' : 'invitation codes not sent yet', clear: 'Every invitation code has been sent', action: { label: 'Send the codes', go: 'invites' } })
+    tasks.push({ key: 'emails', count: d.emailsFailed, text: d.emailsFailed === 1 ? 'email could not be sent' : 'emails could not be sent', clear: 'No emails waiting to be sent again', action: { label: 'Open the email log', go: 'email' } })
   }
   if (scans.data) {
     const waiting = scans.data.people.filter((p) => p.stage === 'badge_issued').length

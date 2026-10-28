@@ -11,7 +11,7 @@ The source requirements list Guest, Team Leader and Admin, and later Super Admin
 | **Guest** (no account) | Public visitors | Read the public website | Anything behind login |
 | **Team Leader** (`team_leader`) | One per country, created with that country's invite code | Manage **their own** delegation: team counts, payment details and proof, teams, people, travel, submission | Any other country's data; staff tools |
 | **Participant** (`participant`) | Contestants and observers, invited by their Team Leader (planned) | See their own record, badge and invitation letter status | Other people's records, including their teammates' sensitive fields |
-| **Registration admin** (`registration_admin`) | Registration team | View and edit every delegation, issue and print badges (including for staff, guides, volunteers and guests), read the email log, manage invite codes | Payment approval (Finance only) |
+| **Registration admin** (`registration_admin`) | Registration team | View and edit every delegation, issue and print badges (including for staff, guides, volunteers and guests), read the email log and send failed emails again, manage invite codes. Gets the daily summary email (as do super admins) | Payment approval (Finance only) |
 | **Finance admin** (`finance_admin`) | Finance team | Payment review queue, approve or reject proofs, see amounts and contacts | Passport numbers, health and food notes, emergency contacts |
 | **Check-in staff** (`checkin_staff`) | Event-week desk volunteers | Scan badges and search people by name | Passport numbers, health notes, payment data |
 | **Welfare staff** (`welfare_staff`) | Welfare, food and medical team | Read food, medical, accessibility and emergency-contact data for everyone | Payment data; cannot edit registrations |
@@ -32,7 +32,7 @@ The source requirements list Guest, Team Leader and Admin, and later Super Admin
 | Dashboard totals | | | ✅ | ✅ | | | ✅ | ✅ |
 | List all delegations | | | ✅ | ✅ | | ✅ | | ✅ |
 | Issue badges | | | ✅ | | | | | ✅ |
-| Badges: print files, new QR, staff and volunteer badges | | | ✅ | | | | | ✅ |
+| Badges: print files, new QR, staff and volunteer badges, the contacts on the back | | | ✅ | | | | | ✅ |
 | Invitation codes: create, send, revoke | | | ✅ | | | | | ✅ |
 | People status list (all countries) | | | ✅ with missing details | ✅ names and stage | ✅ names and stage | | | ✅ |
 | Open any country's registration and edit it | | | ✅ | | | | | ✅ |
@@ -93,7 +93,7 @@ It is never committed to the repository. Recreate or reset the accounts with `np
 | Demo Team Leader | `demo.leader@iol2027.test`, or the address in `DEMO_LEADER_EMAIL` when the data was seeded | **Demoland (TEST)**, at the very start, as if the invitation code had just been used. Go through every step: Team and observers → Payment (any PDF, JPG or PNG works as the proof) → Teams → People → Rooms and welfare → Travel → Review and submit. |
 | Super admin | `superadmin@iol2027.test` | The back office, in a second browser or a private window: approve Demoland's payment under **Payments**, follow its people and stages, and read **Email log**. |
 
-Along the way the system sends the Team Leader: proof received, registration submitted (with the invoice as a PDF), payment confirmed (with a link to the Travel step) and, once the registration is submitted, paid and everyone has an arrival and departure, the QR badges. To a `.test` address they are only recorded (Skipped in the email log); seeded with `DEMO_LEADER_EMAIL` pointing at a real inbox, they arrive there. `npm run db:seed-test` puts Demoland back at the start (pass `DEMO_LEADER_EMAIL` again to keep the real inbox).
+Along the way the system sends the Team Leader: proof received, registration submitted (with the invoice as a PDF), payment confirmed (with a link to the Travel step) and, once the registration is submitted, paid and everyone has an arrival and departure, everyone's badges as PDFs (and an updated set the next morning after any change). To a `.test` address they are only recorded (Skipped in the email log); seeded with `DEMO_LEADER_EMAIL` pointing at a real inbox, they arrive there. `npm run db:seed-test` puts Demoland back at the start (pass `DEMO_LEADER_EMAIL` again to keep the real inbox).
 
 ### Test invite codes
 

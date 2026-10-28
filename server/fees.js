@@ -28,6 +28,29 @@ export const defaultSettings = {
   // Badges changed after this day are printed at the registration desk rather than by the print shop.
   // A placeholder until the organisers plan the printing.
   badges: { printCutoff: '2027-07-01' },
+  // The contacts on the back of every badge (format in badge-pdf.js parseBack). Numbers are from each place's own
+  // website, October 2026; the hotel's still needs confirming with the hotel.
+  badgeBack: {
+    text: [
+      '# IOL 2027 organisers',
+      'iol2027.th@gmail.com',
+      '',
+      '# Chulalongkorn University | จุฬาลงกรณ์มหาวิทยาลัย',
+      'Campus emergency, 24 hours: +66 2 218 0000',
+      'Faculty of Arts, 254 Phayathai Road, Pathum Wan, Bangkok 10330',
+      'คณะอักษรศาสตร์ 254 ถนนพญาไท เขตปทุมวัน กรุงเทพฯ 10330',
+      '',
+      '# Mandarin Hotel Bangkok | โรงแรมแมนดาริน สามย่าน',
+      '+66 2 238 0230',
+      '662 Rama IV Road, Bang Rak, Bangkok 10500',
+      '662 ถนนพระรามที่ 4 เขตบางรัก กรุงเทพฯ 10500',
+      '',
+      '# King Chulalongkorn Memorial Hospital | โรงพยาบาลจุฬาลงกรณ์',
+      '+66 2 256 4000',
+      '1873 Rama IV Road, Pathum Wan, Bangkok 10330',
+      '1873 ถนนพระรามที่ 4 เขตปทุมวัน กรุงเทพฯ 10330',
+    ].join('\n'),
+  },
 }
 
 export async function loadSettings(db) {
@@ -38,6 +61,7 @@ export async function loadSettings(db) {
     guardianConsent: { ...defaultSettings.guardianConsent, ...stored.guardianConsent },
     invoice: { ...defaultSettings.invoice, ...stored.invoice },
     badges: { ...defaultSettings.badges, ...stored.badges },
+    badgeBack: { ...defaultSettings.badgeBack, ...stored.badgeBack },
   }
 }
 
@@ -109,6 +133,14 @@ export function cleanGuardianConsent(input) {
 export function cleanBadgeSettings(input) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.printCutoff ?? ''))) throw new Error('Print cut-off must be a date.')
   return { printCutoff: input.printCutoff }
+}
+
+/** The back's text, with blank lines collapsed; whether it fits is checked against the badge (backProblem). */
+export function cleanBadgeBack(input) {
+  const text = String(input?.text ?? '').replace(/\r\n?/g, '\n').split('\n').map((line) => line.trim()).join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  if (!text) throw new Error('Add the contacts for the back of the badge.')
+  if (text.length > 1500) throw new Error('This is too long for the back of the badge.')
+  return { text }
 }
 
 export function feeTier(fees, on = new Date()) {

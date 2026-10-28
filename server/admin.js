@@ -2,9 +2,10 @@
 // organiser settings and staff accounts. Who may call what is listed in docs/ROLES.md.
 import crypto from 'node:crypto'
 import { HttpError, ROLES, filterMember, hashPassword, requireRole } from './auth.js'
-import { buildInviteEmail, buildPaymentConfirmedEmail, sendEmail } from './email.js'
+import { buildInviteEmail, buildPaymentConfirmedEmail, retryEmail, sendEmail } from './email.js'
+import { backProblem } from './badge-pdf.js'
 import { sendBadgesIfSettled } from './badges.js'
-import { calculateFees, cleanBadgeSettings, cleanFees, cleanGuardianConsent, cleanInvoice, loadSettings, needsGuardianConsent } from './fees.js'
+import { calculateFees, cleanBadgeBack, cleanBadgeSettings, cleanFees, cleanGuardianConsent, cleanInvoice, loadSettings, needsGuardianConsent } from './fees.js'
 import { invoicePdf } from './invoice-pdf.js'
 import { issuePasswordCode } from './codes.js'
 import {
@@ -107,7 +108,7 @@ export function registerAdminRoutes(app, { signedIn }) {
   /* Overview ------------------------------------------------------- */
 
   app.get('/api/admin/dashboard', ...signedIn, requireRole('registration_admin', 'finance_admin', 'viewer'), asyncHandler(async (_req, res) => {
-    const [registration, payment, travel, people, proofQueue, invites, unsent, all] = await Promise.all([
+    const [registration, payment, travel, people, proofQueue, invites, unsent, emails, all] = await Promise.all([
       query('SELECT registration_status AS status, count(*)::int AS count FROM delegations GROUP BY 1 ORDER BY 1'),
       query('SELECT payment_status AS status, count(*)::int AS count FROM delegations GROUP BY 1 ORDER BY 1'),
       query('SELECT travel_status AS status, count(*)::int AS count FROM delegations GROUP BY 1 ORDER BY 1'),
@@ -115,12 +116,14 @@ export function registerAdminRoutes(app, { signedIn }) {
       query(`SELECT count(*)::int AS count FROM payments WHERE status = 'awaiting_review'`),
       query('SELECT status, count(*)::int AS count FROM invite_codes GROUP BY 1 ORDER BY 1'),
       query(`SELECT count(*)::int AS count FROM invite_codes WHERE status = 'active' AND sent_at IS NULL`),
+      // Emails kept for retrying that gave up; the email log can try them again.
+      query(`SELECT count(*)::int AS count FROM email_deliveries WHERE status = 'failed' AND message IS NOT NULL`),
       peopleRows(),
     ])
     const stages = STAGES.map((stage) => ({ status: stage, count: all.filter((p) => p.stage === stage).length }))
     res.json({
       registration: registration.rows, payment: payment.rows, travel: travel.rows, people: people.rows, invites: invites.rows,
-      stages, proofsWaiting: proofQueue.rows[0].count, invitesNotSent: unsent.rows[0].count,
+      stages, proofsWaiting: proofQueue.rows[0].count, invitesNotSent: unsent.rows[0].count, emailsFailed: emails.rows[0].count,
     })
   }))
 
@@ -168,10 +171,10 @@ export function registerAdminRoutes(app, { signedIn }) {
       amountPaid: approved.amount_due, currency: approved.currency || 'USD', receiptNumber: approved.receipt_number,
       travelUrl: `${portalUrl}/?step=travel`, paymentUrl: `${portalUrl}/?step=payment`,
     })
-    // Awaited so Cloud Run does not slow it down after the response; a failure is logged, not shown.
-    await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_confirmed', delegationId: approved.delegation_id })
-      .then(() => sendBadgesIfSettled(approved.delegation_id))
+    // Awaited so Cloud Run does not slow it down after the response. A failed send is kept and tried again later.
+    await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_confirmed', delegationId: approved.delegation_id, retry: true })
       .catch((e) => console.error(e.message))
+    await sendBadgesIfSettled(approved.delegation_id).catch((e) => console.error(e.message))
     res.json({ payment: camelizeRow(approved) })
   }))
 
@@ -366,26 +369,56 @@ export function registerAdminRoutes(app, { signedIn }) {
 
   /* Activity log --------------------------------------------------- */
 
+  /** ?limit and ?offset for the logs: 50 a page unless asked for fewer (or up to `max`). */
+  const page = (q, max) => ({
+    limit: Math.min(max, Math.max(1, Number.parseInt(q.limit, 10) || 50)),
+    offset: Math.max(0, Number.parseInt(q.offset, 10) || 0),
+  })
+
   app.get('/api/admin/audit', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
     const delegationId = optionalString(req.query.delegationId)
     if (delegationId && !/^[0-9a-f-]{36}$/i.test(delegationId)) throw new HttpError(400, 'Unknown delegation.')
     const eventType = optionalString(req.query.eventType)
-    // The back-office home shows only the latest few; the Activity log asks for the default 300.
-    const limit = Math.min(300, Math.max(1, Number.parseInt(req.query.limit, 10) || 300))
-    const result = await query(
-      `SELECT e.id, e.event_type, e.entity_type, e.entity_id, e.details, e.created_at, e.delegation_id,
-         a.full_name AS actor_name, a.email AS actor_email, a.role AS actor_role, d.country_territory
-       FROM audit_events e LEFT JOIN accounts a ON a.id = e.actor_account_id LEFT JOIN delegations d ON d.id = e.delegation_id
-       WHERE ($1::uuid IS NULL OR e.delegation_id = $1) AND ($2::text IS NULL OR e.event_type = $2)
-       ORDER BY e.created_at DESC LIMIT $3`,
-      [delegationId, eventType, limit],
-    )
-    res.json({ events: camelizeRows(result.rows) })
+    // The back-office home shows only the latest few; the Activity log pages through 50 at a time.
+    const { limit, offset } = page(req.query, 300)
+    const filters = 'WHERE ($1::uuid IS NULL OR e.delegation_id = $1) AND ($2::text IS NULL OR e.event_type = $2)'
+    const [result, count] = await Promise.all([
+      query(
+        `SELECT e.id, e.event_type, e.entity_type, e.entity_id, e.details, e.created_at, e.delegation_id,
+           a.full_name AS actor_name, a.email AS actor_email, a.role AS actor_role, d.country_territory
+         FROM audit_events e LEFT JOIN accounts a ON a.id = e.actor_account_id LEFT JOIN delegations d ON d.id = e.delegation_id
+         ${filters} ORDER BY e.created_at DESC LIMIT $3 OFFSET $4`,
+        [delegationId, eventType, limit, offset],
+      ),
+      query(`SELECT count(*)::int AS total FROM audit_events e ${filters}`, [delegationId, eventType]),
+    ])
+    res.json({ events: camelizeRows(result.rows), total: count.rows[0].total })
   }))
 
-  app.get('/api/admin/email-deliveries', ...signedIn, requireRole('registration_admin'), asyncHandler(async (_req, res) => {
-    const result = await query('SELECT id, recipient_email, purpose, status, error_message, sent_at, created_at FROM email_deliveries ORDER BY created_at DESC LIMIT 200')
-    res.json({ deliveries: camelizeRows(result.rows) })
+  // `?show=unsent`: only emails being tried again or given up on.
+  const deliveryColumns = `id, recipient_email, purpose, subject, status, error_message, attempts, next_attempt_at, sent_at, created_at,
+    (message IS NOT NULL AND status IN ('retrying', 'failed')) AS can_retry`
+
+  app.get('/api/admin/email-deliveries', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
+    const { limit, offset } = page(req.query, 200)
+    const filter = req.query.show === 'unsent' ? `WHERE status IN ('retrying', 'failed')` : ''
+    const [result, count] = await Promise.all([
+      query(`SELECT ${deliveryColumns} FROM email_deliveries ${filter} ORDER BY created_at DESC LIMIT $1 OFFSET $2`, [limit, offset]),
+      query(`SELECT count(*)::int AS total FROM email_deliveries ${filter}`),
+    ])
+    res.json({ deliveries: camelizeRows(result.rows), total: count.rows[0].total })
+  }))
+
+  // Try again: one more attempt now at an email kept for retrying. Answers with the email as it now stands: sent, to
+  // be tried again later, or failed (with the reason).
+  app.post('/api/admin/email-deliveries/:deliveryId/retry', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
+    const id = req.params.deliveryId
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new HttpError(404, 'Email not found.')
+    // retryEmail is null when there was nothing to attempt, and throws when the attempt failed for good.
+    const attempted = await retryEmail(requireDb(), id).then(Boolean, () => true)
+    if (!attempted) throw new HttpError(409, 'This email cannot be sent again. It may have gone out already.')
+    await insertAudit(requireDb(), { actorAccountId: req.user.id, eventType: 'email_retried', entityType: 'email', entityId: id })
+    res.json({ delivery: camelizeRow((await query(`SELECT ${deliveryColumns} FROM email_deliveries WHERE id = $1`, [id])).rows[0]) })
   }))
 
   /* Settings ------------------------------------------------------- */
@@ -458,6 +491,16 @@ export function registerAdminRoutes(app, { signedIn }) {
     let badges
     try { badges = cleanBadgeSettings(req.body) } catch (error) { throw new HttpError(400, error.message) }
     await saveSetting(req, 'badges', badges)
+    res.json(await loadSettings(requireDb()))
+  }))
+
+  // The contacts on the back of every badge. Refused if the badge fonts cannot print it or it does not fit.
+  app.put('/api/admin/settings/badge-back', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
+    let back
+    try { back = cleanBadgeBack(req.body) } catch (error) { throw new HttpError(400, error.message) }
+    const problem = backProblem(back.text)
+    if (problem) throw new HttpError(400, problem)
+    await saveSetting(req, 'badgeBack', back)
     res.json(await loadSettings(requireDb()))
   }))
 

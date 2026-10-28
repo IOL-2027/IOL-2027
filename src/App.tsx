@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowRight, ArrowUpRight, Building2, Bus, Camera, Car, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Compass, ExternalLink, Footprints, Hotel, Landmark, Languages, Mail, MapPin, Maximize2, Menu, PenTool, PlaneLanding, PlaneTakeoff, Scale, Search, Sparkles, Stamp, Trophy, User, Users, Volume2, X } from 'lucide-react'
 import { event, homeBaseRoute, schedule, venues, type ScheduleVenue } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
@@ -9,8 +9,9 @@ import { GrowthChart, HostMap } from './AboutVisuals'
 
 type NavItem = { label: string; href: string; external?: boolean; children?: { label: string; href: string }[] }
 
-// Sections that are still placeholders; hidden on the public site until launch (src/launch.ts).
-const placeholderSections = ['/sponsors', '/gallery', '/people']
+// Sections that are still placeholders; hidden on the public site until launch (src/launch.ts). The Gallery has real
+// photos of the venues since 29 Oct 2026, so it is shown everywhere.
+const placeholderSections = ['/sponsors', '/people']
 
 const navigation: NavItem[] = [
   { label: 'Home', href: '/' },
@@ -84,9 +85,14 @@ function LinkButton({ href, children, light = false }: { href: string; children:
 
 function Header() {
   const [open, setOpen] = useState(false)
+  // While the menu is open the page behind it stays still, so a fast swipe in the menu can't scroll it into view.
+  useEffect(() => {
+    document.documentElement.classList.toggle('menu-open', open)
+    return () => document.documentElement.classList.remove('menu-open')
+  }, [open])
   return <>
     <header className="topbar">
-      <a className="wordmark" href="/" aria-label="IOL 2027 home"><img src="/assets/iol-mark.png" alt="" /><span>IOL 2027</span></a>
+      <a className="wordmark" href="/" aria-label="IOL 2027 home"><img src="/assets/iol-mark-light.png" alt="" /><span>IOL 2027</span></a>
       <nav className="desktop-nav" aria-label="Main navigation">
         {navigation.map((item) => item.children ? <div className="nav-dropdown" key={item.href}><NavLink item={item} className="nav-parent" /><ChevronRight size={13} /><div className="nav-menu">{item.children.map((child) => <a key={child.href} href={child.href}>{child.label}</a>)}</div></div> : <NavLink key={item.href} item={item} />)}
       </nav>
@@ -99,7 +105,7 @@ function Header() {
 }
 
 function Footer() {
-  return <footer className="site-footer"><a className="footer-identity" href="/"><img src="/assets/iol-mark.png" alt="IOL 2027 mark" /><span><strong>IOL 2027</strong>{event.dates}<br />{event.city}</span></a><nav className="footer-links" aria-label="Footer navigation">{navigation.map((item) => <NavLink key={item.href} item={item} />)}</nav></footer>
+  return <footer className="site-footer"><a className="footer-identity" href="/"><img src="/assets/iol-mark-light.png" alt="IOL 2027 mark" /><span><strong>IOL 2027</strong>{event.dates}<br />{event.city}</span></a><nav className="footer-links" aria-label="Footer navigation">{navigation.map((item) => <NavLink key={item.href} item={item} />)}</nav></footer>
 }
 
 function PageIntro({ eyebrow, title, body }: { eyebrow?: string; title: string; body: string }) {
@@ -155,7 +161,7 @@ function SponsorPreview({ full = false }: { full?: boolean }) {
   const logoClasses = ['logo-company-a', 'logo-company-b', 'logo-company-c', 'logo-company-d', 'logo-company-e']
   const sponsors = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((letter, index) => ({ letter, name: `Company ${letter}`, logoClass: logoClasses[index % logoClasses.length] }))
   return <section className={`commercial-sponsors wrap ${full ? 'commercial-sponsors-full' : 'commercial-sponsors-home'}`}>
-    <div className="sponsor-tier-heading"><p className="eyebrow">Sponsors</p><h2>Partners of IOL 2027.</h2><p>Sponsors support the programme, venues and participant experience. Every confirmed sponsor is presented in the same display area: a 320 x 180 px logo area, a 1600 x 500 px feature banner and a description of up to 60 words.</p></div>
+    <div className="sponsor-tier-heading"><p className="eyebrow">Sponsors</p><h2>Partners of IOL&nbsp;2027.</h2><p>Sponsors support the programme, venues and participant experience. Every confirmed sponsor is presented in the same display area: a 320 x 180 px logo area, a 1600 x 500 px feature banner and a description of up to 60 words.</p></div>
     <div className="sponsor-equal-grid">{sponsors.map((sponsor) => <article className="sponsor-equal-card" key={sponsor.name}>
       <div className={`fictional-logo ${sponsor.logoClass}`}><span>{sponsor.letter}</span><strong>{sponsor.name.toUpperCase()}</strong></div>
       <div className="sponsor-equal-content"><h3>{sponsor.name}</h3><p>{sponsor.name} supports IOL 2027 and receives the same placement area as every other confirmed partner.</p></div>
@@ -175,7 +181,7 @@ function Home() {
         <div className="hero-actions"><LinkButton href="/registration" light>Registration details</LinkButton><a href="/programme" className="text-link">View the programme <ChevronRight size={16} /></a></div>
         <div className="hero-event-row"><Countdown /><div className="hero-event-place"><strong>21-28 JULY 2027</strong><span>BANGKOK, THAILAND</span></div></div>
       </div>
-      <div className="hero-mark"><img src="/assets/iol-mark.png" alt="Official IOL 2027 Thailand mark" /></div>
+      <div className="hero-mark"><img src="/assets/iol-mark-light.png" alt="Official IOL 2027 Thailand mark" /></div>
     </section>
     <NewsCarousel />
     <section className="statement"><h2>A world championship<br />for <em>thinking in languages.</em></h2><div className="statement-grid"><div className="statement-mark"><img src="/assets/iol-wordmark-transparent.png" alt="International Linguistics Olympiad logo" /></div><div className="statement-copy"><p>The International Linguistics Olympiad brings high-school students together to solve complex puzzles drawn from languages around the world using reasoning, intuition and curiosity rather than prior linguistic knowledge.</p><LinkButton href="/about">Discover the Olympiad</LinkButton></div></div></section>
@@ -188,7 +194,7 @@ function Home() {
         <div className="home-contest-when">{contest.href ? <a href={contest.href}>{contest.when} <ArrowRight size={15} /></a> : contest.when}</div>
       </article>)}</div>
     </section>
-    <section className="venues-preview wrap"><div className="section-heading"><p className="eyebrow">Across Bangkok</p><h2>Three places.<br />One Olympiad.</h2><LinkButton href="/programme">See venues</LinkButton></div><div className="venue-photo-stack">{venues.map((venue) => <article key={venue.index}><img src={venue.image} alt={venue.imageAlt} loading="lazy" style={{ objectPosition: venue.imagePosition }} /><div className="venue-photo-copy"><p>{venue.index} · {venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small><MapsLink query={venue.mapQuery} name={venue.name} /></div><a className="venue-photo-credit" href={venue.imageCreditUrl} target="_blank" rel="noreferrer">{venue.imageCredit}</a></article>)}</div></section>
+    <section className="venues-preview wrap"><div className="section-heading"><p className="eyebrow">Across Bangkok</p><h2>Three places.<br />One&nbsp;Olympiad.</h2><LinkButton href="/programme">See venues</LinkButton></div><div className="venue-photo-stack">{venues.map((venue) => <article key={venue.index}><img src={venue.image} alt={venue.imageAlt} loading="lazy" style={{ objectPosition: venue.imagePosition }} /><div className="venue-photo-copy"><p>{venue.index} · {venue.role}</p><h3>{venue.name}</h3><small>{venue.detail}</small><MapsLink query={venue.mapQuery} name={venue.name} /></div><a className="venue-photo-credit" href={venue.imageCreditUrl} target="_blank" rel="noreferrer">{venue.imageCredit}</a></article>)}</div></section>
     {placeholderPagesShown && <SponsorPreview />}
   </>
 }
@@ -222,7 +228,7 @@ function About() {
         <li><time>2026</time><strong>Bucharest, Romania</strong><span>The 23rd IOL: 255 contestants in 65 teams from 46 countries and territories.</span></li>
         <li className="is-next"><time>2027</time><strong>Bangkok, Thailand</strong><span>The 24th IOL, and the first in Southeast Asia.</span></li>
       </ol>
-      <figure className="map-panel"><figcaption><p className="eyebrow">Host cities</p><h3>Thailand becomes the 20th host country.</h3></figcaption><HostMap /><p className="map-key"><span className="map-key-dot" /> Hosted once <span className="map-key-dot map-key-multi">2</span> Hosted 2 or more times <span className="map-key-dot map-key-next" /> IOL 2027</p></figure>
+      <figure className="map-panel"><figcaption><p className="eyebrow">Host cities</p><h3>Thailand becomes the 20th host country.</h3></figcaption><HostMap /><p className="map-key"><span className="map-key-item"><span className="map-key-dot" />Hosted once</span><span className="map-key-item"><span className="map-key-dot map-key-multi">2</span>Hosted 2 or more times</span><span className="map-key-item"><span className="map-key-dot map-key-next" />IOL 2027</span></p></figure>
       <figure className="chart-panel"><figcaption><p className="eyebrow">Contestants per olympiad</p><h3>From 33 to 255 in 23 olympiads.</h3></figcaption><GrowthChart /><p className="chart-note">There was no olympiad in 2020. Source: ioling.org.</p></figure>
       <details className="host-details"><summary>All 24 olympiads: city, country and contestants</summary><ol className="host-history" aria-label="Every IOL host city">{olympiads.map((o) => <li key={o.year} className={o.year === 2027 ? 'host-current' : undefined}><time>{o.year}</time><div><strong>{o.city}</strong><small>{o.country}{o.contestants ? ` · ${o.contestants} contestants` : ' · 21–28 July'}</small></div></li>)}</ol></details>
       <div className="about-actions"><OutLink href="https://ioling.org/history/">Full history and statistics</OutLink></div>
@@ -312,7 +318,7 @@ function ThaiLanguage() {
     audio.addEventListener('error', stop)
     audio.play().catch(stop)
   }
-  return <><PageIntro title="Useful Thai for your stay" body="A few words and phrases to help you get around, order food, say hello, and enjoy your time in Thailand." /><section className="thai-intro wrap"><div><p className="eyebrow">A quick note</p><h2 className="mixed-heading">Speak gently. <em>Listen closely.</em></h2></div><div className="prose"><p>Thai is a tonal language: the same syllable can mean different things depending on its pitch, so listening matters as much as reading. Press a listen button to hear each phrase, then try it yourself.</p><p>Each phrase shows a broad IPA transcription with tone marks, followed by a plain reading for everyday use. The transcriptions were generated with a Thai grapheme-to-phoneme tool and reviewed by hand.</p><p>Men commonly end polite sentences with <strong>ครับ (khráp)</strong>; women commonly use <strong>ค่ะ (khâ)</strong>. Where both forms are shown, each is spoken by a matching male or female voice.</p><details className="ipa-key"><summary>How to read the transcription</summary><dl><dt><span className="phrase-ipa">ʰ</span></dt><dd>Aspirated — a puff of air follows the consonant (<span className="phrase-ipa">kʰ</span>, <span className="phrase-ipa">pʰ</span>, <span className="phrase-ipa">tʰ</span>, <span className="phrase-ipa">tɕʰ</span>)</dd><dt><span className="phrase-ipa">ː</span></dt><dd>Long vowel — held roughly twice as long as a short vowel</dd><dt><span className="phrase-ipa">tɕ / tɕʰ</span></dt><dd>Thai ช/จ — like the "j" in <em>judge</em> (unaspirated) or "ch" in <em>cheese</em> (aspirated)</dd><dt><span className="phrase-ipa">ŋ</span></dt><dd>"ng" as in <em>sing</em> — can begin a syllable in Thai</dd><dt><span className="phrase-ipa">ʔ</span></dt><dd>Glottal stop — a brief catch in the throat, like the pause in <em>uh-oh</em></dd><dt><span className="phrase-ipa">â à á ǎ</span></dt><dd>Tone marks: falling · low · high · rising — unmarked syllables are mid tone</dd></dl></details><div className="phrase-speed"><span>Playback speed</span><div role="group" aria-label="Playback speed"><button type="button" className={slow ? undefined : 'active'} aria-pressed={!slow} onClick={() => setSlow(false)}>Normal</button><button type="button" className={slow ? 'active' : undefined} aria-pressed={slow} onClick={() => setSlow(true)}>Slow</button></div></div></div></section><section className="phrase-grid wrap">{thaiPhrases.map((phrase) => <article key={phrase.thai}><h2 lang="th">{phrase.thai}</h2><p className="phrase-ipa">{phrase.forms.map((form) => `/${form.ipa}/`).join('  ·  ')}</p><p className="phrase-reading">{phrase.reading}</p><p>{phrase.meaning}</p><div className="phrase-audio">{phrase.forms.map((form) => <button type="button" key={form.audio} className={playing === form.audio ? 'playing' : undefined} aria-pressed={playing === form.audio} onClick={() => play(form.audio)} aria-label={`Play ${form.speech}${slow ? ', slowly' : ''}`}><Volume2 size={18} />{form.label}</button>)}</div></article>)}</section></>
+  return <><PageIntro title="Useful Thai for your stay" body="A few words and phrases to help you get around, order food, say hello, and enjoy your time in Thailand." /><section className="thai-intro wrap"><div><p className="eyebrow">A quick note</p><h2 className="mixed-heading">Speak gently. <em>Listen closely.</em></h2></div><div className="prose"><p>Thai is a tonal language: the same syllable can mean different things depending on its pitch, so listening matters as much as reading. Press a listen button to hear each phrase, then try it yourself.</p><p>Each phrase shows a broad IPA transcription with tone marks, followed by a plain reading for everyday use. The transcriptions were generated with a Thai grapheme-to-phoneme tool and reviewed by hand.</p><p>Men commonly end polite sentences with <strong>ครับ (khráp)</strong>; women commonly use <strong>ค่ะ (khâ)</strong>. Where both forms are shown, each is spoken by a matching male or female voice.</p><details className="ipa-key"><summary>How to read the transcription</summary><dl><dt><span className="phrase-ipa">ʰ</span></dt><dd>Aspirated — a puff of air follows the consonant (<span className="phrase-ipa">kʰ</span>, <span className="phrase-ipa">pʰ</span>, <span className="phrase-ipa">tʰ</span>, <span className="phrase-ipa">tɕʰ</span>)</dd><dt><span className="phrase-ipa">ː</span></dt><dd>Long vowel — held roughly twice as long as a short vowel</dd><dt><span className="phrase-ipa">tɕ / tɕʰ</span></dt><dd>Thai ช/จ — like the "j" in <em>judge</em> (unaspirated) or "ch" in <em>cheese</em> (aspirated)</dd><dt><span className="phrase-ipa">ŋ</span></dt><dd>"ng" as in <em>sing</em> — can begin a syllable in Thai</dd><dt><span className="phrase-ipa">ʔ</span></dt><dd>Glottal stop — a brief catch in the throat, like the pause in <em>uh-oh</em></dd><dt><span className="phrase-ipa">â à á ǎ</span></dt><dd>Tone marks: falling · low · high · rising — unmarked syllables are mid tone</dd></dl></details><div className="phrase-speed"><span>Playback speed</span><div role="group" aria-label="Playback speed"><button type="button" className={slow ? undefined : 'active'} aria-pressed={!slow} onClick={() => setSlow(false)}>Normal</button><button type="button" className={slow ? 'active' : undefined} aria-pressed={slow} onClick={() => setSlow(true)}>Slow</button></div></div></div></section><section className="phrase-grid wrap">{thaiPhrases.map((phrase) => <article key={phrase.thai}><h2 lang="th">{phrase.thai.split(' / ').map((form, index, forms) => <Fragment key={form}>{index > 0 && ' '}<span className="phrase-form">{form}{index < forms.length - 1 && '\u00a0/'}</span></Fragment>)}</h2><p className="phrase-ipa">{phrase.forms.map((form) => `/${form.ipa}/`).join('  ·  ')}</p><p className="phrase-reading">{phrase.reading}</p><p>{phrase.meaning}</p><div className="phrase-audio">{phrase.forms.map((form) => <button type="button" key={form.audio} className={playing === form.audio ? 'playing' : undefined} aria-pressed={playing === form.audio} onClick={() => play(form.audio)} aria-label={`Play ${form.speech}${slow ? ', slowly' : ''}`}><Volume2 size={18} />{form.label}</button>)}</div></article>)}</section></>
 }
 
 const mapsSearchUrl = (query: string) => `https://www.google.com/maps/search/?api=1&query=${query}`
@@ -507,12 +513,25 @@ function ScrollCue({ target, label }: { target: string; label: string }) {
         return r.width > 0 && r.left < c.right && r.right > c.left && r.top < c.bottom && r.bottom > c.top
       })
     }
+    // Text is checked line by line, so the corner button may sit beside a short line but never on or against the words.
+    const crowdsText = () => {
+      const c = cue.getBoundingClientRect()
+      const walker = document.createTreeWalker(hero, NodeFilter.SHOW_TEXT)
+      const range = document.createRange()
+      while (walker.nextNode()) {
+        const node = walker.currentNode
+        if (cue.contains(node) || !node.textContent?.trim()) continue
+        range.selectNodeContents(node)
+        if ([...range.getClientRects()].some((r) => r.width > 0 && r.left < c.right + 8 && r.right > c.left - 8 && r.top < c.bottom + 8 && r.bottom > c.top - 8)) return true
+      }
+      return false
+    }
     const place = () => {
       if (window.scrollY >= 40) return
       cue.classList.remove('scroll-cue-corner')
       if (!covered('h1, p, a, span, strong, img')) return setPlacement('centre')
       cue.classList.add('scroll-cue-corner')
-      setPlacement(covered('a, button') ? 'none' : 'corner')
+      setPlacement(covered('a, button') || crowdsText() ? 'none' : 'corner')
     }
     place()
     document.fonts?.ready.then(place)
@@ -535,7 +554,7 @@ function Registration() {
     'Review and submit',
   ]
   return <>
-    <section className="coming-soon grain"><div className="coming-mark"><img src="/assets/iol-mark.png" alt="IOL 2027 Thailand mark" /></div><div>
+    <section className="coming-soon grain"><div className="coming-mark"><img src="/assets/iol-mark-light.png" alt="IOL 2027 Thailand mark" /></div><div>
       <p className="system-label">{registrationOpen ? 'REGISTRATION / OPEN' : 'REGISTRATION / OPENS 18 JANUARY 2027'}</p>
       {registrationOpen ? <h1>REGISTER<br /><em>YOUR TEAM.</em></h1> : <h1>OPENS<br /><em>18 JAN 2027.</em></h1>}
       <p>{registrationOpen
@@ -553,7 +572,7 @@ function Registration() {
       <p>Each stage can be saved and finished later. Once the registration is submitted, the payment is confirmed and everyone’s travel is in, the Team Leader receives a QR badge for each person by email.</p>
       <a className="text-link" href="/registration/how-to-register">The registration flow, step by step <ArrowRight size={16} /></a>
     </div></section>
-    <section className="two-col wrap registration-block"><div><p className="eyebrow">Who can register</p><h2>Countries accredited by the IOL.</h2></div><div className="prose">
+    <section className="two-col wrap registration-block" id="accredited-countries"><div><p className="eyebrow">Who can register</p><h2>Countries accredited by the IOL.</h2></div><div className="prose">
       <p>Teams come through their country’s national linguistics olympiad, run by an organisation accredited by the International Linguistics Olympiad. The list of accredited countries and territories is on <a className="inline-link" href="https://ioling.org/countries/" target="_blank" rel="noreferrer">ioling.org</a>.</p>
       <p>Not accredited yet? Write to the IOL Board at <a className="inline-link" href="mailto:contact@ioling.org">contact@ioling.org</a>. Under the IOL regulations, applications made by 1 January are guaranteed a place at that year’s olympiad.</p>
     </div></section>
@@ -561,7 +580,7 @@ function Registration() {
       <p>The fee depends on the day the registration is submitted, not the day it is started.</p>
       <a className="text-link" href="/registration/fees-deadlines">How payment works <ArrowRight size={16} /></a>
     </div><RegistrationDates /></section>
-    <section className="two-col wrap registration-block"><div><p className="eyebrow">Working languages</p><h2>Problems in your team’s language.</h2></div><div className="prose">
+    <section className="two-col wrap registration-block" id="working-languages"><div><p className="eyebrow">Working languages</p><h2>Problems in your team’s language.</h2></div><div className="prose">
       <p>Contestants read the problems and answer in a working language of their choice. A language that has not been used before must be requested before 31 January 2027.</p>
       <a className="text-link" href="https://ioling.org/upcoming/" target="_blank" rel="noreferrer">IOL 2027 dates on ioling.org <ExternalLink size={14} /></a>
     </div></section>
@@ -631,7 +650,7 @@ function RegistrationHow() {
 }
 
 function RegistrationFees() {
-  return <><PageIntro eyebrow="Registration / Fees & deadlines" title="Fees, deadlines and how to pay." body="The confirmed registration windows come from the IOL 2027 fees and important dates notice. Final amounts and bank-account instructions will be published after Finance approval." /><section className="reg-dates-page wrap"><RegistrationDates /></section><section className="two-col wrap"><div><p className="eyebrow">Payment process</p><h2>Transfer outside the website, then upload proof.</h2></div><div className="prose"><p>Teams will use the bank-transfer instructions shown in the registration system. The website does not collect payment or card details.</p><p>After transfer, the team leader uploads proof of payment. Finance verifies the proof manually before registration is confirmed.</p></div></section></>
+  return <><PageIntro eyebrow="Registration / Fees & deadlines" title="Fees, deadlines and how to pay." body="The confirmed registration windows come from the IOL 2027 fees and important dates notice. Final amounts and bank-account instructions will be published after Finance approval." /><section className="reg-dates-page wrap"><RegistrationDates /></section><section className="two-col wrap" id="payment"><div><p className="eyebrow">Payment process</p><h2>Transfer outside the website, then upload proof.</h2></div><div className="prose"><p>Teams will use the bank-transfer instructions shown in the registration system. The website does not collect payment or card details.</p><p>After transfer, the team leader uploads proof of payment. Finance verifies the proof manually before registration is confirmed.</p></div></section></>
 }
 
 const visaSteps = [
@@ -716,7 +735,7 @@ function ImportantDates() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })
   const next = [...registrationKeyDates, ...olympiadKeyDates].find((item) => item.iso >= today)
   const days = next ? Math.round((Date.parse(next.iso) - Date.parse(today)) / 86400000) : 0
-  return <><PageIntro eyebrow="About / Important dates" title="Key dates for IOL 2027." body="Registration runs from January to April 2027, and the Olympiad takes place in Bangkok from 21 to 28 July. More deadlines will be added once they are approved." />
+  return <><PageIntro eyebrow="About / Important dates" title={'Key dates for IOL\u00a02027.'} body="Registration runs from January to April 2027, and the Olympiad takes place in Bangkok from 21 to 28 July. More deadlines will be added once they are approved." />
     {next && <section className="dates-next wrap"><div><p className="dates-next-label">Next · {days === 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`}</p><h2>{next.title}</h2><p className="dates-next-when">{utcDate(next.iso, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p></div><p>{next.detail}</p></section>}
     <section className="dates-phases wrap">
       <div className="dates-phase"><header><h2>Registration</h2><p>18 Jan – 30 Apr 2027</p></header><KeyDates dates={registrationKeyDates} today={today} /><a className="text-link" href="/registration/fees-deadlines">Fees and deadlines <ArrowRight size={16} /></a></div>
@@ -736,8 +755,9 @@ const hotelPhoto = (file: string, size?: GalleryPhoto['size']): GalleryPhoto => 
 }
 const hostDaysOf = (id: string) => datesLabel((hostDetails.find((host) => host.id === id)?.days ?? []).map(dateOf))
 
-// Until the Olympiad has photographs of its own, the gallery shows the three venues. Campus photos come from
-// Wikimedia Commons under CC BY or CC BY-SA, which require the author, licence and source wherever they are shown.
+// Until the Olympiad has photographs of its own, the gallery shows the three venues. Most campus photos come from
+// Wikimedia Commons under CC BY or CC BY-SA, which require the author, licence and source wherever they are shown;
+// the rest come from the universities' own websites and credit the faculty and page they came from.
 const galleryPlaces: { id: string; venue: string; when: string; about: { href: string; label: string }; photos: GalleryPhoto[] }[] = [
   { id: 'hotel', venue: 'Mandarin Hotel Bangkok', when: `${dateOf('Day 01').split(' ')[0]}–${dateOf('Day 08')}`, about: { href: '/event-guide/accommodation', label: 'Accommodation' }, photos: [
     hotelPhoto('01-lobby-atrium.jpg', 'feature'), hotelPhoto('03-lobby-lounge.jpg'), hotelPhoto('10-thai-artwork.jpg'), hotelPhoto('02-reception.jpg'), hotelPhoto('04-pool-garden.jpg'),
@@ -750,17 +770,23 @@ const galleryPlaces: { id: string; venue: string; when: string; about: { href: s
   ] },
   { id: 'chulalongkorn', venue: 'Chulalongkorn University', when: hostDaysOf('chulalongkorn'), about: { href: '/hosts#chulalongkorn', label: 'About Chulalongkorn University' }, photos: [
     { src: '/assets/gallery/chula-maha-vajiravudh.jpg', thumb: '/assets/gallery/thumbs/chula-maha-vajiravudh.jpg', alt: 'Maha Vajiravudh Building, a white Thai-style building with red roofs, Faculty of Arts, Chulalongkorn University', caption: 'Maha Vajiravudh Building, Faculty of Arts', credit: 'Supanut Arunoprayote, CC BY 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Mahavajiravut_Building_06.23.jpg', size: 'feature' },
-    { src: '/assets/gallery/chula-arts-courtyard.jpg', thumb: '/assets/gallery/thumbs/chula-arts-courtyard.jpg', alt: 'Faculty of Arts courtyard and lotus pond at dusk, Chulalongkorn University', caption: 'Faculty of Arts courtyard at dusk', credit: 'BerryJ, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:01-อาคารคณะอักษรศาสตร์-จุฬาลงกรณ์มหาวิทยาลัย.jpg' },
+    { src: '/assets/gallery/chula-arts-courtyard.jpg', thumb: '/assets/gallery/thumbs/chula-arts-courtyard.jpg', alt: 'Faculty of Arts courtyard and lotus pond at dusk, Chulalongkorn University', caption: 'Faculty of Arts courtyard at dusk', credit: 'BerryJ, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:01-อาคารคณะอักษรศาสตร์-จุฬาลงกรณ์มหาวิทยาลัย.jpg', size: 'wide' },
     { src: '/assets/gallery/chula-boromrajakumari.jpg', thumb: '/assets/gallery/thumbs/chula-boromrajakumari.jpg', alt: 'Boromrajakumari Building, Faculty of Arts, Chulalongkorn University', caption: 'Boromrajakumari Building', credit: 'Supanut Arunoprayote, CC BY 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Baromratchakumari_Building_06.23.jpg' },
     { src: '/assets/gallery/chula-maha-chulalongkorn.jpg', thumb: '/assets/gallery/thumbs/chula-maha-chulalongkorn.jpg', alt: 'Maha Chulalongkorn Building and its garden, seen from the Maha Vajiravudh Building', caption: 'Maha Chulalongkorn Building', credit: 'BunBn, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Mahachulalongkorn.jpg' },
     { src: '/assets/gallery/chula-arts-library.jpg', thumb: '/assets/gallery/thumbs/chula-arts-library.jpg', alt: 'Bookshelves in the Faculty of Arts Library, Chulalongkorn University', caption: 'Faculty of Arts Library', credit: 'Geonuch, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Bookshelves_in_Faculty_of_Arts_Library,_Chulalongkorn_University.jpg' },
+    { src: '/assets/gallery/chula-sala-phra-kieo.jpg', thumb: '/assets/gallery/thumbs/chula-sala-phra-kieo.jpg', alt: 'Sala Phra Kieo, the university’s multi-purpose hall, under its tall triangular roof', caption: 'Sala Phra Kieo', credit: 'Supanut Arunoprayote, CC BY 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Sala_Phra_Kiao_06.23.jpg' },
+    { src: '/assets/gallery/chula-sala-phra-kieo-hall.jpg', thumb: '/assets/gallery/thumbs/chula-sala-phra-kieo-hall.jpg', alt: 'The open hall inside Sala Phra Kieo, set with tables for a student event under a timber roof and a wall of windows', caption: 'The hall inside Sala Phra Kieo', credit: 'BunBn, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Salaprakeawinterior2BFD.JPG', size: 'wide' },
+    { src: '/assets/gallery/chula-engineering-2.jpg', thumb: '/assets/gallery/thumbs/chula-engineering-2.jpg', alt: 'Engineering Building 2, a three-storey red-brick building from 1939, Faculty of Engineering, Chulalongkorn University', caption: 'Engineering Building 2', credit: 'Faculty of Engineering, Chulalongkorn University', creditUrl: 'https://web.archive.org/web/20230206115702/https://www.chulaengineering2020.com/physical-change/' },
+    { src: '/assets/gallery/chula-engineering-2-room.jpg', thumb: '/assets/gallery/thumbs/chula-engineering-2-room.jpg', alt: 'Students at long wooden desks in a lecture room in Engineering Building 2', caption: 'A lecture room in Engineering Building 2', credit: 'Faculty of Engineering, Chulalongkorn University', creditUrl: 'https://web.archive.org/web/20230206115702/https://www.chulaengineering2020.com/physical-change/', size: 'wide' },
+    { src: '/assets/gallery/chula-maha-chakri-sirindhorn.jpg', thumb: '/assets/gallery/thumbs/chula-maha-chakri-sirindhorn.jpg', alt: 'Maha Chakri Sirindhorn Building, the Faculty of Arts’ nine-storey teaching building, behind trees', caption: 'Maha Chakri Sirindhorn Building, Faculty of Arts', credit: 'Faculty of Arts, Chulalongkorn University', creditUrl: 'https://www.arts.chula.ac.th/06about/tour-en.html' },
   ] },
 ]
 const galleryPhotos = galleryPlaces.flatMap((place) => place.photos.map((photo) => ({ ...photo, venue: place.venue })))
 function GalleryCredits({ photos }: { photos: GalleryPhoto[] }) {
   const [first] = photos
   if (photos.every((photo) => photo.creditUrl === first.creditUrl)) return <p className="gallery-credits">Photos: <a href={first.creditUrl} target="_blank" rel="noreferrer">{first.credit}</a></p>
-  return <p className="gallery-credits">Photos from Wikimedia Commons: {photos.map((photo, index) => <span key={photo.src}>{index > 0 && ' · '}{photo.caption}, <a href={photo.creditUrl} target="_blank" rel="noreferrer">{photo.credit}</a></span>)}</p>
+  const fromCommons = photos.every((photo) => photo.creditUrl.startsWith('https://commons.wikimedia.org/'))
+  return <p className="gallery-credits">{fromCommons ? 'Photos from Wikimedia Commons' : 'Photos'}: {photos.map((photo, index) => <span key={photo.src}>{index > 0 && ' · '}{photo.caption}, <a href={photo.creditUrl} target="_blank" rel="noreferrer">{photo.credit}</a></span>)}</p>
 }
 
 function GalleryViewer({ index, onIndex }: { index: number; onIndex: (index: number | null) => void }) {
@@ -809,7 +835,7 @@ function Gallery() {
       return <section key={place.id} id={place.id} className="gallery-place wrap">
         <header className="gallery-place-head">
           <span className="gallery-place-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
-          <div><p className="eyebrow">{venue?.role} · {place.when}</p><h2>{place.venue}</h2></div>
+          <div><p className="eyebrow">{venue?.role} · <span className="nowrap">{place.when}</span></p><h2>{place.venue}</h2></div>
           <div><p>{venue?.detail}</p><a className="text-link" href={place.about.href}>{place.about.label} <ArrowRight size={15} /></a></div>
         </header>
         <div className="gallery-photos">{place.photos.map((photo) => <button key={photo.src} type="button" className={`gallery-photo${photo.size ? ` gallery-photo-${photo.size}` : ''}`} aria-haspopup="dialog" aria-label={`View photo: ${photo.caption}`} onClick={() => setOpen(galleryPhotos.findIndex((item) => item.src === photo.src))}>
@@ -831,7 +857,7 @@ function Gallery() {
 }
 
 function People() {
-  return <><PageIntro eyebrow="People" title="The people behind IOL 2027." body="Committee, jury and volunteer information will be added when the approved names and roles are provided." /><SectionLinks links={[{ href: '/people/committee', label: 'Committee', detail: 'The full Thai-language roster of the organising committees and subcommittees.' }, { href: '/people/jury', label: 'Jury', detail: 'The international jury for the individual and team contests.' }, { href: '/people/problem-committee', label: 'Problem Committee', detail: 'The authors, translators and markers of the contest problems.' }, { href: '/people/volunteers', label: 'Volunteers', detail: 'The people who welcome and guide every team.' }]} /></>
+  return <><PageIntro eyebrow="People" title={'The people behind IOL\u00a02027.'} body="Committee, jury and volunteer information will be added when the approved names and roles are provided." /><SectionLinks links={[{ href: '/people/committee', label: 'Committee', detail: 'The full Thai-language roster of the organising committees and subcommittees.' }, { href: '/people/jury', label: 'Jury', detail: 'The international jury for the individual and team contests.' }, { href: '/people/problem-committee', label: 'Problem Committee', detail: 'The authors, translators and markers of the contest problems.' }, { href: '/people/volunteers', label: 'Volunteers', detail: 'The people who welcome and guide every team.' }]} /></>
 }
 
 function CommitteeRoster() {
@@ -892,9 +918,13 @@ function NotFound() {
   return <><PageIntro eyebrow="404" title="Page not found." body="The page may have moved or is not published yet." /><div className="not-found-link wrap"><LinkButton href="/">Return home</LinkButton></div></>
 }
 
+// Sub-pages that are sections of a longer page open scrolled to that section.
+const sectionRoutes: Record<string, string> = { '/registration/accredited-countries': 'accredited-countries', '/registration/working-languages': 'working-languages', '/registration/payment': 'payment' }
+
 function App() {
   useEffect(() => {
-    const target = window.location.hash ? document.getElementById(decodeURIComponent(window.location.hash.slice(1))) : null
+    const section = window.location.hash ? decodeURIComponent(window.location.hash.slice(1)) : sectionRoutes[window.location.pathname.replace(/\/$/, '')]
+    const target = section ? document.getElementById(section) : null
     if (!target) { window.scrollTo(0, 0); return }
     target.scrollIntoView()
     // Images above the anchor can still be loading; settle on the anchor once they have.
@@ -903,8 +933,8 @@ function App() {
   const requested = window.location.pathname.replace(/\/$/, '') || '/'
   // The portal is its own site now: its old addresses here send people there, or to this page while registration is closed.
   const path = !registrationOpen && ['/registration/team-leader', '/registration/check-in'].includes(requested) ? '/registration' : requested
-  // Placeholder sections show the not-found page on the public site until launch (/media/press is the contact page, so it stays).
-  const hidden = !placeholderPagesShown && (placeholderSections.some((section) => path === section || path.startsWith(`${section}/`)) || path === '/media' || path === '/media/gallery')
+  // Placeholder sections show the not-found page on the public site until launch.
+  const hidden = !placeholderPagesShown && placeholderSections.some((section) => path === section || path.startsWith(`${section}/`))
   const pages: Record<string, React.ReactElement> = {
     '/': <Home />,
     '/about': <About />, '/about/the-iol': <About />, '/about/thailand': <Thailand />, '/about/thai-language': <ThaiLanguage />, '/about/important-dates': <ImportantDates />, '/thailand': <Thailand />,

@@ -6,7 +6,7 @@ import TeamLeaderPortal from '../registration/TeamLeaderPortal'
 import { PageHead } from '../registration/ui'
 import BadgePage from './BadgePage'
 import CheckIn from './CheckIn'
-import mark from './iol2027-mark.png'
+import mark from './iol2027-mark-light.png'
 
 function Closed() {
   return (
@@ -33,7 +33,7 @@ export default function PortalApp() {
     <div className="portal">
       <header className="portal-bar"><div className="wrap portal-bar-inner">
         <a className="portal-brand" href="/"><img src={mark} alt="" width={34} height={40} /><span><strong>IOL 2027</strong><small>Registration portal</small></span></a>
-        <a className="portal-site-link" href={publicSiteUrl}>IOL 2027 website <ArrowUpRight size={15} aria-hidden="true" /></a>
+        <a className="portal-site-link" href={publicSiteUrl}><span className="portal-site-long">IOL 2027 website</span><span className="portal-site-short">Website</span> <ArrowUpRight size={15} aria-hidden="true" /></a>
       </div></header>
       <main>{page}</main>
       <footer className="portal-footer"><div className="wrap">

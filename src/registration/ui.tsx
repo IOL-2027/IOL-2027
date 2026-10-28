@@ -115,11 +115,12 @@ export function SessionBar({ user, onSignOut }: { user?: User | null; onSignOut?
 }
 
 /** The dark band that opens every signed-in page: what this is, whose it is, and (aside) where things stand. */
-export function PageHead({ eyebrow, title, intro, session, aside, children }: {
-  eyebrow: string; title: ReactNode; intro?: ReactNode; session?: ReactNode; aside?: ReactNode; children?: ReactNode
+/** `compact` keeps it short on phones, for pages that need their first screen (the badge scanner). */
+export function PageHead({ eyebrow, title, intro, session, aside, compact, children }: {
+  eyebrow: string; title: ReactNode; intro?: ReactNode; session?: ReactNode; aside?: ReactNode; compact?: boolean; children?: ReactNode
 }) {
   return (
-    <header className="reg-head">
+    <header className={`reg-head${compact ? ' reg-head-compact' : ''}`}>
       <div className="wrap">
         <div className="reg-head-top"><p className="reg-head-eyebrow">{eyebrow}</p>{session}</div>
         <div className="reg-head-main">

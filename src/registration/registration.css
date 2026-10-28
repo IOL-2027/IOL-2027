@@ -147,6 +147,8 @@
 .has-error .reg-control { border-color: var(--reg-error); }
 select.reg-control { appearance: none; padding-right: 42px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23160c1b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; }
 textarea.reg-control { min-height: 96px; resize: vertical; }
+/* The back of the badge is edited line by line, so the lines keep their length and Thai fits beside Latin. */
+.reg-badge-back { max-width: 720px; font-family: inherit; line-height: 1.55; white-space: pre; overflow-x: auto; }
 .reg-control-code { letter-spacing: .04em; font-variant-numeric: tabular-nums; text-transform: uppercase; }
 .reg-control-otp { max-width: 240px; font-size: 26px; font-weight: 700; letter-spacing: .4em; font-variant-numeric: tabular-nums; }
 .reg-checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
@@ -689,3 +691,79 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 @media (max-width: 860px) {
   .badge-check { grid-template-columns: 1fr; }
 }
+
+/* ---------- Responsive pass (Oct 2026) ---------- */
+/* Back office: below 1180px the section list folds into the dropdown, so tables get the full width. */
+@media (max-width: 1180px) {
+  .reg-staff-layout { grid-template-columns: 1fr; gap: 16px; }
+  .reg-staff-rail { position: static; padding: 6px; border: 1px solid var(--reg-border); border-radius: var(--reg-radius-lg); background: var(--reg-surface); }
+  .reg-staff-rail .reg-rail-toggle { display: grid; gap: 2px; width: 100%; padding: 12px 44px 12px 14px; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; position: relative; }
+  .reg-staff-rail .reg-rail-toggle span { font-size: 13px; color: var(--reg-muted); }
+  .reg-staff-rail .reg-rail-toggle strong { font-size: 17px; }
+  .reg-staff-rail .reg-rail-toggle::after { content: ""; position: absolute; right: 18px; top: 50%; width: 9px; height: 9px; border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); transform: translateY(-70%) rotate(45deg); transition: transform var(--reg-fast) ease; }
+  .reg-staff-rail.is-open .reg-rail-toggle::after { transform: translateY(-30%) rotate(-135deg); }
+  .reg-staff-rail ul, .reg-staff-rail .reg-rail-group { display: none; }
+  .reg-staff-rail.is-open ul { display: grid; }
+  .reg-staff-rail.is-open .reg-rail-group { display: block; }
+}
+/* Back-office tables keep their columns readable and scroll sideways rather than squeezing words apart. */
+.reg-staff-main .reg-table { min-width: 640px; }
+.reg-table small { overflow-wrap: break-word; }
+.reg-table select.reg-control { min-width: 170px; }
+.reg-table time, .reg-nowrap { white-space: nowrap; }
+/* Side-by-side fields line up on their inputs, whatever the length of their labels and hints. */
+@media (min-width: 641px) { .reg-grid { align-items: end; } }
+.reg-inline-btn { text-align: left; }
+/* Sign-in: on laptop screens up to 820px tall the form starts higher; at 1024 wide the guide gets an equal column. */
+@media (min-width: 901px) and (max-height: 820px) {
+  .reg-hero-main { margin-top: 36px; }
+  .reg-hero h1 { max-width: 15ch; font-size: clamp(46px, 5vw, 72px); }
+}
+@media (min-width: 901px) and (max-width: 1180px) { .reg-landing { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+/* Statistics tiles: two per row on tablets and phones. */
+@media (max-width: 900px) { .reg-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .reg-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* A shorter page header, so the page itself starts sooner. */
+  .reg-head { padding-top: 16px; padding-bottom: 24px; }
+  .reg-head-main { margin-top: 16px; }
+  .reg-head h1 { font-size: 30px; }
+}
+/* Scanner: the code box and its button share a top edge, and stack on narrow phones. */
+.checkin-manual > div { flex-wrap: wrap; }
+.checkin-manual input { flex: 1 1 200px; }
+.checkin-manual .reg-control { margin-top: 0; }
+.checkin-camera-head strong, .checkin-camera-head span { white-space: nowrap; }
+/* Scanner on phones: a short header, then checkpoint, camera and result, so the camera is on the first screen. */
+@media (max-width: 640px) {
+  .reg-head-compact { padding-bottom: 18px; }
+  .reg-head-compact .reg-head-main { margin-top: 8px; }
+  .reg-head-compact h1 { font-size: 26px; }
+  .reg-head-compact .reg-head-intro { display: none; }
+  .checkin-shell { gap: 14px; }
+  .checkin-controls { display: contents; }
+  .checkin-controls > div:first-child { display: none; }
+  .checkin-label { order: 1; }
+  .checkin-camera { order: 2; }
+  .checkin-result { order: 3; }
+}
+/* Pills keep their round ends while the label fits on one line, and become rounded rectangles with matching corners when it wraps. */
+.reg-switch { border-radius: 26px; }
+.reg-switch button { border-radius: 22px; }
+.reg-check { border-radius: 22px; }
+.reg-chip { border-radius: 12px; }
+/* On phones, switches and filter tabs share the width in even columns instead of stacking or running off the edge. */
+@media (max-width: 640px) {
+  .reg-switch, .reg-filter { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  /* Two-way switches size each side to its label, so a short one leaves room for a long one. */
+  .reg-switch { grid-template-columns: repeat(2, auto); }
+  .reg-switch button, .reg-filter button { min-width: 0; padding: 8px 12px; line-height: 1.25; text-align: center; white-space: normal; text-wrap: balance; }
+  .reg-switch button:last-child:nth-child(odd), .reg-filter button:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+/* Logs: a page at a time, with Newer and Older under the table. */
+.reg-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; margin-top: 16px; }
+.reg-pager p { margin: 0; font-size: 14px; color: var(--reg-muted); font-variant-numeric: tabular-nums; }
+.reg-pager div { display: flex; gap: 8px; }
+.reg-pager .reg-btn { min-height: 40px; padding: 0 16px; font-size: 15px; }
+.reg-pager .reg-btn:disabled { opacity: .45; cursor: default; }
+.reg-email-status { min-width: 16rem; }

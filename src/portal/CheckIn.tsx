@@ -102,7 +102,7 @@ export default function CheckIn() {
   const mayScan = user && scanningRoles.includes(user.role)
   return (
     <div className="reg-page">
-      <PageHead eyebrow="Badge scanner" title="Scan every badge." session={<SessionBar user={user} onSignOut={signOut} />}
+      <PageHead eyebrow="Badge scanner" title="Scan every badge." compact={Boolean(mayScan)} session={<SessionBar user={user} onSignOut={signOut} />}
         intro="For check-in staff during event week. The QR on each badge holds only a random reference; every scan records the checkpoint, time and result." />
       <div className="reg-shell wrap">
         {user === undefined && <p className="reg-loading" role="status">Loading…</p>}

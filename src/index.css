@@ -51,6 +51,7 @@ footer img,.footer-sponsor-logos img,.footer-sponsor-logos>div:nth-child(2) img{
 @media(max-width:600px){.topbar{height:92px;padding:14px 5vw}.wordmark{font-size:25px;gap:10px}.wordmark img{width:52px;height:52px}.mobile-menu{padding-top:110px}.mobile-nav-group>div{grid-template-columns:1fr}.news-carousel{width:86vw;margin:52px auto 76px}.news-slide{border-radius:20px}.news-image{height:210px;min-height:210px}.news-copy{padding:34px 24px}.news-copy h2{font-size:34px}.news-copy p{font-size:16px}.carousel-arrow{width:42px;height:42px}.news-carousel>.carousel-arrow-left{left:-15px}.news-carousel>.carousel-arrow-right{right:-15px}.statement{padding:68px 0}.statement h2{font-size:clamp(38px,11vw,56px)}.statement-grid{margin-top:36px}.statement-mark img{width:min(72vw,300px)}.statement-grid .statement-copy p{font-size:18px}.sponsor-carousel{padding-top:78px}.sponsor-stage .carousel-arrow-left{left:8px}.sponsor-stage .carousel-arrow-right{right:8px}.sponsor-slide{height:510px;min-height:510px;padding:26px}.sponsor-copy h3{font-size:29px}.sponsor-posn .sponsor-copy h3{font-size:24px}.sponsor-profile-link{right:26px;bottom:26px}.section-links a{grid-template-columns:1fr 22px}.hotel-gallery-frame .carousel-arrow-left{left:10px}.hotel-gallery-frame .carousel-arrow-right{right:10px}.hotel-feature figcaption{font-size:12px}.site-footer .footer-links a{font-size:14px}}
 @media(prefers-reduced-motion:reduce){.news-slide,.sponsor-slide,.hotel-feature .hotel-gallery-frame img{animation:none}.carousel-arrow{transition:none}}
 .app{overflow-x:clip;overflow-y:visible}.desktop-nav a.active,.mobile-menu a.active{opacity:1;color:var(--orange)}
+@media(max-width:1320px){html.menu-open{overflow:hidden;scrollbar-gutter:stable}.mobile-menu{overscroll-behavior:contain}}
 @media(max-width:600px){.coming-soon{padding-top:122px}.hotel-feature h2,.sponsor-copy h3{overflow-wrap:break-word;word-break:normal}}
 
 /* Team Leader account portal */
@@ -462,7 +463,7 @@ select.reg-input{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://w
 .reg-date strong{font-size:clamp(34px,3.4vw,48px);line-height:1;letter-spacing:-.04em;font-weight:650}
 .reg-date p{margin:4px 0 0;max-width:20em;font-size:16px;line-height:1.6;color:#5f5763}
 /* Narrow screens: the line runs down the left, each date on its own row. */
-@media(max-width:900px){
+@media(max-width:700px){
 .registration-fees{row-gap:7vw}
 .registration-fees .reg-dates{margin-top:24px}
 .reg-dates{display:block}
@@ -844,3 +845,73 @@ html.viewer-open{overflow:hidden}
 .hotel-details dt{font:700 12px 'Manrope','Noto Sans Thai',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#6b626e}
 .hotel-details dd{margin:0;font-size:15px;line-height:1.5}
 @media(max-width:600px){.hotel-details div{grid-template-columns:1fr;gap:2px}}
+/* Responsive pass (Oct 2026). Carousel dots keep their look but get a finger-sized hit area. */
+.news-controls button,.sponsor-dots button{position:relative}
+.news-controls button::before,.sponsor-dots button::before{content:'';position:absolute;inset:-10px -3px}
+.site-footer .footer-links{row-gap:18px}
+.site-footer .footer-links a{padding-block:4px}
+/* Contest cards share rows, so a label that wraps in one card doesn't push its paragraph out of line with the others. */
+@media(min-width:901px){
+.home-contest-cards{grid-template-rows:auto auto 1fr auto}
+.home-contest{display:grid;grid-row:span 4;grid-template-rows:subgrid;row-gap:22px}
+}
+/* Committees: the names run the length of the page instead of scrolling inside a box; on wide screens the list of committees stays in view beside them. */
+.committee-scroll{max-height:none;overflow:visible}
+@media(min-width:1081px){.committee-tabs{position:sticky;top:140px;align-self:start;max-height:calc(100vh - 160px)}}
+/* Page header band: no taller than its content needs on tall screens, and lined up with the page column on wide ones. */
+.page-intro{min-height:min(78vh,620px)}
+@media(min-width:601px){.page-intro{padding-inline:max(4vw,calc((100% - 1408px) / 2))}}
+@media(max-width:600px){.page-intro{min-height:min(70vh,540px)}}
+@media(max-width:360px){.page-intro h1{font-size:40px}}
+.page-intro .lede{width:min(720px,100%);text-wrap:pretty}
+@media(max-width:1100px){.page-intro .lede{margin-left:0}}
+.app :where(h1,h2,h3){text-wrap:balance}
+.nowrap{white-space:nowrap}
+/* Home hero: centred in the page column on wide screens; on tablets held upright the emblem sits under the text instead of in the corner. */
+@media(min-width:901px){.hero{padding-inline:max(4vw,calc((100% - 1408px) / 2))}}
+@media(min-width:601px) and (max-width:900px) and (orientation:portrait){
+.hero{height:auto;min-height:100svh}
+.hero-copy{align-self:center}
+.hero-mark{position:relative;right:auto;bottom:auto;justify-self:center;width:min(40vw,300px);opacity:1;margin:28px 0 12px}
+}
+/* The news placeholder is the square logo: show all of it. */
+.news-image img[src$="/iol-social.jpg"]{object-fit:contain;background:#fff}
+/* Hosts carousel: the arrows stay on screen, and on phones the profile link lines up with the text. */
+@media(min-width:901px) and (max-width:1600px){.sponsor-stage .carousel-arrow-left{left:-24px}.sponsor-stage .carousel-arrow-right{right:-24px}}
+@media(max-width:600px){.sponsor-profile-link{right:auto;bottom:auto;justify-self:start}}
+/* Registration hero: the emblem gives way first, then the dates move under the text, so the buttons never squeeze.
+   The heading keeps its words whole, so on wide screens the text column takes the width "REGISTER" needs. */
+.coming-soon h1{overflow-wrap:normal}
+.hero-actions{flex-wrap:wrap;row-gap:18px}
+.hero-actions>*{flex-shrink:0}
+@media(min-width:1101px){.coming-soon{padding-inline:max(5vw,calc((100% - 1408px) / 2))}}
+@media(max-width:1100px){.coming-soon{grid-template-columns:minmax(0,1fr) auto}.coming-mark{display:none}}
+@media(max-width:900px){
+.coming-soon{grid-template-columns:minmax(0,1fr);align-content:center}
+.coming-soon aside{border-left:0;border-top:1px solid rgba(255,255,255,.18);padding:20px 0 0;margin-top:20px;display:grid;grid-template-columns:max-content 1fr;gap:12px 28px;align-items:baseline}
+.coming-soon aside span{margin-top:0}
+}
+/* Gallery: on the narrowest phones the venue links and headings take the full width. */
+@media(max-width:420px){.gallery-jump,.gallery-place-head{grid-template-columns:1fr}}
+@media(min-width:701px) and (max-width:1000px){.gallery-photo:not(.gallery-photo-feature) .gallery-photo-caption{font-size:13px}}
+/* Programme and accommodation. */
+.venue-section .eyebrow{color:var(--orange)}
+.schedule-artifact figcaption .pill{flex-shrink:0}
+.hotel-feature figcaption span:last-child{white-space:nowrap;flex-shrink:0}
+/* About pages. */
+.map-key{gap:8px 22px}
+.map-key-item{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.map-key-item .map-key-dot{margin-left:0}
+@media(max-width:420px){.social-row>span{flex-basis:100%}}
+@media(min-width:901px){.dates-phases{align-items:stretch}}
+@media(max-width:700px){.thailand-host-grid article>div{margin-bottom:22px}.thailand-host-grid h3{align-self:stretch}}
+.phrase-form{display:inline-block}
+.thai-intro .mixed-heading em{white-space:nowrap}
+/* Registration sub-pages open at their section, clear of the fixed header. */
+#accredited-countries,#working-languages,#payment{scroll-margin-top:120px}
+/* Pills keep their round ends while the label fits on one line, and become rounded rectangles when it wraps on a phone. */
+.pill,.reg-period p{border-radius:24px}
+.how-phase li .how-step-tag{border-radius:13px}
+/* The guidebook labels and the hotel photo caption use Manrope, like the site's other small labels. */
+.guidebook-placeholder span,.guidebook-placeholder small{font:700 12px 'Manrope','Noto Sans Thai',sans-serif;letter-spacing:.08em;text-transform:uppercase}
+.hotel-feature figcaption{font-family:'Manrope','Noto Sans Thai',sans-serif;font-weight:600}
