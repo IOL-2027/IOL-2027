@@ -112,7 +112,7 @@ Source §5. Front end: `src/registration/`. API: `server/index.js`.
 | 7 | Team Leader transfers outside the system, then uploads proof | ✅ | Invoice details saved first, then proof upload unlocks People |
 | 8 | Admin sees the proof in a review queue | ✅ | Payment queue with inline preview, filters and search |
 | 9 | Staff check the proof against สอวน's statement, then approve or reject | ✅ | Approval bug fixed; returning a proof needs a reason, which the Team Leader sees |
-| 10 | On approval, email (a) e-receipt PDF, (b) ID badge with QR, (c) invitation letter | 🟡 | (a) done: the confirmation email links to the e-receipt and to the Travel step. (b) done 24 Oct 2026: once submitted, paid and everyone has an arrival and departure, the Team Leader is emailed every person’s QR code; printed badges in §8. (c) letters in Sprint 3; the letter needs its template (Q12) |
+| 10 | On approval, email (a) e-receipt PDF, (b) ID badge with QR, (c) invitation letter | 🟡 | (a) done: the confirmation email links to the e-receipt and to the Travel step. (b) done 24 Oct 2026: once submitted, paid and everyone has an arrival and departure, the Team Leader is emailed every person’s badge; since 28 Oct 2026 as a PDF exactly as printed, with an update the next morning after any change, failed sends retried, and a daily summary for registration admins; printed badges in §8. (c) letters in Sprint 3; the letter needs its template (Q12) |
 | 11 | Add members later; pay only for the added people | ⬜ | ⚠️ Per-person price formula is open question Q1 |
 
 ### 4.2 After registration, before the event (source §5.2)

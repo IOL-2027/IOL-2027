@@ -1,15 +1,13 @@
 // The back office's Badges section: every badge, for delegation members and for event staff, ready to send to
 // print. Registration admins (and super admins) download print files, mark them printed, give a badge a new QR,
 // and add the staff, guides, volunteers and guests who are not in any delegation. See docs/ROLES.md.
-import crypto from 'node:crypto'
 import { HttpError, requireRole } from './auth.js'
 import { badgesPdf, unprintable } from './badge-pdf.js'
-import { issueBadge, redrawPayload } from './badges.js'
+import { badgeContent, issueBadge, redrawPayload } from './badges.js'
 import { loadSettings } from './fees.js'
 import { asyncHandler, insertAudit, isEmail, optionalString, query, requireDb, withTransaction } from './lib.js'
 
 const STAFF_CATEGORIES = ['staff', 'guide', 'volunteer', 'guest']
-const roleLabels = { contestant: 'Contestant', team_leader: 'Team Leader', observer: 'Observer', staff: 'Staff', guide: 'Guide', volunteer: 'Volunteer', guest: 'Guest' }
 const PRINT_STATES = ['not_printed', 'reprint', 'printed']
 
 const badgeRows = (where = 'TRUE', params = []) => query(
@@ -28,21 +26,6 @@ const badgeRows = (where = 'TRUE', params = []) => query(
   params,
 )
 
-/** The first of these names that every badge font can print: a name in a script without a font falls back to another. */
-const printableName = (...names) => names.find((name) => name && !unprintable(name)) ?? names.find(Boolean)
-
-/** What is printed on a badge, and a fingerprint of it (with the QR) to tell when a printed badge is out of date. */
-function badgeContent(row) {
-  const name = printableName(row.badge_name, row.display_name, row.official_name)
-  const fullName = row.official_name && !unprintable(row.official_name) && row.official_name !== name ? row.official_name : null
-  const content = {
-    kind: row.kind, name, fullName, place: row.place, role: roleLabels[row.role] ?? row.role,
-    detail: row.role === 'contestant' && row.team_name ? `Team ${row.team_name}` : null,
-  }
-  const fingerprint = crypto.createHash('sha256').update(JSON.stringify([row.public_id, content])).digest('hex').slice(0, 24)
-  return { content, fingerprint }
-}
-
 /** A badge as the back office lists it. */
 function listed(row) {
   const { content, fingerprint } = badgeContent(row)
@@ -55,6 +38,26 @@ function listed(row) {
     unprintable: unprintable(`${row.badge_name ?? ''}${row.official_name ?? ''}`),
     // Issued without the signing key (local development): its QR cannot be drawn again, so it needs a new one.
     canPrint: row.status === 'active' && Boolean(redrawPayload(row)),
+  }
+}
+
+// Members of countries that are not settled yet have no badge; their countries still need to finish.
+const waitingForBadges = () => query(
+  `SELECT d.country_territory AS country, count(*)::int AS people FROM members m JOIN delegations d ON d.id = m.delegation_id
+   LEFT JOIN badge_credentials bc ON bc.member_id = m.id WHERE bc.id IS NULL GROUP BY 1 ORDER BY 1`,
+)
+
+/** What the registration admins' daily summary reports about badges (jobs.js). */
+export async function badgeCounts() {
+  const [rows, waiting] = await Promise.all([badgeRows(), waitingForBadges()])
+  const badges = rows.rows.map(listed)
+  const printable = badges.filter((b) => b.canPrint)
+  return {
+    toPrint: printable.filter((b) => b.printState === 'not_printed').length,
+    staffToPrint: printable.filter((b) => b.printState === 'not_printed' && b.kind === 'staff').length,
+    reprint: printable.filter((b) => b.printState === 'reprint').length,
+    needQr: badges.filter((b) => !b.canPrint).length,
+    waiting: { countries: waiting.rows.length, people: waiting.rows.reduce((n, w) => n + w.people, 0) },
   }
 }
 
@@ -88,15 +91,7 @@ export function registerBadgeRoutes(app, { signedIn }) {
   const admin = [...signedIn, requireRole('registration_admin')]
 
   app.get('/api/admin/badges', ...admin, asyncHandler(async (_req, res) => {
-    const [rows, waiting, settings] = await Promise.all([
-      badgeRows(),
-      // Members of countries that are not settled yet have no badge; their countries still need to finish.
-      query(
-        `SELECT d.country_territory AS country, count(*)::int AS people FROM members m JOIN delegations d ON d.id = m.delegation_id
-         LEFT JOIN badge_credentials bc ON bc.member_id = m.id WHERE bc.id IS NULL GROUP BY 1 ORDER BY 1`,
-      ),
-      loadSettings(requireDb()),
-    ])
+    const [rows, waiting, settings] = await Promise.all([badgeRows(), waitingForBadges(), loadSettings(requireDb())])
     res.json({ badges: rows.rows.map(listed), waiting: waiting.rows, printCutoff: settings.badges.printCutoff, categories: STAFF_CATEGORIES })
   }))
 

@@ -49,6 +49,17 @@ Addresses ending in `.test` (the test accounts) are never really sent; the email
 
 ---
 
+## When sending fails
+
+Emails that go out on their own (proof received, the Finance alert, registration submitted, payment confirmed, badges and the daily summary) are kept until they are sent. If Gmail refuses one, the email log shows **Trying again**, and the server tries again after 15 minutes, then 1, 3, 8 and 24 hours. After that it shows **Failed** with Google's reason and a **Try again** button, and the registration admins' home page and daily summary count it.
+
+Verification and password codes, staff account set-up codes and invitation codes are not kept: whoever sent them sees the error on screen and can send again.
+
+## Badge emails and the daily summary
+
+- **Badges**: once a registration is submitted, paid and everyone's arrival and departure are in, the Team Leader gets each person's badge as a PDF, exactly as it will be printed, and is asked to check the names by the print cut-off. If anything on a badge changes later (a name, role or team, a new QR, a person added or removed), they get every badge again at 8:00 Bangkok time the next morning, with the changes listed. One email a day at most.
+- **Daily summary**: registration admins and super admins get a short email at 8:00 Bangkok time with the badges to print and to print again, the print cut-off, and any emails that could not be sent. It is sent only when those numbers have changed since the last one.
+
 ## Limits
 
 | | |
@@ -63,6 +74,7 @@ Addresses ending in `.test` (the test accounts) are never really sent; the email
 | --- | --- |
 | **Failed**: "Invalid login" or "Username and Password not accepted" | The app password was revoked, or the account password was changed (which revokes all app passwords). Create a new app password (step 1) and add it as a new secret version: `gcloud secrets versions add iol2027-gmail-app-password --project=iol2027 --data-file=-`, then ask the developer to redeploy. |
 | **Failed**: "Daily user sending limit exceeded" | The 500-a-day limit; wait 24 hours. |
+| **Trying again** | Sending failed; the server tries again on its own. The reason is shown under it. |
 | **Queued** | Email is switched off on that server (no Gmail or Resend settings). |
 | **Skipped** | A `.test` address; expected for test accounts. |
 

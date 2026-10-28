@@ -26,6 +26,7 @@ import {
 import { issuePasswordCode, issueVerificationCode } from './codes.js'
 import { registerAdminRoutes } from './admin.js'
 import { registerBadgeRoutes } from './badge-admin.js'
+import { registerJobRoutes } from './jobs.js'
 
 const port = Number(process.env.PORT || process.env.API_PORT || 4000)
 
@@ -39,6 +40,8 @@ const corsOrigins = process.env.APP_ORIGIN?.split(',').map((origin) => origin.tr
 if (corsOrigins?.length) app.use(cors({ origin: corsOrigins, credentials: true }))
 app.use(express.json({ limit: '1mb' }))
 app.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next() })
+// Scheduled work signs in with a Google token, not a session (jobs.js).
+registerJobRoutes(app)
 app.use(sessionMiddleware(requireDb))
 app.use(requireRequestHeader)
 
@@ -655,9 +658,9 @@ app.post('/api/registration/delegations/:delegationId/payment-proof', ...signedI
     amountDue: response.payment.amount_due, currency: response.payment.currency || 'USD', invoiceCount: response.payment.invoice_count,
     proofFilename: req.file.originalname, delegationId: req.params.delegationId,
   }
-  sendEmail({ pool: requireDb(), to: d.team_leader_email, ...buildProofReceivedEmail(emailCtx), purpose: 'payment_proof_received', delegationId: req.params.delegationId }).catch((e) => console.error(e.message))
+  sendEmail({ pool: requireDb(), to: d.team_leader_email, ...buildProofReceivedEmail(emailCtx), purpose: 'payment_proof_received', delegationId: req.params.delegationId, retry: true }).catch((e) => console.error(e.message))
   if (process.env.FINANCE_EMAIL) {
-    sendEmail({ pool: requireDb(), to: process.env.FINANCE_EMAIL, ...buildFinanceAlertEmail(emailCtx), purpose: 'finance_proof_alert', delegationId: req.params.delegationId }).catch((e) => console.error(e.message))
+    sendEmail({ pool: requireDb(), to: process.env.FINANCE_EMAIL, ...buildFinanceAlertEmail(emailCtx), purpose: 'finance_proof_alert', delegationId: req.params.delegationId, retry: true }).catch((e) => console.error(e.message))
   }
   res.status(201).json({ payment: camelizeRow(response.payment), attachment: camelizeRow(response.attachment) })
 }))
@@ -722,7 +725,7 @@ app.post('/api/registration/delegations/:delegationId/submit', ...signedIn, dele
   res.json({ delegation: camelizeRow(submitted) })
 }))
 
-/** The "registration submitted" email with the invoice PDF attached, then the QR badges if everything is already in. */
+/** The "registration submitted" email with the invoice PDF attached, then the badges if everything is already in. */
 async function notifySubmitted(d) {
   const [payment, travelGaps] = await Promise.all([
     query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC LIMIT 1', [d.id]).then((r) => r.rows[0] ?? null),
@@ -733,7 +736,8 @@ async function notifySubmitted(d) {
     countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, numberOfTeams: d.number_of_teams, numberOfObservers: d.number_of_observers,
     paymentConfirmed: payment?.status === 'approved', travelComplete: !travelGaps.length, travelUrl: `${portalUrl}/?step=travel`,
   })
-  await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, attachments: [{ filename: invoiceFilename(d, payment), content: invoice, contentType: 'application/pdf' }], purpose: 'registration_submitted', delegationId: d.id })
+  // Kept and tried again if sending fails, so the badges below do not wait on it.
+  await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, attachments: [{ filename: invoiceFilename(d, payment), content: invoice, contentType: 'application/pdf' }], purpose: 'registration_submitted', delegationId: d.id, retry: true })
   await sendBadgesIfSettled(d.id)
 }
 

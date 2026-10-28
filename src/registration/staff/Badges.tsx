@@ -182,7 +182,7 @@ export default function Badges() {
   })
   const newQr = (b: Badge) => act(async () => {
     await api(`/api/admin/badges/${b.id}/new-qr`, { method: 'POST' })
-    return `${b.name} has a new QR. The old badge no longer scans; print this one again.`
+    return `${b.name} has a new QR. The old badge no longer scans; print this one again.${b.kind === 'member' ? ' The Team Leader gets the new badge by email at 8:00 Bangkok time.' : ''}`
   })
   const remove = (b: Badge) => act(async () => {
     await api(`/api/admin/event-staff/${b.holderId}`, { method: 'DELETE' })
@@ -203,6 +203,7 @@ export default function Badges() {
         {kind === 'member' && waiting.length > 0 && <Note>
           {waiting.reduce((n, w) => n + w.people, 0)} more people get a badge once their country’s registration is settled (submitted, paid and everyone’s travel entered): {waiting.map((w) => `${w.country} (${w.people})`).join(', ')}.
         </Note>}
+        {kind === 'member' && <p className="reg-hint">Each Team Leader is emailed their country’s badges as PDFs when the registration is settled, and again at 8:00 Bangkok time the next morning whenever a name, team or QR changes.</p>}
         {kind === 'staff' && <StaffForm categories={data.categories} onAdded={finished} />}
 
         <div className="reg-filter-bar">

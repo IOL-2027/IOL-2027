@@ -401,7 +401,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     { title: 'Registration', steps: numbered.map(trackOf) },
     { title: 'Before the Olympiad', steps: [
       { key: 'letters', title: 'Invitation letters', detail: paymentStatus === 'approved' ? 'Your payment is confirmed, so letters for visa applications follow by email.' : 'One for each person, sent once the payment is confirmed.', state: 'after', label: 'Later' },
-      { key: 'badges', title: 'QR badges', detail: 'Emailed once the payment is confirmed and everyone’s arrival and departure are in.', state: 'after', label: 'Later', to: 'badges' },
+      { key: 'badges', title: 'QR badges', detail: 'Emailed to you as PDFs once the payment is confirmed and everyone’s arrival and departure are in.', state: 'after', label: 'Later', to: 'badges' },
       { key: 'arrival', title: 'Arrival in Bangkok', detail: 'From 21 July 2027. Badges are scanned at the arrival desk.', state: 'after', label: 'Later' },
     ] },
   ]
