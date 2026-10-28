@@ -2,7 +2,7 @@
 // organiser settings and staff accounts. Who may call what is listed in docs/ROLES.md.
 import crypto from 'node:crypto'
 import { HttpError, ROLES, filterMember, hashPassword, requireRole } from './auth.js'
-import { buildInviteEmail, buildPaymentConfirmedEmail, sendEmail } from './email.js'
+import { buildInviteEmail, buildPaymentConfirmedEmail, retryEmail, sendEmail } from './email.js'
 import { sendBadgesIfSettled } from './badges.js'
 import { calculateFees, cleanBadgeSettings, cleanFees, cleanGuardianConsent, cleanInvoice, loadSettings, needsGuardianConsent } from './fees.js'
 import { invoicePdf } from './invoice-pdf.js'
@@ -107,7 +107,7 @@ export function registerAdminRoutes(app, { signedIn }) {
   /* Overview ------------------------------------------------------- */
 
   app.get('/api/admin/dashboard', ...signedIn, requireRole('registration_admin', 'finance_admin', 'viewer'), asyncHandler(async (_req, res) => {
-    const [registration, payment, travel, people, proofQueue, invites, unsent, all] = await Promise.all([
+    const [registration, payment, travel, people, proofQueue, invites, unsent, emails, all] = await Promise.all([
       query('SELECT registration_status AS status, count(*)::int AS count FROM delegations GROUP BY 1 ORDER BY 1'),
       query('SELECT payment_status AS status, count(*)::int AS count FROM delegations GROUP BY 1 ORDER BY 1'),
       query('SELECT travel_status AS status, count(*)::int AS count FROM delegations GROUP BY 1 ORDER BY 1'),
@@ -115,12 +115,14 @@ export function registerAdminRoutes(app, { signedIn }) {
       query(`SELECT count(*)::int AS count FROM payments WHERE status = 'awaiting_review'`),
       query('SELECT status, count(*)::int AS count FROM invite_codes GROUP BY 1 ORDER BY 1'),
       query(`SELECT count(*)::int AS count FROM invite_codes WHERE status = 'active' AND sent_at IS NULL`),
+      // Emails kept for retrying that gave up; the email log can try them again.
+      query(`SELECT count(*)::int AS count FROM email_deliveries WHERE status = 'failed' AND message IS NOT NULL`),
       peopleRows(),
     ])
     const stages = STAGES.map((stage) => ({ status: stage, count: all.filter((p) => p.stage === stage).length }))
     res.json({
       registration: registration.rows, payment: payment.rows, travel: travel.rows, people: people.rows, invites: invites.rows,
-      stages, proofsWaiting: proofQueue.rows[0].count, invitesNotSent: unsent.rows[0].count,
+      stages, proofsWaiting: proofQueue.rows[0].count, invitesNotSent: unsent.rows[0].count, emailsFailed: emails.rows[0].count,
     })
   }))
 
@@ -168,10 +170,10 @@ export function registerAdminRoutes(app, { signedIn }) {
       amountPaid: approved.amount_due, currency: approved.currency || 'USD', receiptNumber: approved.receipt_number,
       travelUrl: `${portalUrl}/?step=travel`, paymentUrl: `${portalUrl}/?step=payment`,
     })
-    // Awaited so Cloud Run does not slow it down after the response; a failure is logged, not shown.
-    await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_confirmed', delegationId: approved.delegation_id })
-      .then(() => sendBadgesIfSettled(approved.delegation_id))
+    // Awaited so Cloud Run does not slow it down after the response. A failed send is kept and tried again later.
+    await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_confirmed', delegationId: approved.delegation_id, retry: true })
       .catch((e) => console.error(e.message))
+    await sendBadgesIfSettled(approved.delegation_id).catch((e) => console.error(e.message))
     res.json({ payment: camelizeRow(approved) })
   }))
 
@@ -392,13 +394,30 @@ export function registerAdminRoutes(app, { signedIn }) {
     res.json({ events: camelizeRows(result.rows), total: count.rows[0].total })
   }))
 
+  // `?show=unsent`: only emails being tried again or given up on.
+  const deliveryColumns = `id, recipient_email, purpose, subject, status, error_message, attempts, next_attempt_at, sent_at, created_at,
+    (message IS NOT NULL AND status IN ('retrying', 'failed')) AS can_retry`
+
   app.get('/api/admin/email-deliveries', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
     const { limit, offset } = page(req.query, 200)
+    const filter = req.query.show === 'unsent' ? `WHERE status IN ('retrying', 'failed')` : ''
     const [result, count] = await Promise.all([
-      query('SELECT id, recipient_email, purpose, status, error_message, sent_at, created_at FROM email_deliveries ORDER BY created_at DESC LIMIT $1 OFFSET $2', [limit, offset]),
-      query('SELECT count(*)::int AS total FROM email_deliveries'),
+      query(`SELECT ${deliveryColumns} FROM email_deliveries ${filter} ORDER BY created_at DESC LIMIT $1 OFFSET $2`, [limit, offset]),
+      query(`SELECT count(*)::int AS total FROM email_deliveries ${filter}`),
     ])
     res.json({ deliveries: camelizeRows(result.rows), total: count.rows[0].total })
+  }))
+
+  // Try again: one more attempt now at an email kept for retrying. Answers with the email as it now stands: sent, to
+  // be tried again later, or failed (with the reason).
+  app.post('/api/admin/email-deliveries/:deliveryId/retry', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
+    const id = req.params.deliveryId
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new HttpError(404, 'Email not found.')
+    // retryEmail is null when there was nothing to attempt, and throws when the attempt failed for good.
+    const attempted = await retryEmail(requireDb(), id).then(Boolean, () => true)
+    if (!attempted) throw new HttpError(409, 'This email cannot be sent again. It may have gone out already.')
+    await insertAudit(requireDb(), { actorAccountId: req.user.id, eventType: 'email_retried', entityType: 'email', entityId: id })
+    res.json({ delivery: camelizeRow((await query(`SELECT ${deliveryColumns} FROM email_deliveries WHERE id = $1`, [id])).rows[0]) })
   }))
 
   /* Settings ------------------------------------------------------- */
