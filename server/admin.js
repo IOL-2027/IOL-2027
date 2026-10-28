@@ -3,8 +3,9 @@
 import crypto from 'node:crypto'
 import { HttpError, ROLES, filterMember, hashPassword, requireRole } from './auth.js'
 import { buildInviteEmail, buildPaymentConfirmedEmail, retryEmail, sendEmail } from './email.js'
+import { backProblem } from './badge-pdf.js'
 import { sendBadgesIfSettled } from './badges.js'
-import { calculateFees, cleanBadgeSettings, cleanFees, cleanGuardianConsent, cleanInvoice, loadSettings, needsGuardianConsent } from './fees.js'
+import { calculateFees, cleanBadgeBack, cleanBadgeSettings, cleanFees, cleanGuardianConsent, cleanInvoice, loadSettings, needsGuardianConsent } from './fees.js'
 import { invoicePdf } from './invoice-pdf.js'
 import { issuePasswordCode } from './codes.js'
 import {
@@ -490,6 +491,16 @@ export function registerAdminRoutes(app, { signedIn }) {
     let badges
     try { badges = cleanBadgeSettings(req.body) } catch (error) { throw new HttpError(400, error.message) }
     await saveSetting(req, 'badges', badges)
+    res.json(await loadSettings(requireDb()))
+  }))
+
+  // The contacts on the back of every badge. Refused if the badge fonts cannot print it or it does not fit.
+  app.put('/api/admin/settings/badge-back', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
+    let back
+    try { back = cleanBadgeBack(req.body) } catch (error) { throw new HttpError(400, error.message) }
+    const problem = backProblem(back.text)
+    if (problem) throw new HttpError(400, problem)
+    await saveSetting(req, 'badgeBack', back)
     res.json(await loadSettings(requireDb()))
   }))
 
