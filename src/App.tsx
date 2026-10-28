@@ -754,8 +754,9 @@ const hotelPhoto = (file: string, size?: GalleryPhoto['size']): GalleryPhoto => 
 }
 const hostDaysOf = (id: string) => datesLabel((hostDetails.find((host) => host.id === id)?.days ?? []).map(dateOf))
 
-// Until the Olympiad has photographs of its own, the gallery shows the three venues. Campus photos come from
-// Wikimedia Commons under CC BY or CC BY-SA, which require the author, licence and source wherever they are shown.
+// Until the Olympiad has photographs of its own, the gallery shows the three venues. Most campus photos come from
+// Wikimedia Commons under CC BY or CC BY-SA, which require the author, licence and source wherever they are shown;
+// the rest come from the universities' own websites and credit the faculty and page they came from.
 const galleryPlaces: { id: string; venue: string; when: string; about: { href: string; label: string }; photos: GalleryPhoto[] }[] = [
   { id: 'hotel', venue: 'Mandarin Hotel Bangkok', when: `${dateOf('Day 01').split(' ')[0]}–${dateOf('Day 08')}`, about: { href: '/event-guide/accommodation', label: 'Accommodation' }, photos: [
     hotelPhoto('01-lobby-atrium.jpg', 'feature'), hotelPhoto('03-lobby-lounge.jpg'), hotelPhoto('10-thai-artwork.jpg'), hotelPhoto('02-reception.jpg'), hotelPhoto('04-pool-garden.jpg'),
@@ -774,13 +775,17 @@ const galleryPlaces: { id: string; venue: string; when: string; about: { href: s
     { src: '/assets/gallery/chula-arts-library.jpg', thumb: '/assets/gallery/thumbs/chula-arts-library.jpg', alt: 'Bookshelves in the Faculty of Arts Library, Chulalongkorn University', caption: 'Faculty of Arts Library', credit: 'Geonuch, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Bookshelves_in_Faculty_of_Arts_Library,_Chulalongkorn_University.jpg' },
     { src: '/assets/gallery/chula-sala-phra-kieo.jpg', thumb: '/assets/gallery/thumbs/chula-sala-phra-kieo.jpg', alt: 'Sala Phra Kieo, the university’s multi-purpose hall, under its tall triangular roof', caption: 'Sala Phra Kieo', credit: 'Supanut Arunoprayote, CC BY 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Sala_Phra_Kiao_06.23.jpg' },
     { src: '/assets/gallery/chula-sala-phra-kieo-hall.jpg', thumb: '/assets/gallery/thumbs/chula-sala-phra-kieo-hall.jpg', alt: 'The open hall inside Sala Phra Kieo, set with tables for a student event under a timber roof and a wall of windows', caption: 'The hall inside Sala Phra Kieo', credit: 'BunBn, CC BY-SA 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Salaprakeawinterior2BFD.JPG', size: 'wide' },
+    { src: '/assets/gallery/chula-engineering-2.jpg', thumb: '/assets/gallery/thumbs/chula-engineering-2.jpg', alt: 'Engineering Building 2, a three-storey red-brick building from 1939, Faculty of Engineering, Chulalongkorn University', caption: 'Engineering Building 2', credit: 'Faculty of Engineering, Chulalongkorn University', creditUrl: 'https://web.archive.org/web/20230206115702/https://www.chulaengineering2020.com/physical-change/' },
+    { src: '/assets/gallery/chula-engineering-2-room.jpg', thumb: '/assets/gallery/thumbs/chula-engineering-2-room.jpg', alt: 'Students at long wooden desks in a lecture room in Engineering Building 2', caption: 'A lecture room in Engineering Building 2', credit: 'Faculty of Engineering, Chulalongkorn University', creditUrl: 'https://web.archive.org/web/20230206115702/https://www.chulaengineering2020.com/physical-change/', size: 'wide' },
+    { src: '/assets/gallery/chula-maha-chakri-sirindhorn.jpg', thumb: '/assets/gallery/thumbs/chula-maha-chakri-sirindhorn.jpg', alt: 'Maha Chakri Sirindhorn Building, the Faculty of Arts’ nine-storey teaching building, behind trees', caption: 'Maha Chakri Sirindhorn Building, Faculty of Arts', credit: 'Faculty of Arts, Chulalongkorn University', creditUrl: 'https://www.arts.chula.ac.th/06about/tour-en.html' },
   ] },
 ]
 const galleryPhotos = galleryPlaces.flatMap((place) => place.photos.map((photo) => ({ ...photo, venue: place.venue })))
 function GalleryCredits({ photos }: { photos: GalleryPhoto[] }) {
   const [first] = photos
   if (photos.every((photo) => photo.creditUrl === first.creditUrl)) return <p className="gallery-credits">Photos: <a href={first.creditUrl} target="_blank" rel="noreferrer">{first.credit}</a></p>
-  return <p className="gallery-credits">Photos from Wikimedia Commons: {photos.map((photo, index) => <span key={photo.src}>{index > 0 && ' · '}{photo.caption}, <a href={photo.creditUrl} target="_blank" rel="noreferrer">{photo.credit}</a></span>)}</p>
+  const fromCommons = photos.every((photo) => photo.creditUrl.startsWith('https://commons.wikimedia.org/'))
+  return <p className="gallery-credits">{fromCommons ? 'Photos from Wikimedia Commons' : 'Photos'}: {photos.map((photo, index) => <span key={photo.src}>{index > 0 && ' · '}{photo.caption}, <a href={photo.creditUrl} target="_blank" rel="noreferrer">{photo.credit}</a></span>)}</p>
 }
 
 function GalleryViewer({ index, onIndex }: { index: number; onIndex: (index: number | null) => void }) {
