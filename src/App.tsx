@@ -9,8 +9,9 @@ import { GrowthChart, HostMap } from './AboutVisuals'
 
 type NavItem = { label: string; href: string; external?: boolean; children?: { label: string; href: string }[] }
 
-// Sections that are still placeholders; hidden on the public site until launch (src/launch.ts).
-const placeholderSections = ['/sponsors', '/gallery', '/people']
+// Sections that are still placeholders; hidden on the public site until launch (src/launch.ts). The Gallery has real
+// photos of the venues since 29 Oct 2026, so it is shown everywhere.
+const placeholderSections = ['/sponsors', '/people']
 
 const navigation: NavItem[] = [
   { label: 'Home', href: '/' },
@@ -932,8 +933,8 @@ function App() {
   const requested = window.location.pathname.replace(/\/$/, '') || '/'
   // The portal is its own site now: its old addresses here send people there, or to this page while registration is closed.
   const path = !registrationOpen && ['/registration/team-leader', '/registration/check-in'].includes(requested) ? '/registration' : requested
-  // Placeholder sections show the not-found page on the public site until launch (/media/press is the contact page, so it stays).
-  const hidden = !placeholderPagesShown && (placeholderSections.some((section) => path === section || path.startsWith(`${section}/`)) || path === '/media' || path === '/media/gallery')
+  // Placeholder sections show the not-found page on the public site until launch.
+  const hidden = !placeholderPagesShown && placeholderSections.some((section) => path === section || path.startsWith(`${section}/`))
   const pages: Record<string, React.ReactElement> = {
     '/': <Home />,
     '/about': <About />, '/about/the-iol': <About />, '/about/thailand': <Thailand />, '/about/thai-language': <ThaiLanguage />, '/about/important-dates': <ImportantDates />, '/thailand': <Thailand />,

@@ -66,7 +66,7 @@ Source §3. Hosted on Firebase Hosting (`main` → https://iol2027.web.app, `dev
 | Explore | Full | 🟡 | Folded into Host: Thailand |
 | People: committee, jury, problem committee, volunteers | Limited → ongoing | 🟡 | Committee roster done; jury and volunteers waiting on names. Hidden on the public site until launch (24 Oct 2026) |
 | Results (individual, team) | Full / event | ⚠️ | Links to the IOL central archive today; source wants admin-entered results (§6) |
-| Gallery | Before event: empty | 🟡 | Page exists; admin upload not built (§6). Hidden on the public site until launch |
+| Gallery | Before event: empty | 🟡 | Photos of the venues and the hotel, on the public site since 29 Oct 2026; admin upload not built (§6) |
 | For Teachers portal | Optional | ⬜ | Lowest priority |
 | Sponsors | Not in source | 🟡 | Equal-area grid per board feedback; placeholder logos, so the page and the home-page block are hidden on the public site until sponsors are confirmed |
 | Privacy / PDPA | Limited (mandatory) | 🟡 | Draft page live; needs data controller, retention periods and contact (§9) |
