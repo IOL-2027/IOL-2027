@@ -92,7 +92,10 @@ export const defaultSettings = {
 /** Saved fees over the defaults. Fees saved before the fee table (one flat team fee and a room rate) keep only their dates. */
 function mergeFees(stored) {
   const base = defaultSettings.fees
-  if (!stored?.teamFees) return { ...base, ...(stored?.earlyBirdEnds ? { earlyBirdEnds: stored.earlyBirdEnds, registrationEnds: stored.registrationEnds } : {}) }
+  if (!stored?.teamFees) {
+    const dates = Object.fromEntries(['earlyBirdEnds', 'registrationEnds'].filter((key) => stored?.[key]).map((key) => [key, stored[key]]))
+    return { ...base, ...dates }
+  }
   return {
     ...base, ...stored,
     teamFees: Object.fromEntries(Object.entries(base.teamFees).map(([tier, rates]) => [tier, { ...rates, ...stored.teamFees[tier] }])),
