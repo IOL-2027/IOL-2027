@@ -772,3 +772,10 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-pager .reg-btn { min-height: 40px; padding: 0 16px; font-size: 15px; }
 .reg-pager .reg-btn:disabled { opacity: .45; cursor: default; }
 .reg-email-status { min-width: 16rem; }
+
+/* Payment: an invoice split between payers. Each part is set apart, and the running total turns green once it matches. */
+.reg-invoice-part { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--reg-border); }
+.reg-invoice-part h5 { margin: 0 0 4px; font-size: 16px; }
+.reg-invoice-sum { margin: 18px 0 0; padding: 12px 14px; border-radius: var(--reg-radius); background: var(--reg-tint); font-size: 15px; color: var(--reg-attn-text); }
+.reg-invoice-sum.is-even { color: var(--reg-ok-text); }
+.reg-invoice-save { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }

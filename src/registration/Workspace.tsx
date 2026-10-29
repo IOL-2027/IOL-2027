@@ -644,7 +644,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
               <div className={`reg-field reg-field-wide reg-proof${fieldErrors.proof ? ' has-error' : ''}`}>
                 <span className="reg-label-text" id="proof-label">Proof of transfer</span>
-                <p className="reg-hint" id="proof-hint">{canUpload || paymentDone ? 'The bank’s confirmation or a screenshot of the completed transfer. PDF, JPG or PNG, up to 10 MB.' : 'Save the invoice details first, then upload the proof after you transfer.'}</p>
+                <p className="reg-hint" id="proof-hint">{canUpload || paymentDone
+                  ? `The bank’s confirmation or a screenshot of the completed transfer. PDF, JPG or PNG, up to 10 MB.${(payment?.invoiceCount ?? 1) > 1 ? ' Paid in separate transfers? Put every confirmation in one PDF.' : ''}`
+                  : 'Save the invoice details first, then upload the proof after you transfer.'}</p>
                 {fieldErrors.proof && <p className="reg-error" id="proof-error"><CircleAlert size={16} aria-hidden="true" />{fieldErrors.proof}</p>}
                 <label className={`reg-dropzone${paymentDone ? ' is-filled' : ''}${fieldErrors.proof ? ' has-error' : ''}${!canUpload && !paymentDone ? ' is-disabled' : ''}`}>
                   <input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={!canUpload || busy} aria-labelledby="proof-label" aria-describedby={`proof-hint${fieldErrors.proof ? ' proof-error' : ''}`}
