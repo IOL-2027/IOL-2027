@@ -5,7 +5,13 @@ import { HttpError, ROLES, filterMember, hashPassword, requireRole } from './aut
 import { buildInviteEmail, buildPaymentConfirmedEmail, retryEmail, sendEmail } from './email.js'
 import { backProblem } from './badge-pdf.js'
 import { sendBadgesIfSettled } from './badges.js'
-import { calculateFees, cleanBadgeBack, cleanBadgeSettings, cleanFees, cleanGuardianConsent, cleanInvoice, loadSettings, needsGuardianConsent } from './fees.js'
+import {
+  calculateFees, cleanBadgeBack, cleanBadgeSettings, cleanFees, cleanGuardianConsent, cleanInvoice, defaultFeeCategory, delegationFees, feeCategories,
+  ageOn, loadSettings, needsGuardianConsent, singleRoomCount,
+} from './fees.js'
+
+// The example on the Fees settings and the sample invoice: an accredited country with two teams, one observer and one single room.
+const exampleFees = (fees) => calculateFees(fees, { numberOfTeams: 2, numberOfObservers: 1, category: 'accredited', singleRooms: 1 })
 import { invoicePdf } from './invoice-pdf.js'
 import { issuePasswordCode } from './codes.js'
 import {
@@ -20,8 +26,12 @@ const STAFF_ROLES = ROLES.filter((role) => !['team_leader', 'participant'].inclu
 /* CSV                                                                 */
 /* ------------------------------------------------------------------ */
 
+/** "2027-07-21 14:05:09": Bangkok time, which spreadsheets read as a date and time. */
+const bangkokTime = (date) => new Date(date.getTime() + 7 * 3600000).toISOString().slice(0, 19).replace('T', ' ')
+
 function csvCell(value) {
-  let text = value === null || value === undefined ? '' : value instanceof Date ? value.toISOString() : Array.isArray(value) ? value.join('; ') : String(value)
+  let text = value === null || value === undefined ? '' : value instanceof Date ? bangkokTime(value) : typeof value === 'boolean' ? (value ? 'yes' : 'no')
+    : Array.isArray(value) ? value.join('; ') : String(value)
   // A cell starting with = + - @ would run as a formula when opened in a spreadsheet.
   if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
@@ -130,7 +140,7 @@ export function registerAdminRoutes(app, { signedIn }) {
   app.get('/api/admin/delegations', ...signedIn, requireRole('registration_admin', 'finance_admin', 'welfare_staff'), asyncHandler(async (_req, res) => {
     const result = await query(
       `SELECT d.id, d.country_territory, d.primary_team_leader_name, d.team_leader_email, d.number_of_teams, d.number_of_observers,
-         d.registration_status, d.payment_status, d.travel_status, d.submitted_at,
+         d.fee_category, d.registration_status, d.payment_status, d.travel_status, d.submitted_at,
          (SELECT count(*)::int FROM members m WHERE m.delegation_id = d.id) AS people
        FROM delegations d ORDER BY d.country_territory`,
     )
@@ -142,7 +152,7 @@ export function registerAdminRoutes(app, { signedIn }) {
   app.get('/api/admin/payments', ...signedIn, requireRole('finance_admin', 'registration_admin'), asyncHandler(async (req, res) => {
     const status = optionalString(req.query.status)
     const result = await query(
-      `SELECT p.*, d.country_territory, d.primary_team_leader_name, d.team_leader_email, d.number_of_teams, d.number_of_observers,
+      `SELECT p.*, d.country_territory, d.primary_team_leader_name, d.team_leader_email, d.number_of_teams, d.number_of_observers, d.fee_category, d.single_rooms,
          a.original_filename AS proof_filename, a.mime_type AS proof_mime_type, r.full_name AS reviewed_by_name
        FROM payments p JOIN delegations d ON d.id = p.delegation_id
        LEFT JOIN attachments a ON a.id = p.proof_attachment_id LEFT JOIN accounts r ON r.id = p.reviewed_by_account_id
@@ -237,7 +247,9 @@ export function registerAdminRoutes(app, { signedIn }) {
       if (!country) throw new HttpError(400, `${where}Country or territory is required.`)
       const email = optionalString(item.contactEmail)?.toLowerCase() ?? null
       if (email && !isEmail(email)) throw new HttpError(400, `${where}“${email}” is not an email address.`)
-      return { country, organisation: optionalString(item.accreditedOrganisation), email }
+      // Previous IOL hosts are recognised by name; a code for a country that is not accredited is chosen by hand.
+      const category = feeCategories.includes(item.feeCategory) ? item.feeCategory : defaultFeeCategory(country)
+      return { country, organisation: optionalString(item.accreditedOrganisation), email, category }
     })
     const names = rows.map((r) => r.country.toLowerCase())
     const repeated = names.filter((name, i) => names.indexOf(name) !== i)
@@ -250,9 +262,9 @@ export function registerAdminRoutes(app, { signedIn }) {
         let inserted
         for (let attempt = 0; !inserted && attempt < 5; attempt++) {
           inserted = (await client.query(
-            `INSERT INTO invite_codes (code, country_territory, accredited_organisation, contact_email, status, created_by_account_id)
-             VALUES ($1, $2, $3, $4, 'active', $5) ON CONFLICT (code) DO NOTHING RETURNING *`,
-            [newInviteCode(row.country), row.country, row.organisation, row.email, req.user.id],
+            `INSERT INTO invite_codes (code, country_territory, accredited_organisation, contact_email, status, created_by_account_id, fee_category, max_teams)
+             VALUES ($1, $2, $3, $4, 'active', $5, $6, $7) ON CONFLICT (code) DO NOTHING RETURNING *`,
+            [newInviteCode(row.country), row.country, row.organisation, row.email, req.user.id, row.category, row.category === 'non_accredited' ? 1 : 2],
           )).rows[0]
         }
         if (!inserted) throw new HttpError(500, 'Could not create a unique code. Try again.')
@@ -267,6 +279,26 @@ export function registerAdminRoutes(app, { signedIn }) {
   app.patch('/api/admin/invites/:inviteId', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
     const invite = (await query('SELECT * FROM invite_codes WHERE id = $1', [req.params.inviteId])).rows[0]
     if (!invite) throw new HttpError(404, 'Invitation code not found.')
+    // The fee rate can change after the code is used: it moves to the country's registration, and an invoice not
+    // paid yet is worked out again.
+    if ('feeCategory' in req.body) {
+      const category = req.body.feeCategory
+      if (!feeCategories.includes(category)) throw new HttpError(400, 'Choose a fee rate.')
+      const result = await withTransaction(async (client) => {
+        const row = (await client.query(`UPDATE invite_codes SET fee_category = $1, max_teams = $2, updated_at = now() WHERE id = $3 RETURNING *`, [category, category === 'non_accredited' ? 1 : 2, invite.id])).rows[0]
+        const d = (await client.query('SELECT * FROM delegations WHERE invite_code_id = $1 FOR UPDATE', [invite.id])).rows[0]
+        if (d) {
+          if (category === 'non_accredited' && d.number_of_teams > 1) throw new HttpError(409, `${d.country_territory} has registered two teams; a country that is not accredited can register one. Ask the Team Leader to change it first.`)
+          const updated = (await client.query('UPDATE delegations SET fee_category = $1, updated_at = now() WHERE id = $2 RETURNING *', [category, d.id])).rows[0]
+          const { fees } = await loadSettings(client)
+          const open = (await client.query(`SELECT id, fee_tier FROM payments WHERE delegation_id = $1 AND status IN ('awaiting_proof', 'rejected')`, [d.id])).rows
+          for (const p of open) await client.query('UPDATE payments SET amount_due = $1, updated_at = now() WHERE id = $2', [delegationFees(fees, updated, p.fee_tier).total, p.id])
+        }
+        await insertAudit(client, { actorAccountId: req.user.id, delegationId: d?.id ?? null, eventType: 'invite_fee_rate_changed', entityType: 'invite_code', entityId: invite.id, details: { feeCategory: category } })
+        return row
+      })
+      return res.json({ invite: camelizeRow(result) })
+    }
     if (invite.status === 'used') throw new HttpError(409, 'This code has been used to create an account and cannot be changed.')
     const status = req.body.status ?? invite.status
     if (!['active', 'revoked'].includes(status)) throw new HttpError(400, 'Status must be active or revoked.')
@@ -294,39 +326,98 @@ export function registerAdminRoutes(app, { signedIn }) {
 
   /* Exports -------------------------------------------------------- */
 
+  // One CSV per job, each with one row per thing (person, country, invoice, trip, scan) and plain values, so it can be
+  // filtered, cleaned or charted as it is: dates as YYYY-MM-DD, times in Bangkok time, yes/no, codes rather than prose.
+  // A role gets the files its work needs and never more than it can already see in the back office (docs/ROLES.md).
+  const memberOrder = `CASE m.role WHEN 'team_leader' THEN 0 WHEN 'contestant' THEN 1 ELSE 2 END`
+  const singleRoom = (row) => (row.role === 'contestant' ? '' : row.room_type_preference === 'single' ? 'yes' : row.room_type_preference ? 'no' : '')
+  const singleRoomTotal = (row) => singleRoomCount(row.single_rooms)
+  const peopleBase = `SELECT m.*, d.country_territory, d.fee_category, d.declared_arrival_date, d.declared_departure_date, d.contestant_room_type, t.name AS team_name,
+      t.contest_language AS team_contest_language
+    FROM members m JOIN delegations d ON d.id = m.delegation_id LEFT JOIN teams t ON t.id = m.team_id`
+
   const exportsByKind = {
     people: {
       roles: ['registration_admin'],
       columns: [['country_territory', 'Country'], ['team_name', 'Team'], ['role', 'Role'], ['display_name', 'Display name'], ['badge_name', 'Badge name'],
         ['official_name', 'Official name'], ['passport_name', 'Passport name'], ['passport_number', 'Passport number'], ['passport_nationality', 'Nationality'],
         ['date_of_birth', 'Date of birth'], ['gender_for_room_allocation', 'Gender (rooming)'], ['exam_language', 'Exam language'], ['tshirt_size', 'T-shirt'],
-        ['polo_size', 'Polo'], ['email', 'Email'], ['room_type_preference', 'Room preference'], ['food_allergy_notes', 'Food and allergies'],
-        ['medical_accessibility_notes', 'Medical or accessibility'], ['emergency_contact', 'Emergency contact'], ['stage', 'Status'], ['missing_details', 'Missing details']],
+        ['polo_size', 'Polo'], ['email', 'Email'], ['single_room', 'Single room'], ['food_allergy_notes', 'Food and allergies'],
+        ['medical_accessibility_notes', 'Medical or accessibility'], ['emergency_contact', 'Emergency contact'], ['needs_guardian_consent', 'Needs guardian consent'],
+        ['has_guardian_consent', 'Guardian consent uploaded'], ['stage', 'Status'], ['missing_details', 'Missing details']],
+      rows: async () => (await peopleRows()).map((row) => ({ ...row, single_room: singleRoom(row) })),
+    },
+    // Names and progress only: what Finance and the check-in desk see in People.
+    people_status: {
+      roles: ['registration_admin', 'finance_admin', 'checkin_staff'],
+      columns: [['country_territory', 'Country'], ['team_name', 'Team'], ['role', 'Role'], ['display_name', 'Display name'], ['badge_name', 'Badge name'],
+        ['stage', 'Status'], ['badge_status', 'Badge'], ['checked_in_at', 'First checked in at']],
       rows: peopleRows,
     },
     delegations: {
-      roles: ['registration_admin', 'finance_admin'],
-      columns: [['country_territory', 'Country'], ['accredited_organisation', 'Organisation'], ['primary_team_leader_name', 'Team Leader'], ['team_leader_email', 'Team Leader email'],
-        ['number_of_teams', 'Teams'], ['number_of_observers', 'Observers'], ['people', 'People entered'], ['registration_status', 'Registration'], ['payment_status', 'Payment'],
-        ['travel_status', 'Travel'], ['declared_arrival_date', 'Arrival'], ['declared_departure_date', 'Departure'], ['submitted_at', 'Submitted at']],
-      rows: async () => (await query(`SELECT d.*, (SELECT count(*)::int FROM members m WHERE m.delegation_id = d.id) AS people FROM delegations d ORDER BY d.country_territory`)).rows,
+      roles: ['registration_admin', 'finance_admin', 'welfare_staff'],
+      columns: [['country_territory', 'Country'], ['accredited_organisation', 'Organisation'], ['fee_category', 'Fee rate'], ['primary_team_leader_name', 'Team Leader'],
+        ['team_leader_email', 'Team Leader email'], ['mobile_whatsapp', 'Team Leader phone'], ['number_of_teams', 'Teams'], ['number_of_observers', 'Observers'],
+        ['single_room_total', 'Single rooms'], ['people', 'People entered'], ['registration_status', 'Registration'], ['payment_status', 'Payment'], ['travel_status', 'Travel'],
+        ['declared_arrival_date', 'Arrival'], ['declared_departure_date', 'Departure'], ['submitted_at', 'Submitted at']],
+      rows: async () => (await query(`SELECT d.*, (SELECT count(*)::int FROM members m WHERE m.delegation_id = d.id) AS people FROM delegations d ORDER BY d.country_territory`))
+        .rows.map((row) => ({ ...row, single_room_total: singleRoomTotal(row) })),
+    },
+    // Numbers only, no names or contacts: for committee members charting progress.
+    summary: {
+      roles: ['registration_admin', 'finance_admin', 'welfare_staff', 'checkin_staff', 'viewer', 'content_editor', 'results_staff'],
+      columns: [['country_territory', 'Country'], ['fee_category', 'Fee rate'], ['number_of_teams', 'Teams'], ['number_of_observers', 'Observers declared'],
+        ['single_room_total', 'Single rooms'], ['contestants', 'Contestants entered'], ['team_leaders', 'Team Leaders entered'], ['observers', 'Observers entered'],
+        ['registration_status', 'Registration'], ['payment_status', 'Payment'], ['travel_status', 'Travel'], ['amount_due', 'Amount due (USD)'],
+        ['badges_issued', 'Badges issued'], ['checked_in', 'People checked in'], ['declared_arrival_date', 'Arrival'], ['declared_departure_date', 'Departure']],
+      rows: async () => (await query(
+        `SELECT d.*,
+           (SELECT count(*)::int FROM members m WHERE m.delegation_id = d.id AND m.role = 'contestant') AS contestants,
+           (SELECT count(*)::int FROM members m WHERE m.delegation_id = d.id AND m.role = 'team_leader') AS team_leaders,
+           (SELECT count(*)::int FROM members m WHERE m.delegation_id = d.id AND m.role = 'observer') AS observers,
+           (SELECT p.amount_due FROM payments p WHERE p.delegation_id = d.id ORDER BY p.created_at DESC LIMIT 1) AS amount_due,
+           (SELECT count(*)::int FROM badge_credentials bc JOIN members m ON m.id = bc.member_id WHERE m.delegation_id = d.id AND bc.status = 'active') AS badges_issued,
+           (SELECT count(DISTINCT ce.member_id)::int FROM check_in_events ce JOIN members m ON m.id = ce.member_id WHERE m.delegation_id = d.id AND ce.result = 'accepted') AS checked_in
+         FROM delegations d ORDER BY d.country_territory`,
+      )).rows.map((row) => ({ ...row, single_room_total: singleRoomTotal(row) })),
     },
     payments: {
       roles: ['finance_admin', 'registration_admin'],
-      columns: [['country_territory', 'Country'], ['invoice_number', 'Invoice number'], ['payment_reference', 'Payment reference'], ['receipt_number', 'Receipt number'], ['status', 'Status'], ['amount_due', 'Amount'],
-        ['currency', 'Currency'], ['fee_tier', 'Fee tier'], ['invoice_recipient_name', 'Invoice recipient'], ['invoice_recipient_tin', 'Recipient TIN'], ['invoice_recipient_address', 'Invoice address'],
-        ['invoice_count', 'Invoices'], ['invoice_split_note', 'Split'], ['review_note', 'Review note'], ['reviewed_by_name', 'Reviewed by'], ['reviewed_at', 'Reviewed at'], ['updated_at', 'Last change']],
+      columns: [['country_territory', 'Country'], ['fee_category', 'Fee rate'], ['invoice_number', 'Invoice number'], ['payment_reference', 'Payment reference'], ['receipt_number', 'Receipt number'],
+        ['status', 'Status'], ['amount_due', 'Amount'], ['currency', 'Currency'], ['fee_tier', 'Fee tier'], ['invoice_count', 'Invoices'], ['invoice_recipient_name', 'Invoice recipient'],
+        ['invoice_recipient_tin', 'Recipient TIN'], ['invoice_recipient_address', 'Invoice address'], ['review_note', 'Review note'], ['reviewed_by_name', 'Reviewed by'],
+        ['reviewed_at', 'Reviewed at'], ['created_at', 'Invoice saved at'], ['updated_at', 'Last change']],
       rows: async () => (await query(
-        `SELECT p.*, d.country_territory, r.full_name AS reviewed_by_name FROM payments p JOIN delegations d ON d.id = p.delegation_id
+        `SELECT p.*, d.country_territory, d.fee_category, r.full_name AS reviewed_by_name FROM payments p JOIN delegations d ON d.id = p.delegation_id
          LEFT JOIN accounts r ON r.id = p.reviewed_by_account_id ORDER BY d.country_territory, p.created_at`,
       )).rows,
     },
+    // One row per invoice: a split payment has one row for each payer and amount.
+    invoices: {
+      roles: ['finance_admin', 'registration_admin'],
+      columns: [['country_territory', 'Country'], ['invoice', 'Invoice number'], ['part', 'Part'], ['payer', 'Payer'], ['payer_tin', 'Payer TIN'], ['payer_address', 'Payer address'],
+        ['amount', 'Amount'], ['currency', 'Currency'], ['payment_reference', 'Payment reference'], ['status', 'Payment status'], ['fee_tier', 'Fee tier'], ['due_date', 'Due date']],
+      rows: async () => {
+        const { fees } = await loadSettings(requireDb())
+        const payments = (await query(`SELECT p.*, d.country_territory FROM payments p JOIN delegations d ON d.id = p.delegation_id ORDER BY d.country_territory, p.created_at`)).rows
+        return payments.flatMap((p) => {
+          const due = p.fee_tier === 'early_bird' ? fees.earlyBirdEnds : fees.registrationEnds
+          const base = { country_territory: p.country_territory, currency: p.currency, payment_reference: p.payment_reference, status: p.status, fee_tier: p.fee_tier, due_date: due }
+          const parts = p.invoice_splits?.length ? p.invoice_splits : [{ recipientName: p.invoice_recipient_name, recipientTin: p.invoice_recipient_tin, recipientAddress: p.invoice_recipient_address, amount: p.amount_due }]
+          return parts.map((part, i) => ({
+            ...base, invoice: parts.length > 1 ? `${p.invoice_number}-${i + 1}` : p.invoice_number, part: `${i + 1} of ${parts.length}`,
+            payer: part.recipientName, payer_tin: part.recipientTin, payer_address: part.recipientAddress, amount: Number(part.amount).toFixed(2),
+          }))
+        })
+      },
+    },
     travel: {
-      roles: ['registration_admin'],
+      roles: ['registration_admin', 'checkin_staff'],
       columns: [['country_territory', 'Country'], ['direction', 'Direction'], ['local_date', 'Date'], ['local_time', 'Time'], ['travel_point', 'Arrival or departure point'],
-        ['flight_service_number', 'Flight or service'], ['terminal', 'Terminal'], ['people', 'People']],
+        ['flight_service_number', 'Flight or service'], ['terminal', 'Terminal'], ['people_count', 'Number of people'], ['people', 'People']],
       rows: async () => (await query(
-        `SELECT tr.*, d.country_territory, COALESCE(array_agg(m.display_name ORDER BY m.display_name) FILTER (WHERE m.id IS NOT NULL), '{}') AS people
+        `SELECT tr.*, d.country_territory, COALESCE(array_agg(m.display_name ORDER BY m.display_name) FILTER (WHERE m.id IS NOT NULL), '{}') AS people,
+           count(m.id)::int AS people_count
          FROM travel_records tr JOIN delegations d ON d.id = tr.delegation_id
          LEFT JOIN travel_record_people trp ON trp.travel_record_id = tr.id LEFT JOIN members m ON m.id = trp.member_id
          GROUP BY tr.id, d.country_territory ORDER BY tr.local_date NULLS LAST, tr.local_time NULLS LAST, d.country_territory`,
@@ -345,11 +436,30 @@ export function registerAdminRoutes(app, { signedIn }) {
     },
     welfare: {
       roles: ['welfare_staff', 'registration_admin'],
-      columns: [['country_territory', 'Country'], ['display_name', 'Person'], ['role', 'Role'], ['gender_for_room_allocation', 'Gender (rooming)'], ['room_type_preference', 'Room preference'],
-        ['food_allergy_notes', 'Food and allergies'], ['medical_accessibility_notes', 'Medical or accessibility'], ['emergency_contact', 'Emergency contact']],
-      rows: async () => (await query(
-        `SELECT m.*, d.country_territory FROM members m JOIN delegations d ON d.id = m.delegation_id ORDER BY d.country_territory, m.display_name`,
-      )).rows,
+      columns: [['country_territory', 'Country'], ['display_name', 'Person'], ['role', 'Role'], ['team_name', 'Team'], ['food_allergy_notes', 'Food and allergies'],
+        ['medical_accessibility_notes', 'Medical or accessibility'], ['emergency_contact', 'Emergency contact']],
+      rows: async () => (await query(`${peopleBase} ORDER BY d.country_territory, ${memberOrder}, m.display_name`)).rows,
+    },
+    // Who sleeps where: for the accommodation and welfare teams planning rooms.
+    rooming: {
+      roles: ['welfare_staff', 'registration_admin'],
+      columns: [['country_territory', 'Country'], ['display_name', 'Person'], ['role', 'Role'], ['team_name', 'Team'], ['gender_for_room_allocation', 'Gender (rooming)'],
+        ['single_room', 'Single room'], ['contestant_room_type', 'Contestant room preference'], ['under_18', 'Under 18 at the event'],
+        ['declared_arrival_date', 'First night'], ['declared_departure_date', 'Leaves on']],
+      rows: async () => {
+        const { guardianConsent } = await loadSettings(requireDb())
+        return (await query(`${peopleBase} ORDER BY d.country_territory, ${memberOrder}, m.gender_for_room_allocation, m.display_name`)).rows.map((row) => ({
+          ...row, single_room: singleRoom(row), contestant_room_type: row.role === 'contestant' ? row.contestant_room_type : '',
+          under_18: row.date_of_birth ? (ageOn(row.date_of_birth, guardianConsent.referenceDate) < 18 ? 'yes' : 'no') : '',
+        }))
+      },
+    },
+    // Contestants and their working languages, for the Problem Committee and the results team.
+    contestants: {
+      roles: ['registration_admin', 'results_staff'],
+      columns: [['country_territory', 'Country'], ['team_name', 'Team'], ['display_name', 'Display name'], ['official_name', 'Official name'],
+        ['exam_language', 'Individual contest language'], ['team_contest_language', 'Team contest language']],
+      rows: async () => (await query(`${peopleBase} WHERE m.role = 'contestant' ORDER BY d.country_territory, t.name NULLS LAST, m.display_name`)).rows,
     },
   }
 
@@ -426,7 +536,7 @@ export function registerAdminRoutes(app, { signedIn }) {
   app.get('/api/admin/settings', ...signedIn, requireRole('finance_admin', 'registration_admin'), asyncHandler(async (_req, res) => {
     const settings = await loadSettings(requireDb())
     // An example invoice so the effect of a change is visible before saving.
-    res.json({ ...settings, example: calculateFees(settings.fees, { numberOfTeams: 2, numberOfObservers: 1 }) })
+    res.json({ ...settings, example: exampleFees(settings.fees) })
   }))
 
   const saveSetting = async (req, key, value) => {
@@ -446,14 +556,14 @@ export function registerAdminRoutes(app, { signedIn }) {
     await saveSetting(req, 'fees', fees)
     // Invoices that have not been paid yet follow the new fees; paid or under-review ones keep their amount.
     const open = (await query(
-      `SELECT p.id, d.number_of_teams, d.number_of_observers FROM payments p JOIN delegations d ON d.id = p.delegation_id WHERE p.status IN ('awaiting_proof', 'rejected')`,
+      `SELECT p.id AS payment_id, d.* FROM payments p JOIN delegations d ON d.id = p.delegation_id WHERE p.status IN ('awaiting_proof', 'rejected')`,
     )).rows
     for (const p of open) {
-      const due = calculateFees(fees, { numberOfTeams: p.number_of_teams, numberOfObservers: p.number_of_observers })
-      await query('UPDATE payments SET amount_due = $1, fee_tier = $2, updated_at = now() WHERE id = $3', [due.total, due.tier, p.id])
+      const due = delegationFees(fees, p)
+      await query('UPDATE payments SET amount_due = $1, fee_tier = $2, updated_at = now() WHERE id = $3', [due.total, due.tier, p.payment_id])
     }
     const settings = await loadSettings(requireDb())
-    res.json({ ...settings, example: calculateFees(settings.fees, { numberOfTeams: 2, numberOfObservers: 1 }), recalculated: open.length })
+    res.json({ ...settings, example: exampleFees(settings.fees), recalculated: open.length })
   }))
 
   // Who invoices come from and the bank account they ask for. Saving applies to every invoice from then on,
@@ -474,7 +584,7 @@ export function registerAdminRoutes(app, { signedIn }) {
         invoice_number: 'IOL2027/0', invoice_recipient_name: 'Sampleland Linguistics Olympiad', invoice_recipient_tin: '12-3456789',
         invoice_recipient_address: '1 Example Street, Sample City 10000, Sampleland', invoice_count: 1, payment_reference: 'SAM-IOL2027-0000',
       },
-      fees: calculateFees(settings.fees, { numberOfTeams: 2, numberOfObservers: 1 }),
+      fees: exampleFees(settings.fees),
       invoice: settings.invoice,
     })
     res.set('Content-Type', 'application/pdf').set('Content-Disposition', 'inline; filename="IOL2027-invoice-sample.pdf"').send(pdf)

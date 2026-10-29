@@ -2,9 +2,11 @@
 // rail on the left and one step at a time on the right.
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, Info, LayoutGrid, Lock, Upload, UserPlus } from 'lucide-react'
+import { portalPath } from '../launch'
 import { api, ApiError, type DelegationData, type Member } from './api'
 import { personFieldGroups, programmeWindow, sections, type Field, type PortalRecord, type Section, type SectionId } from './portalData'
-import { consentFor, personFields, personGaps, personPayload, personRecord, teamRecord, tripPayload, tripRecord, welfareFacts } from './live'
+import { consentFor, personFields, personGaps, personPayload, personRecord, singleRoomCheck, teamRecord, tripPayload, tripRecord, welfareFacts } from './live'
+import { InvoiceDetails, TeamSetup, invoiceProblems, readInvoices, type SetupBody } from './SetupForms'
 import { openReceipt } from './invoice'
 import { Alert, Facts, FieldControl, PageHead, daysBetween, focusFirstError, formatDate, messageOf } from './ui'
 
@@ -108,11 +110,14 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     const paymentDone = Boolean(payment && ['awaiting_review', 'approved'].includes(payment.status))
     const submitted = d.registrationStatus !== 'draft'
     const draftMember = { role: 'contestant' as const, teamId: data.teams[0]?.id ?? null }
+    // The account's own Team Leader comes first; with two teams, one more person may lead the second team.
+    const leaders = data.members.filter((m) => m.role === 'team_leader')
+    const canLead = d.numberOfTeams === 2 && leaders.length < 2
     const records: Partial<Record<SectionId, PortalRecord[]>> = {
       teams: data.teams.map((t) => teamRecord(t, data)),
       people: [
-        ...data.members.map((m) => personRecord(m, data.teams, data.attachments)),
-        ...(draftOpen ? [{ id: NEW_PERSON, label: 'New person', meta: 'Not saved yet', status: 'attention' as const, issue: 'Not saved yet', fields: personFields(draftMember, data.teams) }] : []),
+        ...data.members.map((m) => personRecord(m, data.teams, data.attachments, { primary: m.id === leaders[0]?.id, canLead })),
+        ...(draftOpen ? [{ id: NEW_PERSON, label: 'New person', meta: 'Not saved yet', status: 'attention' as const, issue: 'Not saved yet', fields: personFields(draftMember, data.teams, { canLead }) }] : []),
       ],
       travel: (['arrival', 'departure'] as const).map((dir) => tripRecord(dir, data.travelRecords.find((t) => t.direction === dir), data.members)),
     }
@@ -253,35 +258,13 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   }
 
   /* setup, payment, welfare --------------------------------------- */
-  const saveSetup = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const form = new FormData(event.currentTarget)
-    const teams = Number(form.get('Number of teams'))
-    const observers = Number(form.get('Number of observers'))
-    const roomType = String(form.get('Room type preference') ?? '') || null
-    const errors: Record<string, string> = {}
-    if (![1, 2].includes(teams)) errors['Number of teams'] = 'Choose one or two teams.'
-    if (!Number.isInteger(observers) || observers < 0 || observers > 20) errors['Number of observers'] = 'Enter a whole number from 0 to 20.'
-    setFieldErrors(errors)
-    if (Object.keys(errors).length) { focusFirstError(panelRef.current); return }
-    run(() => finishStep('setup', { numberOfTeams: teams, numberOfObservers: observers, contestantRoomType: roomType }))
-  }
+  const saveSetup = (body: SetupBody) => run(() => finishStep('setup', body))
 
-  const invoiceBody = () => {
-    const form = new FormData(invoiceRef.current!)
-    return {
-      recipientName: String(form.get('Invoice recipient name') ?? '').trim(),
-      recipientAddress: String(form.get('Invoice recipient address') ?? '').trim(),
-      recipientTin: String(form.get('Tax identification number (TIN)') ?? '').trim(),
-      invoiceCount: Number(form.get('Number of invoices') || 1),
-      splitNote: String(form.get('How to split the invoices') ?? '').trim(),
-    }
-  }
   const saveInvoice = async () => {
-    const body = invoiceBody()
-    if (!body.recipientName) { setFieldErrors({ 'Invoice recipient name': 'Enter the organisation named on the invoice.' }); focusFirstError(panelRef.current); return false }
-    if (!Number.isInteger(body.invoiceCount) || body.invoiceCount < 1 || body.invoiceCount > 10) { setFieldErrors({ 'Number of invoices': 'Enter a number from 1 to 10.' }); focusFirstError(panelRef.current); return false }
-    setFieldErrors({})
+    const body = readInvoices(new FormData(invoiceRef.current!))
+    const problems = invoiceProblems(body, data.fees.total)
+    setFieldErrors(problems)
+    if (Object.keys(problems).length) { focusFirstError(panelRef.current); return false }
     await api(`/api/registration/delegations/${d.id}/invoice`, { method: 'PUT', body })
     await load()
     return true
@@ -340,6 +323,11 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   for (const id of ['teams', 'people'] as const) {
     (records[id] ?? []).filter((r) => r.status === 'attention' && r.id !== NEW_PERSON).forEach((r) => outstanding.push({ text: `${r.label}: ${r.issue?.toLowerCase()}`, to: id }))
   }
+  // People must match what the fees were worked out from.
+  const namedObservers = data.members.filter((m) => m.role === 'observer').length
+  if (namedObservers !== d.numberOfObservers) outstanding.push({ text: `Observers: ${d.numberOfObservers} in Team and observers, ${namedObservers} in People`, to: namedObservers > d.numberOfObservers ? 'setup' : 'people' })
+  const rooms = singleRoomCheck(data)
+  if (!rooms.matches) outstanding.push({ text: `Single rooms: ${rooms.chosen} in Team and observers, ${rooms.asked} asked for in People`, to: 'people' })
   const submit = () => {
     if (outstanding.length) { setSectionError('Finish the items listed above before submitting.'); return }
     run(async () => { await api(`/api/registration/delegations/${d.id}/submit`, { method: 'POST' }); await load() })
@@ -572,24 +560,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
             </div>
           </>}
 
-          {activeId === 'setup' && (
-            <form onSubmit={saveSetup} noValidate>
-              <Facts items={[
-                { label: 'Team Leader', value: `${d.primaryTeamLeaderName} · ${d.teamLeaderEmail}`, help: 'From your verified account.' },
-                { label: 'Country', value: `${d.countryTerritory} · set by your invitation code` },
-              ]} />
-              <div className="reg-grid">
-                <FieldControl idPrefix="setup" error={fieldErrors['Number of teams']} field={{ label: 'Number of teams', value: String(d.numberOfTeams), kind: 'select', help: 'Up to two teams per country or territory.' }} />
-                <FieldControl idPrefix="setup" error={fieldErrors['Number of observers']} field={{ label: 'Number of observers', value: String(d.numberOfObservers), kind: 'number', help: 'Observer fees are added once the organisers confirm the rate.' }} />
-                <FieldControl idPrefix="setup" error={fieldErrors['Room type preference']} field={{ label: 'Room type preference', value: d.contestantRoomType ?? '', kind: 'select', help: 'Preferred room type for contestants. Team Leaders and observers always receive single rooms.', optional: true }} />
-              </div>
-              {paymentDone && <p className="reg-aside"><Info size={18} aria-hidden="true" />You have already paid. Changing these numbers may change your fees; Finance will contact you if it does.</p>}
-              <div className="reg-panel-actions">
-                <Alert>{sectionError}</Alert>
-                <button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>Save and continue <ArrowRight size={18} aria-hidden="true" /></button>
-              </div>
-            </form>
-          )}
+          {activeId === 'setup' && <TeamSetup key={`${d.numberOfTeams}-${d.numberOfObservers}`} data={data} paymentDone={paymentDone} busy={busy} error={sectionError} onSave={saveSetup} />}
 
           {activeId === 'welfare' && (
             <form onSubmit={saveWelfare} noValidate>
@@ -655,24 +626,17 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                 <Facts items={[
                   { label: 'How', value: 'Bank transfer only', help: 'There is no card or online payment. Transfer outside this website, then upload the proof here.' },
                   { label: 'Amount', value: 'The full invoice amount', help: 'The organisers must receive the full amount. Partial payments are not accepted.' },
-                  { label: 'Bank charges', value: 'Paid by you (OUR)', help: 'The organisers cannot cover charges that intermediary banks deduct.' },
-                  { label: 'Currency conversion', value: 'Paid by you', help: 'Conversion costs and exchange-rate differences are the sender’s responsibility.' },
+                  { label: 'Bank charges', value: 'Paid by the sender', help: 'Your bank’s transfer fee, any intermediary (correspondent) bank fees and the receiving bank’s fee for an incoming transfer. Choose OUR as the charge option so they are not taken from the amount.' },
+                  { label: 'Exchange rate', value: 'Paid by the sender', help: 'Currency conversion fees and your bank’s exchange rate, if you pay from an account in another currency. Send enough that the full amount arrives in US dollars.' },
+                  { label: 'If less arrives', value: 'You pay the difference', help: 'If charges reduce what reaches the account, Finance will ask you to transfer the rest before the payment is confirmed.' },
                 ]} />
               </section>
 
-              <fieldset className="reg-fieldset">
-                <legend>Invoice details</legend>
-                {paymentDone && <p className="reg-hint">Locked while Finance reviews your payment. Contact the organisers to change them.</p>}
-                <div className="reg-grid">
-                  <FieldControl idPrefix="payment" disabled={paymentDone} error={fieldErrors['Invoice recipient name']} field={{ label: 'Invoice recipient name', value: payment?.invoiceRecipientName ?? d.accreditedOrganisation ?? '', help: 'The organisation named on the invoice.' }} />
-                  <FieldControl idPrefix="payment" disabled={paymentDone} field={{ label: 'Tax identification number (TIN)', value: payment?.invoiceRecipientTin ?? '', optional: true, help: 'Only if your institution needs it on the invoice.' }} />
-                  <FieldControl idPrefix="payment" disabled={paymentDone} field={{ label: 'Invoice recipient address', value: payment?.invoiceRecipientAddress ?? '', kind: 'textarea', optional: true, help: 'Only if your institution needs a postal address on the invoice.' }} />
-                  <FieldControl idPrefix="payment" disabled={paymentDone} error={fieldErrors['Number of invoices']} field={{ label: 'Number of invoices', value: String(payment?.invoiceCount ?? 1), kind: 'number', help: 'Invoices cannot be split after the transfer.' }} />
-                  <FieldControl idPrefix="payment" disabled={paymentDone} field={{ label: 'How to split the invoices', value: payment?.invoiceSplitNote ?? '', kind: 'textarea', optional: true, help: 'Only for more than one invoice. Example: “National Olympiad Foundation, USD 1,200; University Fund, USD 1,680”.' }} />
-                </div>
+              <InvoiceDetails key={payment?.id ?? 'new'} data={data} payment={payment} disabled={paymentDone} errors={fieldErrors} />
+              <div className="reg-invoice-save">
                 {!paymentDone && <button type="button" className="reg-btn reg-btn-secondary reg-save-invoice" disabled={busy} onClick={() => run(async () => { if (await saveInvoice()) setSavedNote('Invoice details saved.') })}>Save invoice details</button>}
                 <span className="reg-saved" role="status">{savedNote && <><Check size={15} strokeWidth={3} aria-hidden="true" />{savedNote}</>}</span>
-              </fieldset>
+              </div>
 
               {payment?.status === 'rejected' && (
                 <p className="reg-aside reg-aside-warn"><CircleAlert size={18} aria-hidden="true" /><span><strong>Finance could not match your proof.</strong> {payment.reviewNote} Please upload a new one.</span></p>
@@ -849,7 +813,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
           {activeId === 'badges' && <>
             <Facts items={section.facts ?? []} />
-            <p className="reg-aside"><Info size={18} aria-hidden="true" /><span>Staff use the <a href="/check-in">badge scanner</a> during event week.</span></p>
+            <p className="reg-aside"><Info size={18} aria-hidden="true" /><span>Staff use the <a href={portalPath('/check-in')}>badge scanner</a> during event week.</span></p>
           </>}
         </section>
       </div>}

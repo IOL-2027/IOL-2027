@@ -3,23 +3,31 @@ import { Download, RotateCw } from 'lucide-react'
 import { api, roleLabel, type Role } from '../api'
 import { Done, FilterField, Note, PAGE_SIZE, Pager, Panel, Problem, TableWrap, errorText, human, useLoad, when } from './common'
 
+// In the order they are listed. Each file has one row per thing and plain values: dates as YYYY-MM-DD, times in
+// Bangkok time, yes or no, so it can be filtered, cleaned or charted as it is.
 const exportInfo: Record<string, { title: string; description: string }> = {
-  people: { title: 'People', description: 'Everyone with every detail, including passports, health notes and status. Handle as confidential.' },
-  delegations: { title: 'Countries', description: 'One row per country: Team Leader, counts, registration, payment and travel status, stay dates.' },
-  payments: { title: 'Payments', description: 'References, receipt numbers, amounts, invoice details and who reviewed each payment.' },
-  travel: { title: 'Travel', description: 'Arrival and departure trips in date order, with the people on each.' },
+  summary: { title: 'Summary by country', description: 'One row per country with numbers only: teams, observers, single rooms, people entered, statuses, amount due, badges and check-ins. No names. Good for charts.' },
+  people: { title: 'People, every detail', description: 'Everyone with every detail, including passports, health notes and status. Handle as confidential.' },
+  people_status: { title: 'People and progress', description: 'Everyone’s name, country, team, role, registration stage, badge and first check-in. No personal details.' },
+  delegations: { title: 'Countries', description: 'One row per country: fee rate, Team Leader and contacts, counts, registration, payment and travel status, stay dates.' },
+  payments: { title: 'Payments', description: 'One row per payment: references, receipt numbers, amounts, fee rate and tier, and who reviewed it.' },
+  invoices: { title: 'Invoices', description: 'One row per invoice. A payment split between payers has a row for each payer and amount.' },
+  travel: { title: 'Travel', description: 'Arrival and departure trips in date order, with how many people and who is on each.' },
   checkins: { title: 'Check-ins', description: 'Every badge scan: time, checkpoint, result, person and who scanned.' },
-  welfare: { title: 'Welfare', description: 'Food, medical, emergency contacts and rooming. No passport data.' },
+  rooming: { title: 'Rooming', description: 'One row per person: gender for rooming, single room, contestants’ room preference, under 18 or not, and stay dates.' },
+  welfare: { title: 'Food, health and emergency contacts', description: 'One row per person. No passport data.' },
+  contestants: { title: 'Contestants and languages', description: 'Every contestant with their team and their individual and team contest languages, for the Problem Committee and results.' },
 }
+const exportOrder = Object.keys(exportInfo)
 
 export function Exports() {
   const { data, error } = useLoad<{ kinds: string[] }>('/api/admin/exports')
   return (
-    <Panel id="exports" title="Exports" intro="Spreadsheet downloads (CSV, opens in Excel or Google Sheets). Each has country, team and role columns to filter by. Every download is recorded in the activity log.">
+    <Panel id="exports" title="Exports" intro="Spreadsheet downloads (CSV, opens in Excel, Google Sheets or any data tool). You see the files your role needs. Every download is recorded in the activity log.">
       <Problem message={error} />
       {data && (data.kinds.length === 0 ? <Note>Your role has no exports.</Note> : (
         <ul className="reg-export-list">
-          {data.kinds.map((kind) => (
+          {[...data.kinds].sort((a, b) => exportOrder.indexOf(a) - exportOrder.indexOf(b)).map((kind) => (
             <li key={kind}>
               <div><strong>{exportInfo[kind]?.title ?? human(kind)}</strong><span>{exportInfo[kind]?.description}</span></div>
               <a className="reg-btn reg-btn-secondary" href={`/api/admin/exports/${kind}`} download><Download size={16} aria-hidden="true" />Download<span className="reg-visually-hidden"> {exportInfo[kind]?.title ?? kind}</span></a>

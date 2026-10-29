@@ -13,8 +13,8 @@ export const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max:
 // Development only: return emailed codes in API responses while no email provider is configured.
 export const exposeDevCodes = process.env.EXPOSE_DEV_CODES === 'true'
 // Where links in emails point. The dev deployment sets this to the dev site.
-// Where links in emails point: the registration portal (its own site), e.g. https://iol2027-portal.web.app.
-export const portalUrl = (process.env.PORTAL_URL || 'https://iol2027-portal.web.app').replace(/\/$/, '')
+// Where links in emails point: the registration portal, /portal on the website, e.g. https://iol2027-dev.web.app/portal.
+export const portalUrl = (process.env.PORTAL_URL || 'https://iol2027-dev.web.app/portal').replace(/\/$/, '')
 
 export function requireDb() {
   if (!pool) throw new HttpError(503, 'DATABASE_URL is not configured.')
@@ -94,8 +94,8 @@ export const requiredMemberColumns = {
     ['passport_nationality', 'passport nationality'], ['date_of_birth', 'date of birth'], ['gender_for_room_allocation', 'gender for room allocation'],
     ['tshirt_size', 'T-shirt size'], ['polo_size', 'polo shirt size'], ['emergency_contact', 'emergency contact']],
   contestant: [['team_id', 'team assignment'], ['exam_language', 'exam language']],
-  team_leader: [],
-  observer: [['observer_category', 'observer category'], ['email', 'email'], ['room_type_preference', 'room type preference']],
+  team_leader: [['room_type_preference', 'single room']],
+  observer: [['observer_category', 'observer category'], ['email', 'email'], ['room_type_preference', 'single room']],
 }
 
 /** Labels of required details this member is still missing. */

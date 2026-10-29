@@ -9,24 +9,51 @@ const asset = (name) => fileURLToPath(new URL(`./assets/${name}`, import.meta.ur
 const price = (amount, currency) => `${amount.toFixed(2)} ${currency}`
 const usDate = (value) => new Date(value).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Bangkok' })
 
-/** The invoice's numbered items, worded as on the template ("Participation fee for the team of Thailand"). */
+/** The invoice's numbered items, worded as on the template ("Participation fee for the first team of Thailand"). */
 function invoiceItems(fees, country) {
   const each = (line) => (line.quantity > 1 ? ` (${line.quantity} × ${price(line.unit, fees.currency)})` : '')
   const items = []
   for (const line of fees.lines) {
     if (!line.quantity) continue
-    if (line.key === 'teams') {
-      items.push({ text: `Participation fee for ${line.quantity === 1 ? 'the team' : `${line.quantity} teams`} of ${country}${each(line)}`, amount: line.amount })
-    } else if (line.key === 'rooms') {
-      items.push({ text: `Accommodation, ${line.quantity === 1 ? 'one room' : `${line.quantity} rooms`} for the whole stay${each(line)}`, amount: line.amount })
+    if (line.key === 'team1' || line.key === 'team2') {
+      const which = fees.category === 'non_accredited' ? 'the team' : line.key === 'team1' ? 'the first team' : 'the second team'
+      items.push({ text: `Participation fee for ${which} of ${country} (${fees.tierLabel.toLowerCase()} rate${fees.category === 'previous_host' ? ', previous host' : ''})`, amount: line.amount })
     } else if (line.key === 'observers') {
       const who = line.quantity === 1 ? 'one observer' : `${line.quantity} observers`
       items.push(line.unit === null
         ? { text: `Participation fee for ${who} (rate to be confirmed)`, amount: null }
         : { text: `Participation fee for ${who}${each(line)}`, amount: line.amount })
+    } else if (line.key === 'singleRooms') {
+      items.push({ text: `Single room supplement, ${line.quantity === 1 ? 'one person' : `${line.quantity} people`}${each(line)}`, amount: line.amount })
     }
   }
   return items
+}
+
+/**
+ * The invoices to print: one with every item, or, when the Team Leader split the fees between payers, one per payer
+ * for their amount, numbered IOL2027/23-1, IOL2027/23-2 and so on.
+ */
+function invoiceParts(delegation, payment, fees) {
+  const items = invoiceItems(fees, delegation.country_territory)
+  const total = `${price(fees.total, fees.currency)}${fees.observersPending ? ' + observer fees' : ''}`
+  const splits = payment?.invoice_splits
+  if (!splits?.length) {
+    return [{
+      number: payment?.invoice_number ?? 'Issued when the invoice details are saved',
+      payer: { name: payment?.invoice_recipient_name || delegation.accredited_organisation || delegation.country_territory, tin: payment?.invoice_recipient_tin, address: payment?.invoice_recipient_address },
+      items, total,
+    }]
+  }
+  const numberOf = (i) => `${payment.invoice_number}-${i + 1}`
+  const inFull = `${items.map((item) => `${item.text}: ${item.amount === null ? 'to be confirmed' : price(item.amount, fees.currency)}`).join('; ')}. Total ${total}.`
+  return splits.map((split, i) => ({
+    number: numberOf(i),
+    payer: { name: split.recipientName, tin: split.recipientTin, address: split.recipientAddress },
+    items: [{ text: `Part ${i + 1} of ${splits.length} of the registration fees of ${delegation.country_territory}`, amount: Number(split.amount) }],
+    total: price(Number(split.amount), fees.currency),
+    note: `The registration fees of ${delegation.country_territory} are split into ${splits.length} invoices: ${splits.map((s, j) => `${numberOf(j)}, ${price(Number(s.amount), fees.currency)} (${s.recipientName})`).join('; ')}. In full: ${inFull}`,
+  }))
 }
 
 /**
@@ -35,11 +62,12 @@ function invoiceItems(fees, country) {
  * @param {object|null} opts.payment payments row (latest), or null before the invoice details are saved
  * @param {object} opts.fees        calculateFees() result, at the invoice's own fee tier
  * @param {object} opts.invoice     settings.invoice: the issuer and, once Finance enters it, the bank account
- * @returns {Promise<Buffer>}
+ * @returns {Promise<Buffer>} one page per invoice
  */
 export function invoicePdf({ delegation, payment, fees, invoice, issuedOn = payment?.created_at ?? new Date() }) {
+  const parts = invoiceParts(delegation, payment, fees)
   const doc = new PDFDocument({
-    size: 'LETTER', margins: { top: 40, bottom: 40, left: 42, right: 42 },
+    size: 'LETTER', margins: { top: 40, bottom: 40, left: 42, right: 42 }, autoFirstPage: false,
     info: { Title: `IOL 2027 invoice ${payment?.invoice_number ?? ''}, ${delegation.country_territory}`.replace('  ', ' '), Author: invoice.issuerName },
   })
   doc.registerFont('Regular', asset('fonts/NotoSans-Regular.ttf'))
@@ -47,7 +75,15 @@ export function invoicePdf({ delegation, payment, fees, invoice, issuedOn = paym
   const chunks = []
   doc.on('data', (chunk) => chunks.push(chunk))
   const done = new Promise((resolve, reject) => { doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject) })
+  for (const part of parts) {
+    doc.addPage()
+    drawInvoice(doc, { part, payment, fees, invoice, issuedOn })
+  }
+  doc.end()
+  return done
+}
 
+function drawInvoice(doc, { part, payment, fees, invoice, issuedOn }) {
   const left = doc.page.margins.left
   const width = doc.page.width - left - doc.page.margins.right
   doc.fillColor('#000000').strokeColor('#000000').lineWidth(0.6)
@@ -80,7 +116,7 @@ export function invoicePdf({ delegation, payment, fees, invoice, issuedOn = paym
   // Number, method and dates
   const half = [width / 2, width / 2]
   y = grid(y, half, [
-    [{ text: `Invoice No.: ${payment?.invoice_number ?? 'Issued when the invoice details are saved'}` }, { text: 'Method of Payment: Bank Transfer' }],
+    [{ text: `Invoice No.: ${part.number}` }, { text: 'Method of Payment: Bank Transfer' }],
     [{ text: `Issue Date: ${usDate(issuedOn)}` }, { text: `Due Date: ${usDate(`${fees.dueDate}T12:00:00+07:00`)}` }],
   ]) + 26
 
@@ -96,23 +132,21 @@ export function invoicePdf({ delegation, payment, fees, invoice, issuedOn = paym
     }
     return py
   }
-  const payerName = payment?.invoice_recipient_name || delegation.accredited_organisation || delegation.country_territory
   y = Math.max(
-    party(left + 14, 'Payer', payerName, payment?.invoice_recipient_tin, payment?.invoice_recipient_address),
+    party(left + 14, 'Payer', part.payer.name, part.payer.tin, part.payer.address),
     party(left + width / 2 + 10, 'Recipient', invoice.issuerName, invoice.issuerTin, invoice.issuerAddress),
   ) + 28
 
-  // Items and total
-  const items = invoiceItems(fees, delegation.country_territory)
-  const total = `${price(fees.total, fees.currency)}${fees.observersPending ? ' + observer fees' : ''}`
-  // Wider than the template's half-and-half, so item lines with a quantity fit on one line.
+  // Items and total. Wider than the template's half-and-half, so item lines with a quantity fit on one line.
   y = grid(y, [width * 0.64, width * 0.36], [
     [{ text: 'Item', bold: true }, { text: 'Price', bold: true }],
-    ...items.map((item, i) => [{ text: `${i + 1}. ${item.text}` }, { text: item.amount === null ? 'To be confirmed' : price(item.amount, fees.currency), align: 'right' }]),
-    [{ text: 'Total:', bold: true }, { text: total, bold: true, align: 'right' }],
+    ...part.items.map((item, i) => [{ text: `${i + 1}. ${item.text}` }, { text: item.amount === null ? 'To be confirmed' : price(item.amount, fees.currency), align: 'right' }]),
+    [{ text: 'Total:', bold: true }, { text: part.total, bold: true, align: 'right' }],
   ])
-  if ((payment?.invoice_count ?? 1) > 1) {
-    y = write(`Requested as ${payment.invoice_count} invoices${payment.invoice_split_note ? `: ${payment.invoice_split_note}` : ''}.`, 'Regular', 9, left, y + 6, { width })
+  if (part.note) y = write(part.note, 'Regular', 9, left, y + 6, { width })
+  else if ((payment?.invoice_count ?? 1) > 1 && payment.invoice_split_note) {
+    // Invoices split before 30 Oct 2026 described the split in words.
+    y = write(`Requested as ${payment.invoice_count} invoices: ${payment.invoice_split_note}.`, 'Regular', 9, left, y + 6, { width })
   }
   y += 26
 
@@ -133,9 +167,7 @@ export function invoicePdf({ delegation, payment, fees, invoice, issuedOn = paym
     y = write('The bank account details will be added here once the organisers’ Finance team confirms them. They are also shown on the Payment step of the registration portal.', 'Regular', 10, left, y, { width })
   }
   if (payment?.payment_reference) {
-    write(`Please put the payment reference ${payment.payment_reference} in the transfer description, and choose OUR for bank charges so that the full amount is received.`, 'Regular', 9, left, y + 12, { width })
+    const reference = part.note ? `${payment.payment_reference} and the invoice number ${part.number}` : payment.payment_reference
+    write(`Please put the payment reference ${reference} in the transfer description. All bank charges are paid by the sender: choose OUR for bank charges so that the full amount is received.`, 'Regular', 9, left, y + 12, { width })
   }
-
-  doc.end()
-  return done
 }

@@ -644,8 +644,12 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .checkin-camera { display: flex; flex-direction: column; border: 1px solid var(--reg-border); border-radius: var(--reg-radius-lg); overflow: hidden; background: var(--reg-surface); }
 .checkin-camera-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--reg-border); font-size: 14px; }
 .checkin-camera-head span { margin-left: auto; font-size: 12px; color: var(--reg-muted); background: var(--reg-bg); padding: 3px 10px; border-radius: 20px; }
-.checkin-reader { width: 100%; aspect-ratio: 1; background: #111; }
-.checkin-reader video { width: 100% !important; height: auto !important; transform: scaleX(-1); }
+.checkin-reader-frame { position: relative; background: #111; }
+.checkin-reader { width: 100%; aspect-ratio: 1; }
+.checkin-reader video { width: 100% !important; height: auto !important; }
+/* Front cameras show a mirror image, which is easier to aim; a phone's back camera does not. */
+.checkin-reader.is-mirrored video { transform: scaleX(-1); }
+.checkin-reader-idle { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 24px; text-align: center; font-size: 14px; color: rgba(255, 255, 255, .75); }
 /* html5-qrcode injects a QR region box that we want to look clean */
 #iol-badge-reader { overflow: hidden; }
 #iol-badge-reader img[alt="Info icon"] { display: none; }
@@ -655,6 +659,24 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .checkin-manual > span { font-size: 12px; color: var(--reg-muted); }
 .checkin-manual > div { display: flex; gap: 8px; }
 .checkin-manual input { flex: 1; min-width: 0; }
+
+/* The three steps: allow the camera, choose the checkpoint, start scanning. */
+.checkin-steps { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.checkin-steps > li { display: flex; gap: 14px; padding: 16px 18px; border: 1px solid var(--reg-border); border-radius: var(--reg-radius); background: var(--reg-surface); }
+.checkin-steps > li > div { display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: flex-start; gap: 10px; }
+.checkin-steps h2 { margin: 3px 0 0; font-size: 17px; letter-spacing: -.01em; }
+.checkin-steps p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--reg-muted); }
+.checkin-steps .checkin-step-problem { color: var(--reg-attn-text); font-weight: 600; }
+.checkin-steps .checkin-label { align-self: stretch; }
+.checkin-step-number { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--reg-bg); font-size: 14px; font-weight: 700; }
+.checkin-steps > li.is-done .checkin-step-number { background: var(--plum); color: #fff; }
+.checkin-recent h3 { margin: 0 0 6px; font-size: 14px; }
+.checkin-recent ul { margin: 0; padding: 0; list-style: none; }
+.checkin-recent li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--reg-border); font-size: 14px; }
+.checkin-recent time { flex: none; font-variant-numeric: tabular-nums; color: var(--reg-muted); }
+.checkin-recent span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.checkin-recent svg { flex: none; color: #207a4a; }
+.checkin-recent .is-rejected svg, .checkin-recent .is-rejected span { color: #c02020; }
 
 @media (max-width: 860px) {
   .checkin-shell { grid-template-columns: 1fr; }
@@ -670,27 +692,6 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-badge-edit .reg-staff-form-actions { margin-top: 16px; }
 .reg-inline-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; }
 .reg-inline-fields .reg-field { flex: 0 1 380px; }
-
-/* The badge page (/b): whose badge it is, coloured like the printed badge (plum for delegations, gold for staff) */
-.badge-check { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
-.badge-check-card { padding: clamp(24px, 4vw, 36px); border-radius: var(--reg-radius-lg); background: var(--plum); color: #fff; }
-.badge-check-staff { background: var(--orange); color: var(--ink); }
-.badge-check-card h2 { margin: 8px 0 0; font-size: clamp(34px, 6vw, 52px); line-height: 1.05; letter-spacing: -.03em; overflow-wrap: anywhere; }
-.badge-check-role { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.badge-check-full { margin: 10px 0 0; font-size: 18px; font-weight: 500; }
-.badge-check-place { margin: 18px 0 0; font-size: 16px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--orange); }
-.badge-check-staff .badge-check-place { color: var(--plum); }
-.badge-check-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
-.badge-check-actions .checkin-label { align-self: stretch; }
-.badge-check-actions h3 { margin: 8px 0 0; font-size: 16px; }
-.badge-check-scans { align-self: stretch; margin: 0; padding: 0; list-style: none; }
-.badge-check-scans li { padding: 10px 0; border-top: 1px solid var(--reg-border); font-size: 15px; }
-.badge-check-scans small { display: block; color: var(--reg-muted); font-size: 13px; }
-.badge-check-done { margin: 0; }
-
-@media (max-width: 860px) {
-  .badge-check { grid-template-columns: 1fr; }
-}
 
 /* ---------- Responsive pass (Oct 2026) ---------- */
 /* Back office: below 1180px the section list folds into the dropdown, so tables get the full width. */
@@ -734,7 +735,8 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .checkin-manual input { flex: 1 1 200px; }
 .checkin-manual .reg-control { margin-top: 0; }
 .checkin-camera-head strong, .checkin-camera-head span { white-space: nowrap; }
-/* Scanner on phones: a short header, then checkpoint, camera and result, so the camera is on the first screen. */
+/* Scanner on phones: a short header, the steps, then the latest result right above the camera. While scanning only
+   the third step stays, so the result and the camera are on the first screen. */
 @media (max-width: 640px) {
   .reg-head-compact { padding-bottom: 18px; }
   .reg-head-compact .reg-head-main { margin-top: 8px; }
@@ -742,10 +744,12 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
   .reg-head-compact .reg-head-intro { display: none; }
   .checkin-shell { gap: 14px; }
   .checkin-controls { display: contents; }
-  .checkin-controls > div:first-child { display: none; }
-  .checkin-label { order: 1; }
-  .checkin-camera { order: 2; }
-  .checkin-result { order: 3; }
+  .checkin-steps { order: 1; }
+  .checkin-result { order: 2; }
+  .checkin-camera { order: 3; }
+  .checkin-recent { order: 4; }
+  .checkin-shell.is-scanning .checkin-steps > li:not(:last-child) { display: none; }
+  .checkin-steps > li { padding: 14px; }
 }
 /* Pills keep their round ends while the label fits on one line, and become rounded rectangles with matching corners when it wraps. */
 .reg-switch { border-radius: 26px; }
