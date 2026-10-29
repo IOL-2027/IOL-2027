@@ -645,17 +645,16 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .checkin-camera-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--reg-border); font-size: 14px; }
 .checkin-camera-head span { margin-left: auto; font-size: 12px; color: var(--reg-muted); background: var(--reg-bg); padding: 3px 10px; border-radius: 20px; }
 .checkin-reader-frame { position: relative; background: #111; }
-.checkin-reader { width: 100%; aspect-ratio: 1; }
+.checkin-reader { position: relative; overflow: hidden; width: 100%; aspect-ratio: 1; }
 /* Once the camera is on, the frame takes the video's own shape. */
-.checkin-reader:has(video) { aspect-ratio: auto; }
-.checkin-reader video { width: 100% !important; height: auto !important; }
+.checkin-reader.is-live { aspect-ratio: auto; }
+.checkin-reader video { display: block; width: 100%; height: auto; }
+.checkin-reader:not(.is-live) video { display: none; }
 /* Front cameras show a mirror image, which is easier to aim; a phone's back camera does not. */
 .checkin-reader.is-mirrored video { transform: scaleX(-1); }
+/* The aiming box: the middle square the scanner reads (READ_SHARE in CheckIn.tsx), the rest dimmed. */
+.checkin-aim { position: absolute; top: 50%; left: 50%; height: 80%; aspect-ratio: 1; transform: translate(-50%, -50%); border: 3px solid rgba(255, 255, 255, .92); border-radius: 14px; box-shadow: 0 0 0 100vmax rgba(10, 4, 14, .38); pointer-events: none; }
 .checkin-reader-idle { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 24px; text-align: center; font-size: 14px; color: rgba(255, 255, 255, .75); }
-/* html5-qrcode injects a QR region box that we want to look clean */
-#iol-badge-reader { overflow: hidden; }
-#iol-badge-reader img[alt="Info icon"] { display: none; }
-#iol-badge-reader span { display: none !important; }
 
 .checkin-manual { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; border-top: 1px solid var(--reg-border); }
 .checkin-manual > span { font-size: 12px; color: var(--reg-muted); }

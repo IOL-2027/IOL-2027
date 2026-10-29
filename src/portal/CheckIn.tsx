@@ -4,7 +4,6 @@
 // and result. The checkpoint is fixed while scanning, so a scan is never recorded at the wrong one.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, CameraOff, CheckCircle, Play, ShieldCheck, Square, X } from 'lucide-react'
-import type { Html5Qrcode } from 'html5-qrcode'
 import { api, ApiError, roleLabel, type User } from '../registration/api'
 import { Entry } from '../registration/AuthForms'
 import { Alert, PageHead, SessionBar, messageOf } from '../registration/ui'
@@ -25,6 +24,10 @@ export const holderRole: Record<string, string> = {
 // A badge held in front of the camera is read many times a second; the same badge is recorded once, then again
 // only after it has been out of view for this long.
 const SAME_BADGE_MS = 4000
+// The part of each frame that is read: the middle square, this share of the shorter side (shown as the aiming box),
+// at most this many pixels across so each read stays quick.
+const READ_SHARE = 0.8
+const READ_MAX = 900
 
 /** The checkpoint this device last scanned at, so a phone at the arrival desk keeps it between badges. */
 export function useCheckpoint() {
@@ -70,7 +73,8 @@ function Scanner() {
   const [manualCode, setManualCode] = useState('')
   const [result, setResult] = useState<Result>({ tone: 'idle', title: 'Not scanning yet', detail: 'Allow the camera, choose the checkpoint, then start scanning.' })
   const [recent, setRecent] = useState<Recent[]>([])
-  const reader = useRef<Html5Qrcode | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const camera = useRef<{ stop: () => void } | null>(null)
   const inFlight = useRef(false)
   const last = useRef({ payload: '', at: 0 })
 
@@ -139,30 +143,52 @@ function Scanner() {
   useEffect(() => { onDecode.current = submitScan }, [submitScan])
 
   const stopScanning = useCallback(async () => {
-    const current = reader.current
-    reader.current = null
+    camera.current?.stop()
+    camera.current = null
     setScanning(false)
-    if (!current) return
-    try { if (current.isScanning) await current.stop() } catch { /* already stopped */ }
-    try { current.clear() } catch { /* nothing to clear */ }
   }, [])
 
+  // Each frame's middle square is read at the camera's own resolution (html5-qrcode's own scanner first shrinks the
+  // frame to its size on screen, which on a phone loses a badge QR held at arm's length). Its decoder is used as is:
+  // the device's built-in barcode reader where there is one, ZXing otherwise.
   const startScanning = async () => {
     setStarting(true)
     try {
-      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode')
-      const scanner = new Html5Qrcode('iol-badge-reader', { verbose: false, formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE], useBarCodeDetectorIfSupported: true })
-      reader.current = scanner
-      await scanner.start(
-        cameraId || { facingMode: { ideal: 'environment' } },
-        { fps: 15, qrbox: (width, height) => { const side = Math.max(160, Math.floor(Math.min(width, height) * 0.85)); return { width: side, height: side } } },
-        (text) => { void onDecode.current(text) },
-        () => undefined,
-      )
+      const [{ Html5QrcodeShim }, { BaseLoggger, Html5QrcodeSupportedFormats }] = await Promise.all([import('html5-qrcode/esm/code-decoder'), import('html5-qrcode/esm/core')])
+      const decoder = new Html5QrcodeShim([Html5QrcodeSupportedFormats.QR_CODE], true, false, new BaseLoggger(false))
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { ...(cameraId ? { deviceId: { exact: cameraId } } : { facingMode: { ideal: 'environment' } }), width: { ideal: 1280 }, height: { ideal: 720 } },
+      })
+      const video = videoRef.current!
+      video.srcObject = stream
+      await video.play()
+      const canvas = document.createElement('canvas')
+      const context = canvas.getContext('2d', { willReadFrequently: true })!
+      let running = true
+      let timer = 0
+      const read = async () => {
+        if (!running) return
+        if (video.videoWidth) {
+          const side = Math.floor(Math.min(video.videoWidth, video.videoHeight) * READ_SHARE)
+          const size = Math.min(side, READ_MAX)
+          canvas.width = size
+          canvas.height = size
+          context.drawImage(video, (video.videoWidth - side) / 2, (video.videoHeight - side) / 2, side, side, 0, 0, size, size)
+          try {
+            const found = await decoder.decodeAsync(canvas)
+            if (running) void onDecode.current(found.text)
+          } catch { /* no QR in this frame */ }
+        }
+        if (running) timer = window.setTimeout(read, 60)
+      }
+      camera.current = { stop: () => { running = false; window.clearTimeout(timer); stream.getTracks().forEach((track) => track.stop()); video.srcObject = null } }
       // A front camera (a laptop's, or a phone's selfie camera) shows a mirror image, which is easier to aim.
-      const settings = scanner.getRunningTrackSettings()
-      const label = cameras.find((d) => d.deviceId === cameraId)?.label ?? ''
+      const settings = stream.getVideoTracks()[0]?.getSettings() ?? {}
+      const label = stream.getVideoTracks()[0]?.label ?? ''
       setMirrored(settings.facingMode ? settings.facingMode === 'user' : !backCamera(label))
+      void listCameras()
+      void read()
       setScanning(true)
       setResult({ tone: 'idle', title: 'Ready to scan', detail: `Hold one badge inside the frame. Scans are recorded at ${checkpoint}.` })
     } catch (error) {
@@ -176,7 +202,7 @@ function Scanner() {
   // The camera stops when the page is hidden (another app, a locked phone) and when the page closes.
   useEffect(() => {
     const onHide = () => {
-      if (document.hidden && reader.current) {
+      if (document.hidden && camera.current) {
         void stopScanning()
         setResult({ tone: 'idle', title: 'Scanning paused', detail: 'The camera stopped while the page was in the background. Start scanning again.' })
       }
@@ -231,7 +257,10 @@ function Scanner() {
       <div className="checkin-camera">
         <div className="checkin-camera-head">{scanning ? <Camera size={18} /> : <CameraOff size={18} />}<strong>{scanning ? checkpoint : 'Badge camera'}</strong><span>{scanning ? 'Live' : starting ? 'Starting' : 'Off'}</span></div>
         <div className="checkin-reader-frame">
-          <div id="iol-badge-reader" className={`checkin-reader${mirrored ? ' is-mirrored' : ''}`} />
+          <div className={`checkin-reader${mirrored ? ' is-mirrored' : ''}${scanning ? ' is-live' : ''}`}>
+            <video ref={videoRef} playsInline muted aria-label="Camera view" />
+            {scanning && <span className="checkin-aim" aria-hidden="true" />}
+          </div>
           {!scanning && !starting && <p className="checkin-reader-idle">{allowed ? 'Press Start scanning to turn the camera on.' : 'Allow the camera first.'}</p>}
         </div>
         <div className="checkin-manual"><span>Camera cannot read it? Paste the badge code, or look the person up by name in People.</span><div><input className="reg-control" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Badge code" aria-label="Badge code" /><button type="button" className="reg-btn reg-btn-secondary" onClick={() => { last.current = { payload: '', at: 0 }; void submitScan(manualCode) }}>Check badge</button></div></div>
