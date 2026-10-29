@@ -1,4 +1,5 @@
-// Entry point of the registration portal build (vite.portal.config.ts). The app itself is in src/portal.
+// Entry point of the registration portal, served at /portal (vite.config.ts builds it with the website). The app
+// itself is in src/portal.
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import PortalApp from '../src/portal/PortalApp'

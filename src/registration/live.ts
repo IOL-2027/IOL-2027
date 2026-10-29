@@ -11,7 +11,7 @@ type MemberFieldDef = Field & { key: keyof Member; roles?: Member['role'][] }
 
 /** Every person field, which member column it maps to, and which roles see it. */
 const memberFieldDefs: MemberFieldDef[] = [
-  { key: 'role', label: 'Role', value: '', kind: 'select', roles: ['contestant', 'observer'] },
+  { key: 'role', label: 'Role', value: '', kind: 'select', roles: ['contestant', 'observer', 'team_leader'] },
   { key: 'teamId', label: 'Team assignment', value: '', kind: 'select', roles: ['contestant', 'team_leader'] },
   { key: 'observerCategory', label: 'Observer category', value: '', kind: 'select', roles: ['observer'], help: 'Used by Finance to apply the observer rate.' },
   { key: 'email', label: 'Email', value: '', kind: 'email', roles: ['observer'], help: 'Receives their own invitation letter and badge notices.' },
@@ -24,7 +24,7 @@ const memberFieldDefs: MemberFieldDef[] = [
   { key: 'dateOfBirth', label: 'Date of birth', value: '', kind: 'date', help: 'Confirms contestant eligibility and whether a guardian consent is needed.' },
   { key: 'examLanguage', label: 'Exam language', value: '', kind: 'select', roles: ['contestant'], help: 'Language of the individual contest paper.' },
   { key: 'genderForRoomAllocation', label: 'Gender for room allocation', value: '', kind: 'select', help: 'Used only for rooming and safeguarding.' },
-  { key: 'roomTypePreference', label: 'Room type preference', value: '', kind: 'select', roles: ['observer'], help: 'A single room may carry a supplement.' },
+  { key: 'roomTypePreference', label: 'Single room', value: '', kind: 'select', roles: ['team_leader', 'observer'], help: 'Everyone shares a twin room unless they ask for a single one, which costs extra. The people who say yes must match the single rooms chosen in Team and observers.' },
   { key: 'tshirtSize', label: 'T-shirt size', value: '', kind: 'select', help: shirtHelp },
   { key: 'poloSize', label: 'Polo shirt size', value: '', kind: 'select', help: shirtHelp },
   { key: 'foodAllergyNotes', label: 'Food and allergy notes', value: '', kind: 'textarea', optional: true },
@@ -32,27 +32,40 @@ const memberFieldDefs: MemberFieldDef[] = [
   { key: 'emergencyContact', label: 'Emergency contact', value: '', help: 'Name and phone number of someone we can reach during the event.' },
 ]
 
+/**
+ * Who this person is among the delegation's Team Leaders. The account's own Team Leader (primary) keeps that role;
+ * with two teams, one more person may be the second team's Team Leader (canLead).
+ */
+export type LeaderSlots = { primary?: boolean; canLead?: boolean }
+
 /** A Team Leader may lead both teams, so their team assignment is optional. */
-function memberDefs(role: Member['role']) {
+function memberDefs(role: Member['role'], slots: LeaderSlots = {}) {
   return memberFieldDefs
-    .filter((def) => !def.roles || def.roles.includes(role))
+    .filter((def) => (!def.roles || def.roles.includes(role)) && !(def.key === 'role' && slots.primary))
     .map((def) => (def.key === 'teamId' && role === 'team_leader' ? { ...def, optional: true } : def))
 }
 
-export function personFields(member: Partial<Member> & { role: Member['role'] }, teams: Team[]): Field[] {
-  return memberDefs(member.role).map((def) => {
+// Single rooms are stored as 'single' or 'shared'; answers from before the yes/no question count as yes only if
+// they asked for a single room.
+const singleRoomAnswer = (stored: string | null | undefined) => (!stored ? '' : /single/i.test(stored) ? 'Yes, a single room' : 'No, share a room')
+
+export function personFields(member: Partial<Member> & { role: Member['role'] }, teams: Team[], slots: LeaderSlots = {}): Field[] {
+  return memberDefs(member.role, slots).map((def) => {
     let value = String(member[def.key] ?? '')
     if (def.key === 'role') value = roleToLabel[member.role]
     if (def.key === 'teamId') value = teams.find((t) => t.id === member.teamId)?.name ?? ''
-    const options = def.key === 'teamId' ? [...teams.map((t) => t.name), 'Not assigned'] : def.key === 'role' ? ['Contestant', 'Observer'] : def.options
+    if (def.key === 'roomTypePreference') value = singleRoomAnswer(member.roomTypePreference)
+    const roles = ['Contestant', 'Observer', ...(slots.canLead || member.role === 'team_leader' ? ['Team Leader'] : [])]
+    const options = def.key === 'teamId' ? [...teams.map((t) => t.name), 'Not assigned'] : def.key === 'role' ? roles : def.options
+    const help = def.key === 'role' && roles.includes('Team Leader') ? 'With two teams, the second team may have its own Team Leader, included in its fee.' : def.help
     const { key: _key, roles: _roles, ...field } = def
-    return { ...field, value, options }
+    return { ...field, value, options, help }
   })
 }
 
 /** Required fields that are still empty. */
 export function missingPersonFields(member: Partial<Member> & { role: Member['role'] }) {
-  return memberDefs(member.role).filter((def) => !def.optional && def.key !== 'role' && !String(member[def.key] ?? '').trim())
+  return memberDefs(member.role, { primary: true }).filter((def) => !def.optional && !String(member[def.key] ?? '').trim())
 }
 
 /** The signed guardian consent form for this person, if one was uploaded. */
@@ -65,16 +78,16 @@ export function personGaps(member: Member, attachments: Attachment[]) {
   return gaps
 }
 
-export function personRecord(member: Member, teams: Team[], attachments: Attachment[]): PortalRecord {
+export function personRecord(member: Member, teams: Team[], attachments: Attachment[], slots: LeaderSlots = {}): PortalRecord {
   const missing = personGaps(member, attachments)
   const team = teams.find((t) => t.id === member.teamId)
   return {
     id: member.id,
     label: member.displayName,
-    meta: member.role === 'team_leader' ? 'Team Leader' : member.role === 'observer' ? 'Observer' : `Contestant${team ? ` · ${team.name}` : ''}`,
+    meta: `${roleToLabel[member.role]}${team && member.role !== 'observer' ? ` · ${team.name}` : ''}`,
     status: missing.length ? 'attention' : 'complete',
     issue: missing.length ? (missing.length === 1 ? `${missing[0]} missing` : `${missing.length} details missing`) : undefined,
-    fields: personFields(member, teams),
+    fields: personFields(member, teams, slots),
   }
 }
 
@@ -85,9 +98,17 @@ export function personPayload(form: FormData, role: Member['role'], teams: Team[
     const raw = String(form.get(def.label) ?? '').trim()
     if (def.key === 'role') { if (raw) payload.role = labelToRole[raw] ?? role; continue }
     if (def.key === 'teamId') { payload.teamId = teams.find((t) => t.name === raw)?.id ?? null; continue }
+    if (def.key === 'roomTypePreference') { payload.roomTypePreference = raw ? (raw.startsWith('Yes') ? 'single' : 'shared') : null; continue }
     payload[def.key] = raw || null
   }
   return payload
+}
+
+/** Single rooms asked for in People, against the ones chosen in Team and observers (and so on the invoice). */
+export function singleRoomCheck(data: DelegationData) {
+  const chosen = [...data.delegation.singleRooms.teamLeaders, ...data.delegation.singleRooms.observers].filter(Boolean).length
+  const asked = data.members.filter((m) => m.role !== 'contestant' && m.roomTypePreference === 'single').length
+  return { chosen, asked, matches: chosen === asked }
 }
 
 export function teamRecord(team: Team, data: DelegationData): PortalRecord {

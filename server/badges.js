@@ -1,6 +1,6 @@
-// QR badges. Each person gets one credential. The QR is a link to the portal's badge page,
-// `<portal>/b#<public id>.<secret>`, with no personal data in it: staff who open it sign in and see whose badge it is.
-// The code sits after `#`, so it never reaches a server log. The secret is derived from the public id with
+// QR badges. Each person gets one credential. The QR is a bare code, `IOL2027:<public id>.<secret>`, with no personal
+// data in it; only the portal's scanner (/portal/check-in, signed-in staff) can tell whose badge it is. A phone's own
+// camera app just shows the code. The secret is derived from the public id with
 // BADGE_SIGNING_KEY, so the same QR can be drawn again later (printed badges, a lost email) without storing the
 // secret; only its hash is kept for checking scans.
 // Once a registration is settled (submitted, payment approved, everyone's arrival and departure entered),
@@ -27,11 +27,13 @@ export function badgeSecret(publicId) {
 const shortId = (publicId) => Buffer.from(publicId.replace(/-/g, ''), 'hex').toString('base64url')
 const longId = (short) => Buffer.from(short, 'base64url').toString('hex').replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5')
 
-export const badgePayload = (publicId, secret) => `${portalUrl}/b#${shortId(publicId)}.${secret}`
+// A bare code, not a link: badges are scanned only with the portal's scanner (/portal/check-in), so a phone's own
+// camera app has nothing to open.
+export const badgePayload = (publicId, secret) => `IOL2027:${shortId(publicId)}.${secret}`
 
 /**
- * The public id and secret in whatever a scanner read or someone typed: the badge link, the code after its `#`,
- * or the `IOL2027:<uuid>.<secret>` form of the QR codes emailed before badges became links. Null if it is none of these.
+ * The public id and secret in whatever a scanner read or someone typed: the `IOL2027:` code, the code alone, or a
+ * badge link from before 30 Oct 2026 (the code after its `#`). Null if it is none of these.
  */
 export function parseBadgeCode(text) {
   let code = String(text ?? '').trim()

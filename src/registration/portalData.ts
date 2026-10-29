@@ -52,6 +52,7 @@ export const selectOptions: Record<string, string[]> = {
   'T-shirt size': ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'],
   'Polo shirt size': ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'],
   'Room type preference': ['Twin/shared room (ห้องคู่)', 'Single room (ห้องเดี่ยว)', 'No preference'],
+  'Single room': ['No, share a room', 'Yes, a single room'],
   'T-shirt style': ['Unisex (standard)', 'Ladies fit'],
   'Observer category': ['Regular observer', 'Guest observer', 'Observer pending approval'],
   'Arrival point': ['Suvarnabhumi Airport (BKK)', 'Don Mueang Airport (DMK)', 'Bangkok railway station', 'Other'],
@@ -63,7 +64,7 @@ export const selectOptions: Record<string, string[]> = {
 export const personFieldGroups: { legend: string; note?: string; labels: string[] }[] = [
   { legend: 'Role and names', labels: ['Role', 'Team assignment', 'Observer category', 'Display name', 'Badge name', 'Official name', 'Email'] },
   { legend: 'Passport', note: 'Only used to match travel and hotel records.', labels: ['Passport name', 'Passport number', 'Passport nationality', 'Date of birth'] },
-  { legend: 'Contest and stay', labels: ['Exam language', 'Gender for room allocation', 'Room type preference', 'T-shirt size', 'Polo shirt size', 'T-shirt style'] },
+  { legend: 'Contest and stay', labels: ['Exam language', 'Gender for room allocation', 'Single room', 'T-shirt size', 'Polo shirt size', 'T-shirt style'] },
   { legend: 'Welfare and safety', note: 'Seen only by the welfare, food and check-in teams.', labels: ['Food and allergy notes', 'Medical or accessibility notes', 'Emergency contact'] },
 ]
 

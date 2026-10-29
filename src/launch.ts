@@ -8,7 +8,8 @@ export const registrationOpen: boolean = import.meta.env.VITE_REGISTRATION_OPEN 
 // builds with VITE_SHOW_PLACEHOLDER_PAGES=false until launch, so they are hidden there and shown everywhere else.
 export const placeholderPagesShown: boolean = import.meta.env.VITE_SHOW_PLACEHOLDER_PAGES !== 'false'
 
-// The registration portal is its own site (iol2027-portal.web.app); the website links to it and the portal links back.
-// Each deploy sets both addresses; the website default is the development website.
-export const portalUrl: string = (import.meta.env.VITE_PORTAL_URL || 'https://iol2027-portal.web.app').replace(/\/$/, '')
-export const publicSiteUrl: string = (import.meta.env.VITE_PUBLIC_SITE_URL || 'https://iol2027-dev.web.app').replace(/\/$/, '')
+// The registration portal is part of this site, under /portal (its own site until 30 Oct 2026). Every page in it
+// needs an account; before registration opens it only says when it opens.
+export const portalUrl = '/portal'
+/** A page of the portal: portalPath('/staff') is /portal/staff. */
+export const portalPath = (path = '/') => `${portalUrl}${path === '/' ? '' : path}`

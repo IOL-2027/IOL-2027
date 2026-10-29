@@ -1,11 +1,18 @@
 import { useState, type FormEvent } from 'react'
 import { api, type FeeSettings, type Fees, type GuardianConsentPolicy, type InvoiceSettings } from '../api'
 import { Alert, Facts } from '../ui'
-import { Done, Note, Panel, Problem, day, errorText, useLoad } from './common'
+import { Done, Note, Panel, Problem, TableWrap, day, errorText, useLoad } from './common'
 
 type SettingsData = { fees: FeeSettings; guardianConsent: GuardianConsentPolicy; invoice: InvoiceSettings; example: Fees; recalculated?: number }
 
 const usd = (n: number) => `USD ${n.toLocaleString('en-US')}`
+const tiers = [['early_bird', 'Early bird'], ['normal', 'Regular']] as const
+// [category, column heading, its teams]: a country that is not accredited registers one team.
+const categories = [
+  ['previous_host', 'Accredited, previous host', ['first team', 'second team']],
+  ['accredited', 'Accredited', ['first team', 'second team']],
+  ['non_accredited', 'Not accredited', ['team']],
+] as const
 
 function NumberField({ name, label, value, hint, disabled, step = '1' }: { name: string; label: string; value: number | string; hint?: string; disabled?: boolean; step?: string }) {
   return (
@@ -29,11 +36,12 @@ export function FeeSettingsPanel({ canEdit }: { canEdit: boolean }) {
     const value = (name: string) => String(form.get(name) ?? '').trim()
     setSaveError(''); setDone(''); setBusy(true)
     try {
+      const teamFees = Object.fromEntries(tiers.map(([tier]) => [tier, Object.fromEntries(categories.map(([category, , teams]) => [category, teams.map((_, i) => value(`fee-${tier}-${category}-${i}`))]))]))
       const result = await api<SettingsData>('/api/admin/settings/fees', {
         method: 'PUT',
         body: {
-          earlyBirdEnds: value('earlyBirdEnds'), registrationEnds: value('registrationEnds'), teamFee: { early_bird: value('earlyTeamFee'), normal: value('normalTeamFee') },
-          roomsPerTeam: value('roomsPerTeam'), roomRate: value('roomRate'), observerFee: value('observerFee') === '' ? null : value('observerFee'),
+          earlyBirdEnds: value('earlyBirdEnds'), registrationEnds: value('registrationEnds'), teamFees,
+          observerFee: value('observerFee') === '' ? null : value('observerFee'), singleRoomFee: value('singleRoomFee'), maxObserversPerTeam: value('maxObserversPerTeam'),
         },
       })
       setDone(`Fees saved.${result.recalculated ? ` ${result.recalculated} unpaid ${result.recalculated === 1 ? 'invoice was' : 'invoices were'} updated to the new amounts.` : ''}`)
@@ -62,13 +70,26 @@ export function FeeSettingsPanel({ canEdit }: { canEdit: boolean }) {
               <p className="reg-hint" id="set-registrationEnds-hint">Invoices at the normal rate are due on this day; early-bird ones when the early bird ends.</p>
               <input id="set-registrationEnds" name="registrationEnds" className="reg-control" type="date" defaultValue={fees.registrationEnds} disabled={!canEdit} aria-describedby="set-registrationEnds-hint" />
             </div>
-            <NumberField name="earlyTeamFee" label="Team fee, early bird (USD)" value={fees.teamFee.early_bird} disabled={!canEdit} />
-            <NumberField name="normalTeamFee" label="Team fee, normal (USD)" value={fees.teamFee.normal} disabled={!canEdit} />
-            <NumberField name="roomRate" label="Room rate (USD)" value={fees.roomRate} hint="Per room for the whole stay." disabled={!canEdit} />
-            <NumberField name="roomsPerTeam" label="Rooms per team" value={fees.roomsPerTeam} disabled={!canEdit} />
-            <NumberField name="observerFee" label="Observer fee (USD)" value={fees.observerFee ?? ''} hint="Leave empty while the rate is not decided; invoices then say “rate to be confirmed”." disabled={!canEdit} />
+            <NumberField name="observerFee" label="Observer fee (USD)" value={fees.observerFee ?? ''} hint="Each observer. Leave empty while the rate is not decided; invoices then say “rate to be confirmed”." disabled={!canEdit} />
+            <NumberField name="singleRoomFee" label="Single room supplement (USD)" value={fees.singleRoomFee} hint="For each Team Leader or observer who asks for a single room." disabled={!canEdit} />
+            <NumberField name="maxObserversPerTeam" label="Observers per team, at most" value={fees.maxObserversPerTeam} hint="Observers are optional." disabled={!canEdit} />
           </div>
-          <h3 className="reg-staff-subhead">Example: 2 teams and 1 observer, today</h3>
+          <h3 className="reg-staff-subhead">Team fees (USD)</h3>
+          <p className="reg-hint">The fee rate of each country is set on its invitation code. A second team pays the second-team fee on top of the first; a country that is not accredited registers one team.</p>
+          <TableWrap label="Team fees">
+            <thead><tr><th scope="col">Period</th><th scope="col">Team</th>{categories.map(([category, label]) => <th scope="col" key={category}>{label}</th>)}</tr></thead>
+            <tbody>{tiers.flatMap(([tier, label]) => [0, 1].map((team) => (
+              <tr key={`${tier}-${team}`}>
+                {team === 0 && <th scope="rowgroup" rowSpan={2}>{label}</th>}
+                <td>{team === 0 ? 'First team' : 'Second team'}</td>
+                {categories.map(([category, categoryLabel, teams]) => <td key={category}>{team < teams.length
+                  ? <><label className="reg-visually-hidden" htmlFor={`set-fee-${tier}-${category}-${team}`}>{label}, {categoryLabel}, {teams[team]}</label>
+                    <input id={`set-fee-${tier}-${category}-${team}`} name={`fee-${tier}-${category}-${team}`} className="reg-control reg-control-compact" type="number" min="0" step="1" defaultValue={fees.teamFees[tier][category][team]} disabled={!canEdit} /></>
+                  : <span className="reg-muted">One team only</span>}</td>)}
+              </tr>
+            )))}</tbody>
+          </TableWrap>
+          <h3 className="reg-staff-subhead">Example: an accredited country with 2 teams, 1 observer and 1 single room, today</h3>
           <Facts compact items={[...data.example.lines.map((l) => ({ label: l.label, value: l.amount === null ? 'Rate to be confirmed' : usd(l.amount), help: l.detail })), { label: 'Total', value: usd(data.example.total), help: `${data.example.tierLabel} rate` }]} />
           {canEdit && <>
             <Alert>{saveError}</Alert>

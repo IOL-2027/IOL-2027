@@ -2,6 +2,7 @@
 // with what is waiting and quick actions. Each role sees only its sections; the API enforces the same rules (docs/ROLES.md).
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react'
 import { BarChart3, Banknote, CreditCard, Download, Globe2, HeartPulse, History, House, IdCardLanyard, Inbox, Mail, QrCode, ShieldCheck, UserCog, Users } from 'lucide-react'
+import { portalPath } from '../launch'
 import { roleLabel, type Role, type User } from './api'
 import Workspace from './Workspace'
 import { PageHead, daysBetween } from './ui'
@@ -45,7 +46,7 @@ function ComingPanel({ role }: { role: Role }) {
 function CheckinPanel() {
   return (
     <Panel id="checkin" title="Check-in" intro="Scan badges at the arrival desk and event checkpoints. To look someone up by name, use People.">
-      <a className="reg-btn reg-btn-primary" href="/check-in"><QrCode size={18} aria-hidden="true" />Open the badge scanner</a>
+      <a className="reg-btn reg-btn-primary" href={portalPath('/check-in')}><QrCode size={18} aria-hidden="true" />Open the badge scanner</a>
     </Panel>
   )
 }
@@ -64,7 +65,7 @@ const sectionDefs: SectionDef[] = [
   { id: 'checkin', label: 'Check-in', group: 'Registration', icon: QrCode, roles: ['checkin_staff'] },
   { id: 'payments', label: 'Payments', group: 'Finance', icon: CreditCard, roles: ['finance_admin', 'registration_admin'] },
   { id: 'fees', label: 'Fees and invoice', group: 'Finance', icon: Banknote, roles: ['finance_admin', 'registration_admin'] },
-  { id: 'exports', label: 'Exports', group: 'Records', icon: Download, roles: ['registration_admin', 'finance_admin', 'checkin_staff', 'welfare_staff'] },
+  { id: 'exports', label: 'Exports', group: 'Records', icon: Download, roles: ['registration_admin', 'finance_admin', 'checkin_staff', 'welfare_staff', 'viewer', 'content_editor', 'results_staff'] },
   { id: 'activity', label: 'Activity log', group: 'Records', icon: History, roles: ['registration_admin'] },
   { id: 'email', label: 'Email log', group: 'Records', icon: Inbox, roles: ['registration_admin'] },
   { id: 'consent', label: 'Guardian consent', group: 'Settings', icon: ShieldCheck, roles: ['registration_admin'] },

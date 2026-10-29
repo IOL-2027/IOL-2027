@@ -18,7 +18,17 @@ export type User = {
 
 export type FeeLine = { key: string; label: string; detail: string; amount: number | null }
 /** dueDate is when an invoice at this tier must be paid: the last early-bird day, or the last day of registration. */
-export type Fees = { tier: string; tierLabel: string; currency: string; lines: FeeLine[]; total: number; observersPending: boolean; dueDate: string }
+export type Fees = {
+  tier: string; tierLabel: string; category: FeeCategory; categoryLabel: string; currency: string; lines: FeeLine[]; total: number
+  observersPending: boolean; dueDate: string
+}
+/** Set on the invitation code: previous IOL hosts get the discounted team fees; a country that is not accredited registers one team. */
+export type FeeCategory = 'previous_host' | 'accredited' | 'non_accredited'
+export const feeCategoryLabel: Record<FeeCategory, string> = { previous_host: 'Accredited, previous host', accredited: 'Accredited', non_accredited: 'Not accredited' }
+/** The rules Team and observers follows: observers per team and the price of a single room. */
+export type FeeRules = { maxObserversPerTeam: number; singleRoomFee: number; observerFee: number | null; currency: string }
+/** One of several invoices the fees are split into. */
+export type InvoiceSplit = { recipientName: string; recipientAddress: string | null; recipientTin: string | null; amount: number }
 
 export type Team = { id: string; name: string; code: string; contestLanguage: string | null; status: string }
 export type Member = {
@@ -37,7 +47,7 @@ export type TravelRecord = {
 }
 export type Payment = {
   id: string; status: 'awaiting_proof' | 'awaiting_review' | 'approved' | 'rejected' | 'refunded'
-  paymentReference: string; amountDue: string; invoiceCount: number; invoiceSplitNote: string | null
+  paymentReference: string; amountDue: string; invoiceCount: number; invoiceSplitNote: string | null; invoiceSplits: InvoiceSplit[] | null
   invoiceRecipientName: string | null; invoiceRecipientAddress: string | null; invoiceRecipientTin: string | null; invoiceNumber: string | null
   reviewNote: string | null; proofAttachmentId: string | null; feeTier: string; currency: string
   receiptNumber: string | null; reviewedAt: string | null
@@ -47,19 +57,24 @@ export type Delegation = {
   teamLeaderEmail: string; numberOfTeams: number; numberOfObservers: number; registrationStatus: string
   paymentStatus: string; declaredArrivalDate: string | null; declaredDepartureDate: string | null
   stayWindowNote: string | null; welfareNote: string | null; contestantRoomType: string | null; completedSteps: string[]; submittedAt: string | null
+  feeCategory: FeeCategory
+  /** Yes or no for each Team Leader (one per team) and each observer, chosen in Team and observers. */
+  singleRooms: { teamLeaders: boolean[]; observers: boolean[] }
 }
 export type Attachment = { id: string; memberId: string | null; kind: string; originalFilename: string; mimeType: string; createdAt: string }
 export type GuardianConsentPolicy = { required: boolean; ageThreshold: number; referenceDate: string }
+/** Team fees per tier and category: [first team, second team], or [team] for a country that is not accredited. */
 export type FeeSettings = {
-  currency: string; earlyBirdEnds: string; registrationEnds: string; teamFee: { early_bird: number; normal: number }
-  roomsPerTeam: number; roomRate: number; observerFee: number | null
+  currency: string; earlyBirdEnds: string; registrationEnds: string
+  teamFees: Record<'early_bird' | 'normal', Record<FeeCategory, number[]>>
+  observerFee: number | null; singleRoomFee: number; maxObserversPerTeam: number
 }
 /** The account invoices ask for. Null until Finance enters it in the back office. */
 export type BankDetails = { beneficiaryName: string; beneficiaryAddress: string; bankName: string; bankAddress: string; accountNumber: string; swiftCode: string }
 export type InvoiceSettings = { issuerName: string; issuerTin: string; issuerAddress: string; bank: BankDetails | null }
 export type DelegationData = {
   delegation: Delegation; fees: Fees; teams: Team[]; members: Member[]; travelRecords: TravelRecord[]
-  payments: Payment[]; attachments: Attachment[]; guardianConsent: GuardianConsentPolicy; bank: BankDetails | null
+  payments: Payment[]; attachments: Attachment[]; guardianConsent: GuardianConsentPolicy; bank: BankDetails | null; feeRules: FeeRules
 }
 
 export class ApiError extends Error {
