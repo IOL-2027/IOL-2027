@@ -72,6 +72,7 @@
       "public": "dist",
       "ignore": ["**"],
       "redirects": [
+        { "source": "/", "destination": "https://iol2027-dev.web.app/portal/", "type": 302 },
         { "source": "/:path*", "destination": "https://iol2027-dev.web.app/portal/:path", "type": 302 }
       ]
     }

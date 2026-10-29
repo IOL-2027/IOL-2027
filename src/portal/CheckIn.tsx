@@ -155,7 +155,7 @@ function Scanner() {
       reader.current = scanner
       await scanner.start(
         cameraId || { facingMode: { ideal: 'environment' } },
-        { fps: 15, qrbox: (width, height) => { const side = Math.max(160, Math.floor(Math.min(width, height) * 0.72)); return { width: side, height: side } } },
+        { fps: 15, qrbox: (width, height) => { const side = Math.max(160, Math.floor(Math.min(width, height) * 0.85)); return { width: side, height: side } } },
         (text) => { void onDecode.current(text) },
         () => undefined,
       )

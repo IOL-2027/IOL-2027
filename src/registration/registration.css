@@ -646,6 +646,8 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .checkin-camera-head span { margin-left: auto; font-size: 12px; color: var(--reg-muted); background: var(--reg-bg); padding: 3px 10px; border-radius: 20px; }
 .checkin-reader-frame { position: relative; background: #111; }
 .checkin-reader { width: 100%; aspect-ratio: 1; }
+/* Once the camera is on, the frame takes the video's own shape. */
+.checkin-reader:has(video) { aspect-ratio: auto; }
 .checkin-reader video { width: 100% !important; height: auto !important; }
 /* Front cameras show a mirror image, which is easier to aim; a phone's back camera does not. */
 .checkin-reader.is-mirrored video { transform: scaleX(-1); }
