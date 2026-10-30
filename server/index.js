@@ -329,21 +329,32 @@ app.post('/api/auth/verify-email', requireAuth, asyncHandler(async (req, res) =>
 
 const TEAM_LETTERS = ['A', 'B']
 
-/** Keeps the team rows in step with number_of_teams: adds missing teams, removes unused extra ones. */
+/**
+ * Keeps the team rows in step with number_of_teams: adds missing teams, removes unused extra ones. One team is named
+ * after the country, two are its A and B teams (Team and observers shows the same names); a name changed in Teams
+ * is kept.
+ */
 async function ensureTeams(db, delegation) {
   const want = Math.min(Math.max(Number(delegation.number_of_teams) || 1, 1), 2)
   const existing = (await db.query('SELECT * FROM teams WHERE delegation_id = $1 ORDER BY code', [delegation.id])).rows
   const prefix = delegation.country_territory.replace(/\s*\(TEST\)\s*/i, '').trim()
   const short = prefix.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase()
+  const defaultName = (i, count) => (count === 1 ? prefix : `${prefix} ${TEAM_LETTERS[i]}`)
   for (let i = existing.length; i < want; i++) {
     await db.query(
       `INSERT INTO teams (delegation_id, name, code, status) VALUES ($1, $2, $3, 'draft') ON CONFLICT DO NOTHING`,
-      [delegation.id, `${prefix} ${TEAM_LETTERS[i]}`, `${short}-${TEAM_LETTERS[i]}`],
+      [delegation.id, defaultName(i, want), `${short}-${TEAM_LETTERS[i]}`],
     )
   }
   for (const team of existing.slice(want)) {
     const used = await db.query('SELECT 1 FROM members WHERE team_id = $1 LIMIT 1', [team.id])
     if (!used.rowCount) await db.query('DELETE FROM teams WHERE id = $1', [team.id])
+  }
+  const defaults = [prefix, ...TEAM_LETTERS.map((letter) => `${prefix} ${letter}`)]
+  const teams = (await db.query('SELECT id, name FROM teams WHERE delegation_id = $1 ORDER BY code', [delegation.id])).rows
+  for (const [i, team] of teams.entries()) {
+    const name = defaultName(i, teams.length)
+    if (team.name !== name && defaults.includes(team.name)) await db.query('UPDATE teams SET name = $1, updated_at = now() WHERE id = $2', [name, team.id])
   }
 }
 
@@ -408,19 +419,32 @@ app.patch('/api/registration/delegations/:delegationId', ...signedIn, delegation
     body.numberOfContestants = teams * 4
   }
   const teams = body.numberOfTeams ?? current.number_of_teams
-  if ('numberOfObservers' in body) {
+  const perTeam = fees.maxObserversPerTeam
+  // Observers are added team by team in Team and observers: observerTeams says which team each one comes with (0 for
+  // the first, 1 for the second), at most perTeam a team, and sets the number of observers.
+  if ('observerTeams' in body) {
+    const list = body.observerTeams
+    if (!Array.isArray(list) || list.some((t) => !Number.isInteger(t) || t < 0 || t >= teams)) throw new HttpError(400, 'Each observer must come with one of your teams.')
+    if (TEAM_LETTERS.some((_, t) => list.filter((x) => x === t).length > perTeam)) throw new HttpError(400, `Up to ${perTeam} ${perTeam === 1 ? 'observer' : 'observers'} per team.`)
+    body.numberOfObservers = list.length
+  } else if ('numberOfObservers' in body) {
     const observers = Number(body.numberOfObservers)
     const most = maxObservers(fees, teams)
-    if (!Number.isInteger(observers) || observers < 0 || observers > most) throw new HttpError(400, `Up to ${fees.maxObserversPerTeam} observers per team: ${most} for ${teams === 1 ? 'one team' : 'two teams'}.`)
+    if (!Number.isInteger(observers) || observers < 0 || observers > most) throw new HttpError(400, `Up to ${perTeam} observers per team: ${most} for ${teams === 1 ? 'one team' : 'two teams'}.`)
     body.numberOfObservers = observers
   }
-  // One yes or no per Team Leader (one per team) and per observer; kept the same length as those numbers.
+  // One yes or no per Team Leader (one per team) and per observer, kept the same length as those numbers, and the team
+  // each observer comes with (filled in team by team where it was never chosen).
   if ('singleRooms' in body || 'numberOfTeams' in body || 'numberOfObservers' in body) {
     const given = body.singleRooms ?? current.single_rooms ?? {}
     if (typeof given !== 'object') throw new HttpError(400, 'Single rooms must list each Team Leader and observer.')
     const fit = (list, length) => Array.from({ length }, (_, i) => Boolean(Array.isArray(list) ? list[i] : false))
-    body.singleRooms = { teamLeaders: fit(given.teamLeaders, teams), observers: fit(given.observers, body.numberOfObservers ?? current.number_of_observers) }
+    const observers = body.numberOfObservers ?? current.number_of_observers
+    const chosen = body.observerTeams ?? current.single_rooms?.observerTeams ?? []
+    const observerTeams = Array.from({ length: observers }, (_, i) => (Number.isInteger(chosen[i]) && chosen[i] < teams ? chosen[i] : Math.min(Math.floor(i / Math.max(perTeam, 1)), teams - 1)))
+    body.singleRooms = { teamLeaders: fit(given.teamLeaders, teams), observers: fit(given.observers, observers), observerTeams }
   }
+  delete body.observerTeams
   if ('completedSteps' in body) {
     const allowed = ['start', 'setup', 'teams', 'people', 'welfare', 'travel']
     if (!Array.isArray(body.completedSteps) || body.completedSteps.some((s) => !allowed.includes(s))) throw new HttpError(400, 'Invalid step list.')
@@ -764,7 +788,7 @@ app.post('/api/registration/delegations/:delegationId/payment-proof', ...signedI
   const emailCtx = {
     countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, paymentReference: response.payment.payment_reference,
     amountDue: response.payment.amount_due, currency: response.payment.currency || 'USD', invoiceCount: response.payment.invoice_count,
-    proofFilename: req.file.originalname, delegationId: req.params.delegationId,
+    proofFilename: req.file.originalname, delegationId: req.params.delegationId, peopleUrl: `${portalUrl}/?step=people`,
   }
   sendEmail({ pool: requireDb(), to: d.team_leader_email, ...buildProofReceivedEmail(emailCtx), purpose: 'payment_proof_received', delegationId: req.params.delegationId, retry: true }).catch((e) => console.error(e.message))
   if (process.env.FINANCE_EMAIL) {

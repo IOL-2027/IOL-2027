@@ -123,7 +123,7 @@ type EmailRow = {
 const purposeText: Record<string, string> = {
   account_verification: 'Email check code', password_reset: 'Password reset code', account_setup: 'Staff account set-up code',
   invite_code: 'Invitation code', payment_proof_received: 'Proof received', finance_proof_alert: 'Proof alert to Finance',
-  payment_confirmed: 'Payment confirmed', registration_submitted: 'Registration submitted, with invoice',
+  payment_confirmed: 'Payment confirmed', payment_proof_returned: 'Proof returned', registration_submitted: 'Registration submitted, with invoice',
   badges_issued: 'Badges', badges_updated: 'Badge update', daily_summary: 'Daily summary',
 }
 const statusText: Record<string, string> = { queued: 'Queued', sending: 'Sending', sent: 'Sent', retrying: 'Trying again', failed: 'Failed', skipped: 'Skipped' }
