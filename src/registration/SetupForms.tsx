@@ -73,7 +73,8 @@ export function teamNames(data: DelegationData, count: number) {
   })
 }
 
-export type SetupBody = { numberOfTeams: number; observerTeams: number[]; singleRooms: { teamLeaders: boolean[]; observers: boolean[] } }
+// numberOfObservers is sent too, for an API from before observers were added team by team.
+export type SetupBody = { numberOfTeams: number; numberOfObservers: number; observerTeams: number[]; singleRooms: { teamLeaders: boolean[]; observers: boolean[] } }
 type Observer = { key: number; team: number; room: string }
 
 /** Team and observers: how many teams, the observer each team brings, who wants a single room, and what that costs. */
@@ -145,7 +146,7 @@ export function TeamSetup({ data, paymentDone, busy, error, dirty, onTouched, on
     setErrors(missing)
     if (Object.keys(missing).length) { document.getElementById(Object.keys(missing)[0])?.focus(); return }
     onSave({
-      numberOfTeams: teams, observerTeams: shown.map((o) => o.team),
+      numberOfTeams: teams, numberOfObservers: shown.length, observerTeams: shown.map((o) => o.team),
       singleRooms: { teamLeaders: range(teams).map((i) => leaderRooms[i] === singleAnswers[1]), observers: shown.map((o) => o.room === singleAnswers[1]) },
     })
   }

@@ -81,6 +81,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   // A question before something that cannot be taken back: leaving unsaved changes, removing a person or a trip.
   const [ask, setAsk] = useState<{ title: string; text: ReactNode; stay: string; go: string; onGo: () => void } | null>(null)
   const askRef = useRef<HTMLDialogElement>(null)
+  const stayRef = useRef<HTMLButtonElement>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
   const panelRef = useRef<HTMLElement>(null)
   const invoiceRef = useRef<HTMLFormElement>(null)
@@ -93,7 +94,12 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [hasUnsaved])
-  useEffect(() => { if (ask && !askRef.current?.open) askRef.current?.showModal() }, [ask])
+  // The dialog opens on its safe answer: showModal would otherwise focus the first button, which is the risky one.
+  useEffect(() => {
+    if (!ask || askRef.current?.open) return
+    askRef.current?.showModal()
+    stayRef.current?.focus()
+  }, [ask])
   useEffect(() => {
     unsavedWork.current = hasUnsaved
     return () => { unsavedWork.current = false }
@@ -517,6 +523,11 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const peopleCount = data.members.filter((m) => m.role !== 'team_leader').length
   const peopleToFinish = (records.people ?? []).filter((r) => r.status === 'attention' && r.id !== NEW_PERSON).length
   const flightsIn = data.travelRecords.filter((t) => t.flightServiceNumber && t.localDate).length
+  // Who is not on any arrival or departure yet: their badges wait for it.
+  const offTrips = (direction: 'arrival' | 'departure') => data.members
+    .filter((m) => !data.travelRecords.some((t) => t.direction === direction && t.memberIds.includes(m.id)))
+    .map((m) => m.badgeName || m.displayName)
+  const flightsMissing = data.travelRecords.some((t) => !t.flightServiceNumber || !t.localDate) || (data.members.length > 0 && (offTrips('arrival').length > 0 || offTrips('departure').length > 0))
   const trackDetail: Record<SectionId, string> = {
     start: '',
     setup: steps.has('setup')
@@ -531,7 +542,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       : `${peopleCount} ${peopleCount === 1 ? 'person' : 'people'} entered${peopleToFinish ? `, ${peopleToFinish} still to finish` : ''}.`,
     welfare: !paymentDone ? 'Opens with People, once the proof of payment is uploaded.' : steps.has('welfare') ? 'Summary checked.' : 'Check the summary built from everyone’s details, and add any room requests.',
     travel: d.declaredArrivalDate && d.declaredDepartureDate
-      ? `Staying ${formatDate(d.declaredArrivalDate)} to ${formatDate(d.declaredDepartureDate)}. ${flightsIn} of 2 flights added.`
+      ? `Staying ${formatDate(d.declaredArrivalDate)} to ${formatDate(d.declaredDepartureDate)}. ${flightsIn ? `${flightsIn} ${flightsIn === 1 ? 'flight' : 'flights'} added${flightsMissing ? ', but not everyone is on one yet' : ''}` : 'Flights once they are booked'}.`
       : 'Stay dates now; flights once they are booked.',
     badges: '',
   }
@@ -564,12 +575,6 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     ] },
   ]
 
-  // Who is not on any arrival or departure yet: their badges wait for it.
-  const offTrips = (direction: 'arrival' | 'departure') => data.members
-    .filter((m) => !data.travelRecords.some((t) => t.direction === direction && t.memberIds.includes(m.id)))
-    .map((m) => m.badgeName || m.displayName)
-  const flightsMissing = data.travelRecords.some((t) => !t.flightServiceNumber || !t.localDate) || (data.members.length > 0 && (offTrips('arrival').length > 0 || offTrips('departure').length > 0))
-
   // The card at the top of the overview: the one thing to do next, or submitting once everything is in.
   const nextUp = firstOpenStep ?? numbered[0]
   const nextStep: { tone: 'go' | 'warn' | 'done'; kicker: string; title: string; body: ReactNode; to?: SectionId; cta?: string; submit?: boolean } =
@@ -580,7 +585,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     : ready ? { tone: 'go', kicker: 'Ready to submit', title: 'Everything is in. Submit your registration.', submit: true,
       body: 'Check anything you like first: each step below opens from its name. After you submit, you can still update people and travel until the change deadline.' }
     : { tone: 'go', kicker: doneCount ? 'Pick up where you left off' : 'Where to start', title: `Next: ${nextUp.title}`, to: nextUp.id, cta: `Continue to ${nextUp.title}`,
-      body: <>{(isDone(nextUp.id) && todo[nextUp.id]?.join('. ')) || trackDetail[nextUp.id]}{paymentStatus === 'awaiting_review' && <> Finance is checking your proof of payment; carry on meanwhile.</>}</> }
+      body: <>{isDone(nextUp.id) && todo[nextUp.id]?.length ? `${todo[nextUp.id]!.join('; ')}.` : trackDetail[nextUp.id]}{paymentStatus === 'awaiting_review' && <> Finance is checking your proof of payment; carry on meanwhile.</>}</> }
 
   // Registration steps keep the numbers the step rail gives them.
   const trackMark = (step: TrackStep) => step.state === 'done' ? <Check size={15} strokeWidth={3} />
@@ -1041,7 +1046,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       <p id="ask-text">{ask?.text}</p>
       <div className="reg-dialog-actions">
         <button type="button" className="reg-btn reg-btn-danger" onClick={answer}>{ask?.go}</button>
-        <button type="button" className="reg-btn reg-btn-primary" autoFocus onClick={() => askRef.current?.close()}>{ask?.stay}</button>
+        <button type="button" className="reg-btn reg-btn-primary" ref={stayRef} onClick={() => askRef.current?.close()}>{ask?.stay}</button>
       </div>
     </dialog>
   </>

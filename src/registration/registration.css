@@ -372,6 +372,8 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-track-detail { margin: 4px 0 0; max-width: 60ch; font-size: 15px; line-height: 1.5; color: var(--reg-muted); }
 /* What a step still needs, under its line on the overview. */
 .reg-track-todo { display: grid; gap: 2px; margin: 8px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.45; color: var(--reg-attn-text); list-style: disc; }
+.reg-track .reg-track-todo li { display: list-item; padding: 0; }
+.reg-track .reg-track-todo li::before { content: none; }
 .reg-home-foot { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 40px; padding: 4px 4px 0; }
 .reg-home-foot dl { display: flex; flex-wrap: wrap; gap: 14px 44px; margin: 0; }
 .reg-home-foot dt { font-size: 13px; color: var(--reg-muted); }
