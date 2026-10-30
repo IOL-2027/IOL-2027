@@ -32,7 +32,7 @@ export type PortalRecord = {
   facts?: Fact[]
 }
 
-export type SectionId = 'start' | 'setup' | 'payment' | 'teams' | 'people' | 'welfare' | 'travel' | 'review' | 'badges'
+export type SectionId = 'start' | 'setup' | 'payment' | 'teams' | 'people' | 'welfare' | 'travel' | 'badges'
 
 export type Section = {
   id: SectionId
@@ -73,23 +73,12 @@ export const personFieldGroups: { legend: string; note?: string; labels: string[
 
 export const sections: Section[] = [
   { id: 'start', title: 'Before you begin', required: false, intro: 'Registration happens in stages. To start you only need to know how many are coming; names and travel can follow.' },
-  { id: 'setup', title: 'Team and observers', required: true, intro: 'How many teams and observers are coming, and who would like a single room. This sets your fees; names come later, in People.' },
+  { id: 'setup', title: 'Team and observers', required: true, intro: 'How many teams are coming, whether each brings an observer, and who would like a single room. This sets your fees; names come later, in People.' },
   { id: 'payment', title: 'Payment', required: true, intro: 'Four parts, in this order. Your invoice details are kept once saved, so you can transfer later and come back to upload the proof.' },
   { id: 'teams', title: 'Teams', required: true, intro: 'Each team needs its team contest language. Contestants are put in a team on their own record in People.', records: { noun: 'team', plural: 'teams' } },
   { id: 'people', title: 'People', required: true, intro: 'Everyone coming with your delegation. Each person is saved on their own, so you can fill this in stages. Opens once the proof of payment is uploaded.', records: { noun: 'person', plural: 'people' } },
   { id: 'welfare', title: 'Rooms and welfare', required: true, intro: 'Check what the welfare team will see about your delegation, and tell them about any room requests.' },
   { id: 'travel', title: 'Travel', required: true, intro: 'Your stay dates set the hotel nights we reserve, so they are needed now. Flights can wait until they are booked. Once everyone’s arrival and departure are in and the payment is confirmed, we email you everyone’s badges.', records: { noun: 'trip', plural: 'trips' } },
-  {
-    id: 'review', title: 'Review and submit', required: false,
-    intro: 'Submit once every step is done. You can still update travel and people afterwards until the change deadline.',
-    facts: [
-      { label: 'Invitation letters', value: 'Sent after payment is confirmed', help: 'Each person’s letter supports their visa application.' },
-      { label: 'Invoice', value: 'Emailed to you again', help: 'As a PDF, or one PDF for each payer if you split it. It is in Payment already.' },
-      { label: 'E-receipt', value: 'In the Payment step once Finance approves the payment', help: 'The payment confirmation email links to it.' },
-      { label: 'QR badges', value: 'Emailed to you as PDFs once payment is confirmed and everyone’s travel is in' },
-      { label: 'Arrival check-in', value: 'Recorded at the venue during event week' },
-    ],
-  },
   {
     id: 'badges', title: 'Badges and check-in', required: false, afterSubmission: true,
     intro: 'Every registered person gets their own QR badge. Staff scan it on arrival and at event checkpoints.',

@@ -1,7 +1,7 @@
 // The Team Leader's registration workspace: an overview of the whole track for anyone coming back, then a step
 // rail on the left and one step at a time on the right.
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, FileText, Info, LayoutGrid, Lock, Plus, Upload, UserPlus } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, FileText, Info, LayoutGrid, Lock, Plus, Send, Upload, UserPlus } from 'lucide-react'
 import { api, ApiError, type DelegationData, type Member, type TravelRecord } from './api'
 import { personFieldGroups, programmeWindow, sections, type Field, type PortalRecord, type Section, type SectionId } from './portalData'
 import { consentFor, personFields, personPayload, personRecord, teamRecord, tripPayload, tripRecord, welfareFacts } from './live'
@@ -18,6 +18,10 @@ const paymentLabel: Record<string, string> = {
   approved: 'Payment approved', rejected: 'Payment: proof returned', refunded: 'Payment refunded',
 }
 
+// The payment after the proof is in: uploaded, Finance's check, confirmed. Said in words for screen readers.
+const progressWords = { done: 'done', current: 'in progress', problem: 'needs your attention', later: 'not yet' } as const
+type PayStage = { key: string; state: keyof typeof progressWords; title: string; detail: ReactNode; action?: ReactNode }
+
 function StatusMark({ status, number }: { status: StepStatus; number: number }) {
   if (status === 'done') return <span className="reg-mark is-done" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" /></svg></span>
   if (status === 'locked') return <span className="reg-mark is-locked" aria-hidden="true"><Lock size={13} strokeWidth={2.4} /></span>
@@ -32,12 +36,14 @@ function recordChip(record: PortalRecord) {
 }
 
 const NEW_PERSON = 'new-person'
+const dayOf = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })
 // Trips in date and time order; undated ones last, and trips at the same time in the order they were added.
 const tripOrder = (t: TravelRecord) => `${t.localDate ?? '9999'}${t.localTime ?? ''}${t.createdAt ?? ''}`
 // Room requests go to the welfare team as free text, as the IOL Host's Handbook (6.2.2) asks registration to allow.
 const welfareNoteLabel = 'Room requests and anything else the welfare team should know'
 const main = sections.filter((s) => !s.afterSubmission)
-// "Before you begin" is an introduction, not a step: the numbered steps run from Team and observers to Review and submit.
+// "Before you begin" is an introduction, not a step: the numbered steps run from Team and observers to Travel, and the
+// registration is submitted from the overview once they are done.
 const numbered = main.filter((s) => s.id !== 'start')
 const after = sections.filter((s) => s.afterSubmission)
 const required = sections.filter((s) => s.required)
@@ -75,6 +81,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   // A question before something that cannot be taken back: leaving unsaved changes, removing a person or a trip.
   const [ask, setAsk] = useState<{ title: string; text: ReactNode; stay: string; go: string; onGo: () => void } | null>(null)
   const askRef = useRef<HTMLDialogElement>(null)
+  const stayRef = useRef<HTMLButtonElement>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
   const panelRef = useRef<HTMLElement>(null)
   const invoiceRef = useRef<HTMLFormElement>(null)
@@ -87,7 +94,12 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [hasUnsaved])
-  useEffect(() => { if (ask && !askRef.current?.open) askRef.current?.showModal() }, [ask])
+  // The dialog opens on its safe answer: showModal would otherwise focus the first button, which is the risky one.
+  useEffect(() => {
+    if (!ask || askRef.current?.open) return
+    askRef.current?.showModal()
+    stayRef.current?.focus()
+  }, [ask])
   useEffect(() => {
     unsavedWork.current = hasUnsaved
     return () => { unsavedWork.current = false }
@@ -113,10 +125,10 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       // Links in emails open a given step, e.g. the portal address with ?step=travel.
       const requested = new URLSearchParams(window.location.search).get('step')
       if (requested && sections.some((s) => s.id === requested)) { navigated.current = true; setActiveId(requested as SectionId); return }
-      if (d.delegation.registrationStatus !== 'draft') setActiveId('review')
-      else if (steps.has('start')) setActiveId(required.find((s) => (s.id === 'payment' ? !paid : !steps.has(s.id)))?.id ?? 'review')
-      // A first visit starts with "Before you begin"; anyone who has been here before sees the overview.
-      if (steps.has('start') || d.delegation.registrationStatus !== 'draft') setHome(true)
+      if (steps.has('start')) setActiveId(required.find((s) => (s.id === 'payment' ? !paid : !steps.has(s.id)))?.id ?? 'travel')
+      // A first visit starts with "Before you begin"; anyone who has been here before sees the overview, and so does a
+      // link to the old Review step (submitting happens on the overview now).
+      if (steps.has('start') || d.delegation.registrationStatus !== 'draft' || requested === 'review') setHome(true)
     }).catch((e) => { if (!current) return; if (e instanceof ApiError && e.status === 401) onSessionEnd(); else setLoadError(messageOf(e)) })
     return () => { current = false }
   }, [load, onSessionEnd])
@@ -167,7 +179,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   }
 
   const { d, steps, payment, paymentDone, submitted, records } = derived
-  const isDone = (id: SectionId) => (id === 'payment' ? paymentDone : id === 'review' ? submitted : steps.has(id))
+  const isDone = (id: SectionId) => (id === 'payment' ? paymentDone : steps.has(id))
   const doneCount = required.filter((s) => isDone(s.id)).length
   const allRequiredDone = doneCount === required.length
   const statusOf = (s: Section): StepStatus => {
@@ -175,24 +187,38 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     if ((s.id === 'people' || s.id === 'welfare') && !paymentDone) return 'locked'
     if (isDone(s.id)) return 'done'
     if (s.id === 'start') return 'info'
-    if (s.id === 'review') return allRequiredDone ? 'todo' : 'waiting'
     if (s.afterSubmission) return submitted ? 'todo' : 'after'
     return 'todo'
   }
   const section = sections.find((s) => s.id === activeId)!
   const status = statusOf(section)
   const locked = status === 'locked'
-  const firstOpenStep = main.find((s) => s.required && !isDone(s.id) && statusOf(s) !== 'locked') ?? main.find((s) => s.id === 'review')
+  // Payment is done on the Team Leader's side once the proof is in; the label says where Finance is with it.
+  const stepLabel = (s: Section, st = statusOf(s)) => (s.id === 'payment' && st === 'done' ? (payment?.status === 'approved' ? 'Confirmed' : 'With Finance') : statusLabel[st])
+
+  /* still to do, by step ------------------------------------------- */
+  // What a step needs beyond being saved: unfinished teams and people, stay dates, observers that match the fees.
+  const todo: Partial<Record<SectionId, string[]>> = {}
+  const needs = (step: SectionId, item: string) => { (todo[step] ??= []).push(item) }
+  if (!d.declaredArrivalDate || !d.declaredDepartureDate) needs('travel', 'Add your stay dates')
+  for (const id of ['teams', 'people'] as const) {
+    (records[id] ?? []).filter((r) => r.status === 'attention' && r.id !== NEW_PERSON).forEach((r) => needs(id, `${r.label}: ${r.issue?.toLowerCase()}`))
+  }
+  const namedObservers = data.members.filter((m) => m.role === 'observer').length
+  if (namedObservers !== d.numberOfObservers) needs(namedObservers > d.numberOfObservers ? 'setup' : 'people', `Observers: ${d.numberOfObservers} in Team and observers, ${namedObservers} in People`)
+  const ready = !submitted && allRequiredDone && !Object.values(todo).some((items) => items?.length)
+  const firstOpenStep = ready || submitted ? undefined : main.find((s) => s.required && statusOf(s) !== 'locked' && (!isDone(s.id) || todo[s.id]?.length))
   const stepNumber = (s: Section) => numbered.indexOf(s) + 1
   const stepsDone = numbered.filter((s) => isDone(s.id)).length
   const nextOf = (id: SectionId) => main[main.findIndex((s) => s.id === id) + 1]?.id
 
   /* unsaved changes ------------------------------------------------ */
+  const markDirty = (key: string) => setDirty((now) => (now[key] ? now : { ...now, [key]: true }))
   const trackChange = (event: ChangeEvent<HTMLElement>) => {
     const target = event.target as HTMLElement
     if (target instanceof HTMLInputElement && target.type === 'file') return
     const key = target.closest<HTMLElement>('[data-dirty-key]')?.dataset.dirtyKey
-    if (key) setDirty((now) => (now[key] ? now : { ...now, [key]: true }))
+    if (key) markDirty(key)
   }
   const clean = (...keys: string[]) => setDirty((now) => {
     const next = { ...now }
@@ -216,6 +242,12 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     setFieldErrors({}); setSectionError(null); setSavedNote(''); setInfoNote(null); setDraftTrip(null)
   }
   const open = (id: SectionId) => guard(() => go(id))
+  /** The overview: where everything stands, and where the registration is submitted. */
+  const showHome = () => {
+    setHome(true); setNavOpen(false); setRecordOpen(false)
+    setFieldErrors({}); setSectionError(null); setSavedNote(''); setInfoNote(null); setDraftTrip(null)
+  }
+  const goHome = () => guard(showHome)
 
   /** Runs a server action, reloads, and turns failures into a visible message. */
   const run = async (work: () => Promise<void>) => {
@@ -235,15 +267,19 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     await load()
     // The step is saved, so nothing on it is left unsaved (an open record was asked about before finishing).
     setDirty({})
+    // The last step, Travel, leads to the overview, where the registration is submitted.
     const next = nextOf(id)
     if (next) go(next)
+    else showHome()
     const finished = sections.find((s) => s.id === id)
     if (finished?.required) setInfoNote({ tone: 'ok', text: `“${finished.title}” is saved.` })
   }
   /** Moves on from a step that is not finished; it stays on the to-do list, and the next step says so. */
   const moveOn = (text: string) => {
     const next = nextOf(activeId)
-    if (next) { go(next); setInfoNote({ tone: 'warn', text }) }
+    if (next) go(next)
+    else showHome()
+    setInfoNote({ tone: 'warn', text })
   }
 
   /* records ------------------------------------------------------- */
@@ -420,28 +456,12 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     }}><Copy size={14} aria-hidden="true" />{copied === what ? 'Copied' : 'Copy'}<span className="reg-visually-hidden"> {what}</span></button>
   )
 
-  /* still to do before submitting, by step -------------------------- */
-  const todo: { step: SectionId; items: string[] }[] = []
-  const needs = (step: SectionId, item?: string) => {
-    const group = todo.find((t) => t.step === step) ?? (todo.push({ step, items: [] }), todo[todo.length - 1])
-    if (item) group.items.push(item)
-  }
-  required.forEach((s) => { if (!isDone(s.id)) needs(s.id, s.id === 'payment' ? 'Upload the bank’s proof of transfer' : undefined) })
-  if (!d.declaredArrivalDate || !d.declaredDepartureDate) needs('travel', 'Add your stay dates')
-  for (const id of ['teams', 'people'] as const) {
-    (records[id] ?? []).filter((r) => r.status === 'attention' && r.id !== NEW_PERSON).forEach((r) => needs(id, `${r.label}: ${r.issue?.toLowerCase()}`))
-  }
-  // People must match what the fees were worked out from.
-  const namedObservers = data.members.filter((m) => m.role === 'observer').length
-  if (namedObservers !== d.numberOfObservers) needs(namedObservers > d.numberOfObservers ? 'setup' : 'people', `Observers: ${d.numberOfObservers} in Team and observers, ${namedObservers} in People`)
-  const stillToDoText: Partial<Record<SectionId, string>> = { setup: 'Save this step', welfare: 'Check the summary and confirm it', teams: 'Not finished yet', people: 'Not finished yet', travel: 'Not finished yet' }
-  todo.forEach((t) => { if (!t.items.length) t.items.push(stillToDoText[t.step] ?? 'Not finished yet') })
-  todo.sort((a, b) => main.findIndex((s) => s.id === a.step) - main.findIndex((s) => s.id === b.step))
-  const outstanding = todo
-  const submit = () => {
-    if (outstanding.length) { setSectionError('Finish the items listed above before submitting.'); return }
-    run(async () => { await api(`/api/registration/delegations/${d.id}/submit`, { method: 'POST' }); await load() })
-  }
+  /** Submits from the overview. The server checks everything again and lists anything still missing. */
+  const submit = () => run(async () => {
+    await api(`/api/registration/delegations/${d.id}/submit`, { method: 'POST' })
+    await load()
+    setInfoNote({ tone: 'ok', text: 'Your registration is submitted.' })
+  })
 
   const groupFields = (fields: Field[]) => {
     if (activeId !== 'people') return [{ legend: '', note: undefined as string | undefined, fields }]
@@ -459,6 +479,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   // A proof can be replaced until Finance has approved it (a wrong file, or a better scan).
   const canUpload = Boolean(payment && ['awaiting_proof', 'rejected', 'awaiting_review'].includes(payment.status))
   const receipt = payment?.status === 'approved' && payment.receiptNumber ? payment : undefined
+  const proofDay = proofAttachment ? dayOf(proofAttachment.createdAt) : null
+  const reviewDay = payment?.reviewedAt ? dayOf(payment.reviewedAt) : null
   // One PDF per invoice: a split has one for each payer, numbered IOL2027/23-1, -2 and so on.
   const invoiceFiles = !payment ? [] : payment.invoiceSplits?.length
     ? payment.invoiceSplits.map((s, i) => ({ href: `/api/registration/delegations/${d.id}/invoice?part=${i + 1}`, number: `${payment.invoiceNumber}-${i + 1}`, payer: s.recipientName, amount: Number(s.amount) }))
@@ -467,6 +489,27 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     : payment?.status === 'awaiting_review' ? <Chip tone="later">With Finance</Chip>
     : payment?.status === 'rejected' ? <Chip tone="attention">Returned</Chip>
     : <Chip tone="later">Not uploaded yet</Chip>
+  // Once the proof is in, Payment opens with where the payment is: what happened, what Finance is doing, what comes next.
+  const payProgress: { title: string; intro: string; stages: PayStage[] } | null = !payment || !['awaiting_review', 'approved', 'rejected'].includes(payment.status) ? null : {
+    title: payment.status === 'approved' ? 'Payment confirmed' : payment.status === 'rejected' ? 'Finance returned your proof' : 'Finance is checking your payment',
+    intro: payment.status === 'approved' ? 'Thank you. There is nothing more to do in this step.'
+      : payment.status === 'rejected' ? 'Upload a new proof in part 4 below. Everything else you have entered is kept.'
+      : 'You do not need to wait for it: carry on with the other steps. We email you as soon as the payment is confirmed.',
+    stages: [
+      { key: 'uploaded', state: 'done', title: 'Proof uploaded', detail: <>{proofDay ? `On ${proofDay}` : 'Uploaded'}{proofAttachment && <>: {proofAttachment.originalFilename}</>}</> },
+      payment.status === 'approved' ? { key: 'check', state: 'done', title: 'Finance checked it against the bank statement', detail: `Matched${reviewDay ? ` on ${reviewDay}` : ''}.` }
+        : payment.status === 'rejected' ? { key: 'check', state: 'problem', title: 'Finance could not match it', detail: <>Returned{reviewDay ? ` on ${reviewDay}` : ''}{payment.reviewNote ? <>, with this note: “{payment.reviewNote}”</> : '.'}</> }
+        : { key: 'check', state: 'current', title: 'Finance checks it against the bank statement', detail: 'Usually within 5 business days. A transfer from abroad can take a few days to reach the account.' },
+      payment.status === 'approved'
+        ? { key: 'confirmed', state: 'done', title: 'Payment confirmed', detail: `Confirmed${reviewDay ? ` on ${reviewDay}` : ''}. We have emailed you, and your e-receipt is here.`,
+          action: receipt && <button type="button" className="reg-btn reg-btn-secondary reg-btn-small" onClick={() => openReceipt({
+            organisation: receipt.invoiceRecipientName ?? d.countryTerritory, country: d.countryTerritory, recipientAddress: receipt.invoiceRecipientAddress,
+            reference: receipt.paymentReference, receiptNumber: receipt.receiptNumber!, amountPaid: Number(receipt.amountDue), currency: receipt.currency,
+            tierLabel: receipt.feeTier === 'early_bird' ? 'Early bird' : 'Normal', approvedAt: receipt.reviewedAt,
+          })}><Download size={16} aria-hidden="true" />Download the e-receipt</button> }
+        : { key: 'confirmed', state: 'later', title: 'Payment confirmed', detail: 'We email you, and your e-receipt appears here.' },
+    ],
+  }
   const singleRoomsChosen = [...d.singleRooms.teamLeaders, ...d.singleRooms.observers].filter(Boolean).length
   const unsavedNames: Record<string, string> = {
     setup: 'Team and observers', invoice: 'the invoice details', welfare: 'the note for the welfare team', 'stay-note': 'the note about extra nights',
@@ -480,13 +523,18 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const peopleCount = data.members.filter((m) => m.role !== 'team_leader').length
   const peopleToFinish = (records.people ?? []).filter((r) => r.status === 'attention' && r.id !== NEW_PERSON).length
   const flightsIn = data.travelRecords.filter((t) => t.flightServiceNumber && t.localDate).length
+  // Who is not on any arrival or departure yet: their badges wait for it.
+  const offTrips = (direction: 'arrival' | 'departure') => data.members
+    .filter((m) => !data.travelRecords.some((t) => t.direction === direction && t.memberIds.includes(m.id)))
+    .map((m) => m.badgeName || m.displayName)
+  const flightsMissing = data.travelRecords.some((t) => !t.flightServiceNumber || !t.localDate) || (data.members.length > 0 && (offTrips('arrival').length > 0 || offTrips('departure').length > 0))
   const trackDetail: Record<SectionId, string> = {
     start: '',
     setup: steps.has('setup')
       ? `${d.numberOfTeams} ${d.numberOfTeams === 1 ? 'team' : 'teams'}, ${d.numberOfObservers} ${d.numberOfObservers === 1 ? 'observer' : 'observers'}, ${singleRoomsChosen || 'no'} single ${singleRoomsChosen === 1 ? 'room' : 'rooms'}.`
       : 'How many teams and observers, and who would like a single room. This sets your fees.',
-    payment: paymentStatus === 'approved' ? 'Approved by Finance. The e-receipt is in this step.'
-      : paymentStatus === 'awaiting_review' ? 'Proof uploaded. Finance is matching it against the bank statement.'
+    payment: paymentStatus === 'approved' ? `Confirmed by Finance${reviewDay ? ` on ${reviewDay}` : ''}. Your e-receipt is in this step.`
+      : paymentStatus === 'awaiting_review' ? `Proof uploaded${proofDay ? ` on ${proofDay}` : ''}. Finance is checking it against the bank statement, usually within 5 business days.`
       : paymentStatus === 'rejected' ? 'Finance returned the proof. Upload a new one.'
       : payment ? 'Invoice details saved. Transfer, then upload the bank’s proof.' : 'Invoice details, the bank transfer, then the proof of transfer.',
     teams: steps.has('teams') ? data.teams.map((t) => `${t.name}: ${t.contestLanguage ?? 'no language yet'}`).join(' · ') : 'Choose each team’s contest language.',
@@ -494,24 +542,32 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       : `${peopleCount} ${peopleCount === 1 ? 'person' : 'people'} entered${peopleToFinish ? `, ${peopleToFinish} still to finish` : ''}.`,
     welfare: !paymentDone ? 'Opens with People, once the proof of payment is uploaded.' : steps.has('welfare') ? 'Summary checked.' : 'Check the summary built from everyone’s details, and add any room requests.',
     travel: d.declaredArrivalDate && d.declaredDepartureDate
-      ? `Staying ${formatDate(d.declaredArrivalDate)} to ${formatDate(d.declaredDepartureDate)}. ${flightsIn} of 2 flights added.`
+      ? `Staying ${formatDate(d.declaredArrivalDate)} to ${formatDate(d.declaredDepartureDate)}. ${flightsIn ? `${flightsIn} ${flightsIn === 1 ? 'flight' : 'flights'} added${flightsMissing ? ', but not everyone is on one yet' : ''}` : 'Flights once they are booked'}.`
       : 'Stay dates now; flights once they are booked.',
-    review: submitted ? `Submitted${d.submittedAt ? ` on ${new Date(d.submittedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}` : ''}.` : allRequiredDone ? 'Everything is in. Ready to submit.' : 'Opens once the steps above are done.',
     badges: '',
   }
   type TrackState = StepStatus | 'next'
-  type TrackStep = { key: string; title: string; detail: string; state: TrackState; label: string; to?: SectionId }
+  type TrackStep = { key: string; title: string; detail: string; state: TrackState; label: string; to?: SectionId; items?: string[] }
   const trackOf = (s: Section): TrackStep => {
     const st = statusOf(s)
-    const state: TrackState = !submitted && st !== 'done' && st !== 'locked' && s.id === firstOpenStep?.id ? 'next' : st === 'info' ? 'todo' : st
-    return { key: s.id, title: s.title, detail: trackDetail[s.id], state, label: state === 'next' ? 'Next' : statusLabel[st], to: s.id }
+    const state: TrackState = st !== 'locked' && s.id === firstOpenStep?.id ? 'next' : st === 'info' ? 'todo' : st
+    // What is still missing shows under People as it is filled in, and under any step saved earlier that has lost
+    // something since (a step not started yet already says what it needs).
+    const items = st !== 'locked' && (isDone(s.id) || s.id === 'people') ? todo[s.id] : undefined
+    return { key: s.id, title: s.title, detail: trackDetail[s.id], state, label: state === 'next' ? 'Next' : stepLabel(s, st), to: s.id, items }
+  }
+  // Submitting is the last step of the registration, done from this page.
+  const submitStep: TrackStep = {
+    key: 'submit', title: 'Submit registration', state: submitted ? 'done' : ready ? 'next' : 'waiting', label: submitted ? 'Done' : ready ? 'Next' : statusLabel.waiting,
+    detail: submitted ? `Submitted${d.submittedAt ? ` on ${dayOf(d.submittedAt)}` : ''}. People and travel can still be updated until the change deadline.`
+      : ready ? 'Everything is in. Submit with the button at the top of this page.' : 'Once the steps above are done, you submit here, on this page.',
   }
   const phases: { title: string; steps: TrackStep[] }[] = [
     { title: 'Your account', steps: [
       { key: 'code', title: 'Invitation code', detail: `Linked this account to ${d.countryTerritory}.`, state: 'done', label: 'Done' },
       { key: 'account', title: 'Team Leader account', detail: `${d.teamLeaderEmail}, email checked.`, state: 'done', label: 'Done' },
     ] },
-    { title: 'Registration', steps: numbered.map(trackOf) },
+    { title: 'Registration', steps: [...numbered.map(trackOf), submitStep] },
     { title: 'Before the Olympiad', steps: [
       { key: 'letters', title: 'Invitation letters', detail: paymentStatus === 'approved' ? 'Your payment is confirmed, so letters for visa applications follow by email.' : 'One for each person, sent once the payment is confirmed.', state: 'after', label: 'Later' },
       { key: 'badges', title: 'QR badges', detail: 'Emailed to you as PDFs once the payment is confirmed and everyone’s arrival and departure are in.', state: 'after', label: 'Later', to: 'badges' },
@@ -519,30 +575,41 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     ] },
   ]
 
-  const nextStep: { tone: 'go' | 'warn' | 'done'; kicker: string; title: string; body: ReactNode; to: SectionId; cta: string } =
-    submitted ? { tone: 'done', kicker: 'Registration submitted', title: 'Submitted. Thank you.', to: 'review', cta: 'See your registration',
-      body: 'Finance checks the payment next. People and travel can still be updated until the change deadline.' }
+  // The card at the top of the overview: the one thing to do next, or submitting once everything is in.
+  const nextUp = firstOpenStep ?? numbered[0]
+  const nextStep: { tone: 'go' | 'warn' | 'done'; kicker: string; title: string; body: ReactNode; to?: SectionId; cta?: string; submit?: boolean } =
+    submitted ? { tone: 'done', kicker: 'Registration submitted', title: 'Submitted. Thank you.', ...(flightsMissing ? { to: 'travel' as const, cta: 'Add flight details' } : {}),
+      body: <>A confirmation with your invoice went to {d.teamLeaderEmail}. {paymentStatus === 'approved' ? '' : 'Finance confirms your payment next. '}People and travel can still be updated until the change deadline.</> }
     : paymentStatus === 'rejected' ? { tone: 'warn', kicker: 'Action needed', title: 'Upload a new proof of payment', to: 'payment', cta: 'Go to Payment',
       body: <>Finance could not match your proof of transfer.{payment?.reviewNote ? <> Their note: “{payment.reviewNote}”</> : null}</> }
-    : allRequiredDone ? { tone: 'go', kicker: 'Ready', title: 'Everything is in. Submit your registration.', to: 'review', cta: 'Review and submit',
-      body: 'Check it once more, then submit. You can still update people and travel afterwards.' }
-    : { tone: 'go', kicker: doneCount ? 'Pick up where you left off' : 'Where to start', title: `Next: ${firstOpenStep?.title ?? 'Review'}`, to: firstOpenStep?.id ?? 'review', cta: `Continue to ${firstOpenStep?.title ?? 'Review'}`,
-      body: <>{firstOpenStep ? trackDetail[firstOpenStep.id] : ''}{paymentStatus === 'awaiting_review' && <> Finance is checking your proof of payment; carry on meanwhile.</>}</> }
+    : ready ? { tone: 'go', kicker: 'Ready to submit', title: 'Everything is in. Submit your registration.', submit: true,
+      body: 'Check anything you like first: each step below opens from its name. After you submit, you can still update people and travel until the change deadline.' }
+    : { tone: 'go', kicker: doneCount ? 'Pick up where you left off' : 'Where to start', title: `Next: ${nextUp.title}`, to: nextUp.id, cta: `Continue to ${nextUp.title}`,
+      body: <>{isDone(nextUp.id) && todo[nextUp.id]?.length ? `${todo[nextUp.id]!.join('; ')}.` : trackDetail[nextUp.id]}{paymentStatus === 'awaiting_review' && <> Finance is checking your proof of payment; carry on meanwhile.</>}</> }
 
   // Registration steps keep the numbers the step rail gives them.
   const trackMark = (step: TrackStep) => step.state === 'done' ? <Check size={15} strokeWidth={3} />
     : step.state === 'locked' ? <Lock size={14} strokeWidth={2.4} />
-    : step.state === 'after' ? <Clock size={14} /> : stepNumber(sections.find((s) => s.id === step.to)!)
+    : step.state === 'after' ? <Clock size={14} />
+    : step.key === 'submit' ? <Send size={14} /> : stepNumber(sections.find((s) => s.id === step.to)!)
 
   const overview = (
     <section className="reg-home" aria-labelledby="reg-home-title">
+      {infoNote && (
+        <p className={`reg-aside reg-step-note ${infoNote.tone === 'ok' ? 'reg-aside-ok' : 'reg-aside-warn'}`} role="status">
+          {infoNote.tone === 'ok' ? <Check size={18} strokeWidth={3} aria-hidden="true" /> : <Info size={18} aria-hidden="true" />}{infoNote.text}
+        </p>
+      )}
       <div className={`reg-home-next is-${nextStep.tone}`}>
         <div>
           <p className="reg-home-kicker">{nextStep.kicker}</p>
           <h2 id="reg-home-title" ref={titleRef} tabIndex={-1}>{nextStep.title}</h2>
           <p>{nextStep.body}</p>
+          {nextStep.submit && <Alert>{sectionError}</Alert>}
         </div>
-        <button type="button" className="reg-btn reg-btn-primary" onClick={() => open(nextStep.to)}>{nextStep.cta} <ArrowRight size={18} aria-hidden="true" /></button>
+        {nextStep.submit
+          ? <button type="button" className="reg-btn reg-btn-primary" disabled={busy} onClick={submit}>{busy ? 'Submitting…' : 'Submit registration'} <Send size={17} aria-hidden="true" /></button>
+          : nextStep.to && <button type="button" className="reg-btn reg-btn-primary" onClick={() => open(nextStep.to!)}>{nextStep.cta} <ArrowRight size={18} aria-hidden="true" /></button>}
       </div>
 
       <div className="reg-track">
@@ -559,6 +626,11 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                         <span className="reg-track-label">{step.label}</span>
                       </p>
                       <p className="reg-track-detail">{step.detail}</p>
+                      {step.items && step.items.length > 0 && (
+                        <ul className="reg-track-todo" aria-label={`Still to do in ${step.title}`}>
+                          {step.items.map((item) => <li key={item}>{item}</li>)}
+                        </ul>
+                      )}
                     </div>
                   </li>
                 ))}
@@ -578,17 +650,12 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     </section>
   )
 
-  const goHome = () => guard(() => { setHome(true); setNavOpen(false); setRecordOpen(false); setSectionError(null); setSavedNote(''); setInfoNote(null) })
   const answer = () => {
     const question = ask
     askRef.current?.close()
     question?.onGo()
   }
   const primaryLeader = data.members.find((m) => m.role === 'team_leader')
-  // Who is not on any arrival or departure yet: their badges wait for it.
-  const offTrips = (direction: 'arrival' | 'departure') => data.members
-    .filter((m) => !data.travelRecords.some((t) => t.direction === direction && t.memberIds.includes(m.id)))
-    .map((m) => m.badgeName || m.displayName)
 
   const recordsCard = section.records && !locked && (
     <div className={`reg-card reg-records${recordOpen ? ' is-open' : ''}`}>
@@ -680,9 +747,14 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
           <div className="reg-meter" role="progressbar" aria-label="Registration progress" aria-valuemin={0} aria-valuemax={numbered.length} aria-valuenow={stepsDone}>
             <span style={{ transform: `scaleX(${stepsDone / numbered.length})` }} />
           </div>
-          {!home && !submitted && firstOpenStep && firstOpenStep.id !== activeId && (
+          {!home && firstOpenStep && firstOpenStep.id !== activeId && (
             <button type="button" className="reg-btn reg-btn-quiet" onClick={() => open(firstOpenStep.id)}>
               Next: {firstOpenStep.title} <ArrowRight size={16} aria-hidden="true" />
+            </button>
+          )}
+          {!home && ready && (
+            <button type="button" className="reg-btn reg-btn-quiet" onClick={goHome}>
+              Next: submit your registration <ArrowRight size={16} aria-hidden="true" />
             </button>
           )}
         </div>
@@ -710,7 +782,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
           </button>
           <button type="button" className="reg-rail-item reg-rail-home" onClick={goHome}>
             <span className="reg-mark is-home" aria-hidden="true"><LayoutGrid size={14} /></span>
-            <span className="reg-rail-text"><span>Overview</span><small>Where everything stands</small></span>
+            <span className="reg-rail-text"><span>Overview</span><small>{submitted ? 'Submitted' : ready ? 'Ready to submit' : 'Where everything stands'}</small></span>
           </button>
           <ol>
             {main.map((s) => {
@@ -719,7 +791,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                 <li key={s.id}>
                   <button type="button" className={`reg-rail-item is-${st}${s.id === activeId ? ' is-current' : ''}`} aria-current={s.id === activeId ? 'step' : undefined} onClick={() => open(s.id)}>
                     <StatusMark status={st} number={stepNumber(s)} />
-                    <span className="reg-rail-text"><span>{s.title}</span><small>{statusLabel[st]}</small></span>
+                    <span className="reg-rail-text"><span>{s.title}</span><small>{stepLabel(s, st)}</small></span>
                   </button>
                 </li>
               )
@@ -763,27 +835,27 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
           )}
 
           {activeId === 'start' && <>
-            <Card id="start-steps" title="How registration works" intro="Seven steps. Everything you save is kept, so you can stop at any point and come back later, on any device.">
+            <Card id="start-steps" title="How registration works" intro="Six steps, then you submit. Everything you save is kept, so you can stop at any point and come back later, on any device.">
               <p className="reg-hint reg-card-lead">As Team Leader you are the organisers’ contact for your whole delegation, so please pass on to your team and observers what you read here.</p>
               <ol className="reg-journey">
-                <li><strong>Team and observers.</strong> How many are coming, and who would like a single room. This sets your fees.</li>
+                <li><strong>Team and observers.</strong> How many teams, whether each brings an observer, and who would like a single room. This sets your fees.</li>
                 <li><strong>Payment.</strong> Your invoice details, the bank transfer, then the bank’s proof of transfer.</li>
                 <li><strong>Teams.</strong> Each team’s contest language.</li>
                 <li><strong>People.</strong> Opens after payment. Fill it in stages if you need to.</li>
                 <li><strong>Rooms and welfare.</strong> Check the summary built from your people, and add any requests.</li>
                 <li><strong>Travel.</strong> Stay dates now; flights once they are booked.</li>
-                <li><strong>Review and submit.</strong> You can still update people and travel afterwards.</li>
               </ol>
+              <p className="reg-hint reg-card-foot">Once all six are done, you submit your registration from the Overview, the first item in the step menu. You can still update people and travel afterwards.</p>
             </Card>
             <div className="reg-panel-actions">
               <Alert>{sectionError}</Alert>
               {steps.has('start')
-                ? <button type="button" className="reg-btn reg-btn-primary" onClick={() => go(firstOpenStep?.id ?? 'review')}>Continue to {firstOpenStep?.title ?? 'Review and submit'} <ArrowRight size={18} aria-hidden="true" /></button>
+                ? <button type="button" className="reg-btn reg-btn-primary" onClick={() => (firstOpenStep ? go(firstOpenStep.id) : showHome())}>{firstOpenStep ? `Continue to ${firstOpenStep.title}` : 'Go to the overview'} <ArrowRight size={18} aria-hidden="true" /></button>
                 : <button type="button" className="reg-btn reg-btn-primary" disabled={busy} onClick={() => run(() => finishStep('start'))}>Start with team and observers <ArrowRight size={18} aria-hidden="true" /></button>}
             </div>
           </>}
 
-          {activeId === 'setup' && <TeamSetup key={`${d.numberOfTeams}-${d.numberOfObservers}`} data={data} paymentDone={paymentDone} busy={busy} error={sectionError} dirty={Boolean(dirty.setup)} onSave={saveSetup} />}
+          {activeId === 'setup' && <TeamSetup key={`${d.numberOfTeams}-${d.numberOfObservers}`} data={data} paymentDone={paymentDone} busy={busy} error={sectionError} dirty={Boolean(dirty.setup)} onTouched={() => markDirty('setup')} onSave={saveSetup} />}
 
           {activeId === 'welfare' && !locked && (
             <form onSubmit={saveWelfare} noValidate data-dirty-key="welfare">
@@ -808,6 +880,25 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
           {activeId === 'payment' && (
             <form ref={invoiceRef} onSubmit={savePayment} noValidate data-dirty-key="invoice">
               <div className="reg-cards">
+                {payProgress && (
+                  <Card id="pay-status" title={payProgress.title} intro={payProgress.intro}>
+                    <ol className="reg-progress">
+                      {payProgress.stages.map((stage) => (
+                        <li key={stage.key} className={`is-${stage.state}`}>
+                          <span className="reg-progress-mark" aria-hidden="true">
+                            {stage.state === 'done' ? <Check size={14} strokeWidth={3} /> : stage.state === 'problem' ? <CircleAlert size={15} strokeWidth={2.6} /> : null}
+                          </span>
+                          <div>
+                            <strong>{stage.title}<span className="reg-visually-hidden">: {progressWords[stage.state]}</span></strong>
+                            <p>{stage.detail}</p>
+                            {stage.action}
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </Card>
+                )}
+
                 <Card id="pay-amount" title="Amount to transfer" status={<Chip tone="later">{data.fees.tierLabel} rate</Chip>}>
                   <FeeTable lines={data.fees.lines} total={data.fees.total} pending={data.fees.observersPending} />
                   <dl className="reg-ref">
@@ -827,7 +918,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                 <Card id="pay-invoice" number={1} done={Boolean(payment) && !dirty.invoice} title="Invoice details" intro="Who the invoice is made out to. Invoices cannot be split after you transfer."
                   status={dirty.invoice ? <Chip tone="attention">Unsaved changes</Chip> : payment ? <Chip tone="ok">Saved</Chip> : <Chip tone="later">Not saved yet</Chip>}>
                   {paymentDone && <p className="reg-hint reg-card-lead">Locked while Finance checks your payment. To change them, email the organisers.</p>}
-                  <InvoiceDetails key={payment?.id ?? 'new'} data={data} payment={payment} disabled={paymentDone} errors={fieldErrors} />
+                  <InvoiceDetails key={payment?.id ?? 'new'} data={data} payment={payment} disabled={paymentDone} errors={fieldErrors} onTouched={() => markDirty('invoice')} />
                   {!paymentDone && (
                     <div className="reg-card-actions">
                       <button type="button" className="reg-btn reg-btn-secondary" disabled={busy} onClick={() => run(async () => { if (await saveInvoice()) setSavedNote('Invoice details saved.') })}>{busy ? 'Saving…' : 'Save invoice details'}</button>
@@ -874,14 +965,11 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                   </ul>
                 </Card>
 
-                <Card id="pay-proof" number={4} done={paymentDone} title="Upload the proof of transfer" intro="People opens straight after." status={proofChip}>
-                  {payment?.status === 'rejected' && (
-                    <p className="reg-aside reg-aside-warn reg-card-lead"><CircleAlert size={18} aria-hidden="true" /><span><strong>Finance could not match your proof.</strong> {payment.reviewNote} Please upload a new one.</span></p>
-                  )}
+                <Card id="pay-proof" number={4} done={paymentDone} title="Upload the proof of transfer" intro="People opens as soon as it is uploaded." status={proofChip}>
                   <div className={`reg-field reg-field-wide${fieldErrors.proof ? ' has-error' : ''}`}>
                     <span className="reg-label-text" id="proof-label">Proof of transfer</span>
                     <p className="reg-hint" id="proof-hint">{canUpload || paymentDone
-                      ? `The bank’s confirmation or a screenshot of the completed transfer. PDF, JPG or PNG, up to 10 MB.${invoiceFiles.length > 1 ? ' Paid in separate transfers? Put every confirmation in one PDF.' : ''}`
+                      ? `${payment?.status === 'rejected' ? 'Finance returned the last one (the reason is at the top of this page), so upload a new one: ' : ''}The bank’s confirmation or a screenshot of the completed transfer. PDF, JPG or PNG, up to 10 MB.${invoiceFiles.length > 1 ? ' Paid in separate transfers? Put every confirmation in one PDF.' : ''}`
                       : 'Save the invoice details first, then upload the proof after you transfer.'}</p>
                     {fieldErrors.proof && <p className="reg-error" id="proof-error"><CircleAlert size={16} aria-hidden="true" />{fieldErrors.proof}</p>}
                     <label className={`reg-dropzone${paymentDone ? ' is-filled' : ''}${fieldErrors.proof ? ' has-error' : ''}${!canUpload && !paymentDone ? ' is-disabled' : ''}`}>
@@ -892,15 +980,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                         : <><Upload size={22} aria-hidden="true" /><span><strong>{busy ? 'Uploading…' : 'Choose a file'}</strong>{canUpload ? <span className="reg-drag-hint">or drag it here</span> : 'Available once the invoice details are saved'}</span></>}
                     </label>
                   </div>
-                  {receipt
-                    ? <p className="reg-aside reg-aside-ok"><Check size={18} strokeWidth={3} aria-hidden="true" />
-                      <span>Payment approved. <button type="button" className="reg-inline-btn" onClick={() => openReceipt({
-                        organisation: receipt.invoiceRecipientName ?? d.countryTerritory, country: d.countryTerritory, recipientAddress: receipt.invoiceRecipientAddress,
-                        reference: receipt.paymentReference, receiptNumber: receipt.receiptNumber!, amountPaid: Number(receipt.amountDue), currency: receipt.currency,
-                        tierLabel: receipt.feeTier === 'early_bird' ? 'Early bird' : 'Normal', approvedAt: receipt.reviewedAt,
-                      })}><Download size={14} aria-hidden="true" />Download the e-receipt</button></span>
-                    </p>
-                    : <p className="reg-hint reg-card-foot">Finance checks each proof against the bank statement. Once they approve it, your e-receipt will appear here.</p>}
+                  {!payProgress && <p className="reg-hint reg-card-foot">After you upload it, Finance checks it against the bank statement, usually within 5 business days. We email you once the payment is confirmed, and your e-receipt appears on this page.</p>}
                 </Card>
               </div>
 
@@ -950,44 +1030,6 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
             </div>
           )}
 
-          {activeId === 'review' && <>
-            {submitted ? (
-              <Card id="review-done" title="Registration submitted" status={<Chip tone="ok">Submitted</Chip>}
-                intro={<>A confirmation has been sent to {d.teamLeaderEmail}. Finance will check your payment next. You can still update people and travel until the change deadline.</>} />
-            ) : outstanding.length > 0 ? (
-              <Card id="review-left" title="Still to do" intro="By step. Each step’s name opens it." status={<Chip tone="attention">{outstanding.length} {outstanding.length === 1 ? 'step' : 'steps'}</Chip>}>
-                <ul className="reg-todo">
-                  {outstanding.map((group) => (
-                    <li key={group.step}>
-                      <button type="button" className="reg-inline-btn" onClick={() => open(group.step)}>{sections.find((s) => s.id === group.step)!.title}</button>
-                      <ul>{group.items.map((item) => <li key={item}>{item}</li>)}</ul>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            ) : (
-              <Card id="review-ready" title="Ready to submit" intro="Every step is done. Submit when you have checked it once more." status={<Chip tone="ok">Ready</Chip>} />
-            )}
-            <Card id="review-status" title="Where things stand">
-              <Facts items={[
-                { label: 'Registration', value: submitted ? `Submitted${d.submittedAt ? ` on ${new Date(d.submittedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}` : ''}` : 'Draft, not submitted yet' },
-                { label: 'Payment', value: paymentLabel[payment?.status ?? 'none'].replace(/^Payment: (.)/, (_, c: string) => c.toUpperCase()) },
-                { label: 'Changes after submitting', value: 'People and travel can still change', help: 'Until a deadline the organisers will announce.' },
-                { label: 'Travel', value: d.declaredArrivalDate && d.declaredDepartureDate ? 'Stay dates added; flights can follow' : 'Stay dates still needed' },
-              ]} />
-            </Card>
-            <Card id="review-after" title="After you submit">
-              <Facts items={section.facts ?? []} />
-            </Card>
-            {!submitted && (
-              <div className="reg-panel-actions">
-                <Alert>{sectionError}</Alert>
-                <button type="button" className="reg-btn reg-btn-primary" disabled={busy || outstanding.length > 0} aria-describedby={outstanding.length ? 'review-left-title' : undefined} onClick={submit}>{busy ? 'Submitting…' : 'Submit registration'}</button>
-                {outstanding.length > 0 && <span className="reg-muted reg-actions-note">Finish the items under “Still to do” first.</span>}
-              </div>
-            )}
-          </>}
-
           {activeId === 'badges' && (
             <Card id="badges-about" title="Your QR badges" intro="Emailed to you as PDFs, one for each person, so you can check every name. The organisers print the badges for you.">
               <Facts items={section.facts ?? []} />
@@ -997,13 +1039,14 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       </div>}
     </div>
 
-    {/* The safe answer comes first and has the focus; Escape gives it too. */}
+    {/* The safe answer is the filled button on the right, where people click without reading, and has the focus;
+        Escape gives it too. Leaving or removing is plain red text on the left. */}
     <dialog ref={askRef} className="reg-dialog" aria-labelledby="ask-title" aria-describedby="ask-text" onClose={() => setAsk(null)}>
       <h2 id="ask-title">{ask?.title}</h2>
       <p id="ask-text">{ask?.text}</p>
       <div className="reg-dialog-actions">
-        <button type="button" className="reg-btn reg-btn-primary" autoFocus onClick={() => askRef.current?.close()}>{ask?.stay}</button>
-        <button type="button" className="reg-btn reg-btn-secondary" onClick={answer}>{ask?.go}</button>
+        <button type="button" className="reg-btn reg-btn-danger" onClick={answer}>{ask?.go}</button>
+        <button type="button" className="reg-btn reg-btn-primary" ref={stayRef} onClick={() => askRef.current?.close()}>{ask?.stay}</button>
       </div>
     </dialog>
   </>
