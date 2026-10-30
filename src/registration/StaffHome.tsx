@@ -25,7 +25,7 @@ function ParticipantPanel() {
     <Panel id="me" title="Your details" intro="Your Team Leader manages these details. Ask them if anything is wrong.">
       <Problem message={error} />
       {data && <dl className="reg-facts">
-        {[['Name', data.member.displayName], ['Country', data.member.countryTerritory], ['Team', data.member.teamName ?? 'Not assigned yet'], ['Exam language', data.member.examLanguage ?? '—'],
+        {[['Name', data.member.displayName], ['Country', data.member.countryTerritory], ['Team', data.member.teamName ?? 'Not assigned yet'], ['Individual contest language', data.member.examLanguage ?? '—'],
           ['T-shirt / polo', `${data.member.tshirtSize ?? '—'} / ${data.member.poloSize ?? '—'}`], ['QR badge', data.member.badgeStatus ? human(data.member.badgeStatus) : 'Not issued yet']].map(([label, value]) => (
           <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
         ))}

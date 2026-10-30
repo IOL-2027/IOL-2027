@@ -81,6 +81,9 @@ export function TeamSetup({ data, paymentDone, busy, error, dirty, onSave }: { d
     { key: 'singles', label: 'Single rooms', detail: singles ? `${singles} × ${usd(rules.singleRoomFee)}` : 'None: everyone shares a twin room', amount: singles * rules.singleRoomFee },
   ]
   const total = lines.reduce((sum, line) => sum + (line.amount ?? 0), 0)
+  // An unpaid invoice follows this step when it is saved: say so before its amount changes under whoever pays it.
+  const invoice = data.payments[0]
+  const invoiceChanges = Boolean(invoice && !paymentDone && cents(total) !== cents(Number(invoice.amountDue)))
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -121,6 +124,11 @@ export function TeamSetup({ data, paymentDone, busy, error, dirty, onSave }: { d
 
         <Card id="setup-fees" title="Your fees" intro="Updates as you choose. Saving this step sets the amount on your invoice." status={<Chip tone="later">{data.fees.tierLabel} rate</Chip>}>
           <FeeTable lines={lines} total={total} pending={shownObservers > 0 && rules.observerFee === null} />
+          {invoiceChanges && invoice && (
+            <p className="reg-aside reg-aside-warn"><Info size={18} aria-hidden="true" />
+              <span>Your invoice {invoice.invoiceNumber} is for {usd(Number(invoice.amountDue))}. Saving changes it to {usd(total)}{invoice.invoiceSplits?.length ? ', and you will need to share the new total between your payers again in Payment' : ''}. Then download the new PDF in Payment for whoever pays.</span>
+            </p>
+          )}
           {paymentDone && <p className="reg-aside"><Info size={18} aria-hidden="true" />You have already paid. If a change here alters the total, Finance will contact you about the difference.</p>}
         </Card>
       </div>

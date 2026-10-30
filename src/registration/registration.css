@@ -314,7 +314,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-record-name small { font-size: 13px; color: var(--reg-muted); }
 .reg-record-editor { min-width: 0; padding-left: 32px; border-left: 1px solid var(--reg-border); }
 .reg-editor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
-.reg-editor-head h4 { font-size: 22px; letter-spacing: -.025em; }
+.reg-step .reg-editor-head h3 { font-size: 22px; letter-spacing: -.025em; }
 .reg-record-editor > .reg-fieldset:first-of-type { margin-top: 14px; }
 .reg-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 28px; }
 .reg-saved { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--reg-ok-text); }
@@ -764,7 +764,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-step { min-width: 0; scroll-margin-top: var(--reg-header-offset); animation: reg-enter var(--reg-med) var(--reg-ease); }
 .reg-step > .reg-panel-head { margin: 6px 0 24px; }
 .reg-step-kicker { margin: 0 0 8px !important; font-size: 13px !important; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--reg-plum-text) !important; }
-.reg-step h4 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.01em; }
+.reg-step h3, .reg-step h4 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.01em; }
 .reg-step-note { margin: 0 0 16px; }
 .reg-cards { display: grid; gap: 16px; }
 .reg-step > .reg-card + .reg-card, .reg-step > .reg-card + .reg-cards, .reg-step > .reg-cards + .reg-card { margin-top: 16px; }
@@ -772,13 +772,13 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-card-head { display: flex; align-items: flex-start; gap: 14px 16px; margin-bottom: 22px; }
 .reg-card-head:last-child { margin-bottom: 0; }
 .reg-card-title { flex: 1; min-width: 0; }
-.reg-card-title h4 { font-size: 21px; line-height: 1.25; letter-spacing: -.02em; }
+.reg-card-title h3 { font-size: 21px; line-height: 1.25; letter-spacing: -.02em; }
 .reg-card-title p { margin: 6px 0 0; max-width: 64ch; font-size: 15px; line-height: 1.55; color: var(--reg-muted); }
 .reg-card-title p a { color: var(--plum); font-weight: 700; }
 .reg-card-number { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: var(--cream); font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .reg-card-number.is-done { background: var(--reg-ok-text); color: var(--reg-surface); }
 .reg-card-status { flex: none; margin-top: 3px; }
-.reg-card-subhead { margin: 28px 0 12px; font-size: 16px; font-weight: 800; }
+.reg-step .reg-card-subhead { margin: 28px 0 12px; font-size: 16px; font-weight: 800; }
 .reg-card-lead { margin: 0 0 18px !important; }
 .reg-card-foot { margin: 16px 0 0; }
 .reg-card-empty { margin: 0; font-size: 15px; }
@@ -786,7 +786,16 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-card > .reg-facts { margin: 0; }
 .reg-card > .reg-grid + .reg-grid, .reg-card > .reg-grid + .reg-invoice-part { margin-top: 24px; }
 .reg-card > .reg-ref { margin-top: 18px; }
+/* The bank account: each label beside its value, both from the left, so they read as pairs. */
+.reg-card .reg-bank { display: grid; grid-template-columns: minmax(130px, 190px) minmax(0, 1fr); gap: 14px 24px; }
+.reg-card .reg-bank > div { display: contents; }
+.reg-card .reg-bank dt { padding-top: 3px; }
+.reg-card .reg-bank dd { flex-direction: column; align-items: flex-start; gap: 2px; max-width: none; text-align: left; }
 .reg-card-head + .reg-bank { margin-top: 0; padding-top: 0; border-top: 0; }
+.reg-nights:empty { min-height: 0; margin: 0 !important; }
+/* Fields side by side start on the same line, each label right above its own hint and input: a label kept next to
+   its input matters more than inputs lining up across a row. */
+@media (min-width: 641px) { .reg-grid { align-items: start; } }
 .reg-card .reg-nights { margin-top: 16px; }
 .reg-stay-why { margin-top: 18px; }
 .reg-step .reg-journey { margin-top: 2px; }
@@ -807,6 +816,21 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-rules li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 7px; height: 7px; border-radius: 50%; background: var(--orange); }
 .reg-rules strong { color: var(--ink); }
 
+/* Travel: adding another trip, and who is on none yet. */
+.reg-record-adds { display: flex; flex-wrap: wrap; gap: 0 18px; margin-top: 8px; }
+.reg-off-trip { margin-top: 10px; }
+/* The record editor: what is still needed, and removing the record (pushed to the far end, in the error colour). */
+.reg-still { margin: 12px 0 0; }
+.reg-btn-remove { margin-left: auto; color: var(--reg-error); }
+.reg-btn-remove:hover { color: var(--ink); }
+.reg-inline { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.reg-other-label { display: block; margin-top: 12px; font-size: 14px; font-weight: 700; }
+/* Still to do on Review: each step, with what is missing under it. */
+.reg-todo > li > ul { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 2px; font-size: 15px; color: var(--reg-muted); list-style: disc; }
+.reg-todo > li > ul li::marker { color: var(--reg-border); }
+/* Dragging a file only works with a mouse. */
+@media (hover: none) { .reg-drag-hint { display: none; } }
+
 /* Unsaved changes, beside a form's Save button. */
 .reg-unsaved { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--reg-attn-text); }
 .reg-unsaved > span { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); }
@@ -818,16 +842,31 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-dialog-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
 .reg-dialog :focus-visible { outline: 3px solid var(--reg-focus); outline-offset: 3px; }
 
+/* Below 900px the step menu's button already says which step this is, and a list of records opens each one on a
+   screen of its own: each row gets a chevron, and none looks selected while the list is all that shows. */
+@media (max-width: 900px) {
+  .reg-step-kicker { display: none; }
+  .reg-records:not(.is-open) .reg-record.is-current { border-color: transparent; background: none; }
+  .reg-record { position: relative; padding-right: 44px; }
+  .reg-record::after { content: ""; position: absolute; right: 18px; top: 50%; width: 8px; height: 8px; border-top: 2px solid var(--reg-muted); border-right: 2px solid var(--reg-muted); transform: translateY(-50%) rotate(45deg); }
+}
+/* The summary under the country on phones: one fact a line, without the dots that would start a wrapped line. */
+@media (max-width: 640px) {
+  .reg-ws-summary { flex-direction: column; gap: 2px; }
+  .reg-ws-summary li + li::before { display: none; }
+}
 @media (max-width: 640px) {
   .reg-card { padding: 20px 16px; border-radius: var(--reg-radius); }
   .reg-card-head { flex-wrap: wrap; gap: 10px 12px; margin-bottom: 18px; }
   .reg-card-title { flex-basis: 220px; }
-  .reg-card-title h4 { font-size: 19px; }
+  .reg-card-title h3 { font-size: 19px; }
   .reg-card-number { width: 30px; height: 30px; font-size: 14px; }
   .reg-card-head:has(.reg-card-number) .reg-card-status { padding-left: 42px; }
   .reg-card-status { margin-top: 0; }
   .reg-files li { grid-template-columns: auto minmax(0, 1fr); }
   .reg-files li > .reg-btn { grid-column: 1 / -1; }
+  .reg-card .reg-bank { grid-template-columns: 1fr; gap: 2px; }
+  .reg-card .reg-bank dd { margin-bottom: 12px; }
   .reg-dialog { padding: 22px 18px; }
   .reg-dialog-actions .reg-btn { flex: 1 1 100%; }
 }

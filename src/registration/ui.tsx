@@ -1,5 +1,5 @@
 // Form pieces shared by the Team Leader portal, sign-in screens and the staff back office.
-import type { InputHTMLAttributes, ReactNode } from 'react'
+import { useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { Check, CircleAlert, Clock, LogOut } from 'lucide-react'
 import { ApiError, type User } from './api'
 import { selectOptions, type Field } from './portalData'
@@ -13,6 +13,29 @@ export const daysBetween = (from: string, to: string) => Math.round((new Date(`$
 export const messageOf = (error: unknown) => (error instanceof ApiError ? error.message : 'Something went wrong. Please try again.')
 
 type FieldProps = { field: Field; idPrefix: string; error?: string; wide?: boolean; disabled?: boolean }
+
+/**
+ * A select with "Other", which then asks which in words. The form sends one value under the field's label: the
+ * chosen option, or what was typed.
+ */
+function SelectWithOther({ field, id, options, common }: { field: Field; id: string; options: string[]; common: Record<string, unknown> }) {
+  const listed = options.filter((o) => o !== 'Other')
+  const typed = Boolean(field.value) && !listed.includes(field.value)
+  const [choice, setChoice] = useState(typed ? 'Other' : field.value)
+  const [other, setOther] = useState(typed ? field.value : '')
+  const { name: _name, defaultValue: _default, ...rest } = common
+  return <>
+    <select {...rest} value={choice} onChange={(e) => setChoice(e.target.value)}>
+      <option value="">Choose…</option>
+      {options.map((option) => <option key={option} value={option}>{option}</option>)}
+    </select>
+    {choice === 'Other' && <>
+      <label className="reg-other-label" htmlFor={`${id}-other`}>Which language?</label>
+      <input id={`${id}-other`} className="reg-control" value={other} disabled={Boolean(common.disabled)} onChange={(e) => setOther(e.target.value)} />
+    </>}
+    <input type="hidden" name={field.label} value={choice === 'Other' ? other.trim() : choice} />
+  </>
+}
 
 export function FieldControl({ field, idPrefix, error, wide, disabled }: FieldProps) {
   const id = `${idPrefix}-${slug(field.label)}`
@@ -54,7 +77,9 @@ export function FieldControl({ field, idPrefix, error, wide, disabled }: FieldPr
       <label htmlFor={id}>{field.label}{field.optional && <span className="reg-optional"> (optional)</span>}</label>
       {field.help && <p className="reg-hint" id={hintId}>{field.help}</p>}
       {error && <p className="reg-error" id={errorId}><CircleAlert size={16} aria-hidden="true" />{error}</p>}
-      {kind === 'select' ? (
+      {kind === 'select' && field.other ? (
+        <SelectWithOther field={field} id={id} options={options} common={common} />
+      ) : kind === 'select' ? (
         <select {...common}>
           <option value="">Choose…</option>
           {options.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -95,7 +120,7 @@ export function Card({ id, title, intro, number, done, status, children, classNa
           <span className={`reg-card-number${done ? ' is-done' : ''}`} aria-hidden="true">{done ? <Check size={16} strokeWidth={3} /> : number}</span>
         )}
         <div className="reg-card-title">
-          <h4 id={`${id}-title`}>{number !== undefined && <span className="reg-visually-hidden">{`Part ${number}${done ? ', done' : ''}: `}</span>}{title}</h4>
+          <h3 id={`${id}-title`}>{number !== undefined && <span className="reg-visually-hidden">{`Part ${number}${done ? ', done' : ''}: `}</span>}{title}</h3>
           {intro && <p>{intro}</p>}
         </div>
         {status && <div className="reg-card-status">{status}</div>}
@@ -132,14 +157,18 @@ export function TextField({ name, label, hint, error, idPrefix = 'acc', ...input
   )
 }
 
+/** Set by the Team Leader workspace while a form has unsaved changes, so signing out asks first. */
+export const unsavedWork = { current: false }
+
 /** Who is signed in and the way out, at the top right of the page header. */
 export function SessionBar({ user, onSignOut }: { user?: User | null; onSignOut?: () => void }) {
+  const signOut = () => { if (!unsavedWork.current || window.confirm('Your changes are not saved yet. Sign out anyway?')) onSignOut?.() }
   if (!testEnvironment && !user) return null
   return (
     <div className="reg-head-session">
       {testEnvironment && <span className="reg-test-chip">Test environment · data may be reset</span>}
       {user && <span className="reg-head-who">Signed in as <strong>{user.fullName}</strong></span>}
-      {user && onSignOut && <button type="button" className="reg-head-signout" onClick={onSignOut}><LogOut size={15} aria-hidden="true" />Sign out</button>}
+      {user && onSignOut && <button type="button" className="reg-head-signout" onClick={signOut}><LogOut size={15} aria-hidden="true" />Sign out</button>}
     </div>
   )
 }

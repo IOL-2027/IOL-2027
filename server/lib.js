@@ -92,8 +92,9 @@ export function buildUpdate(body, fieldMap) {
 export const requiredMemberColumns = {
   all: [['badge_name', 'badge name'], ['official_name', 'official name'], ['passport_name', 'passport name'], ['passport_number', 'passport number'],
     ['passport_nationality', 'passport nationality'], ['date_of_birth', 'date of birth'], ['gender_for_room_allocation', 'gender for room allocation'],
-    ['tshirt_size', 'T-shirt size'], ['polo_size', 'polo shirt size'], ['emergency_contact', 'emergency contact']],
-  contestant: [['team_id', 'team assignment'], ['exam_language', 'exam language']],
+    ['tshirt_size', 'T-shirt size'], ['polo_size', 'polo shirt size'], ['emergency_contact', 'emergency contact'],
+    ['food_allergy_notes', 'food and allergy notes'], ['medical_accessibility_notes', 'medical or accessibility notes']],
+  contestant: [['team_id', 'team assignment'], ['exam_language', 'individual contest language']],
   team_leader: [['room_type_preference', 'single room']],
   observer: [['observer_category', 'observer category'], ['email', 'email'], ['room_type_preference', 'single room']],
 }

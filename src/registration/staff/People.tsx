@@ -130,7 +130,7 @@ export function Welfare() {
   const quiet = (text: string | null) => !text || /^(no restrictions|no special requirements)$/i.test(text.trim())
   const rows = (data?.people ?? []).filter((p) => !onlyNotes || !quiet(p.foodAllergyNotes) || !quiet(p.medicalAccessibilityNotes))
   return (
-    <Panel id="welfare" title="Welfare" intro="Room requests from each country’s Team Leader, then food, medical and emergency information for everyone. Passport data is not shown to this role.">
+    <Panel id="welfare" title="Welfare" intro="Food, medical and emergency information for everyone, and any room requests from Team Leaders. Passport data is not shown here.">
       <div className="reg-filter-bar">
         <label className="reg-check reg-filter-check"><input type="checkbox" checked={onlyNotes} onChange={(e) => setOnlyNotes(e.target.checked)} /><span>Only people with food or medical notes</span></label>
       </div>
@@ -143,12 +143,12 @@ export function Welfare() {
         <h3 className="reg-staff-subhead">Everyone</h3>
       </>}
       {data && <TableWrap label="Welfare">
-        <thead><tr><th scope="col">Person</th><th scope="col">Country</th><th scope="col">Food</th><th scope="col">Medical / access</th><th scope="col">Emergency contact</th><th scope="col">Room</th></tr></thead>
+        <thead><tr><th scope="col">Person</th><th scope="col">Country</th><th scope="col">Food</th><th scope="col">Medical / access</th><th scope="col">Emergency contact</th><th scope="col">Rooming</th></tr></thead>
         <tbody>{rows.map((p) => (
           <tr key={p.id}>
             <th scope="row">{p.displayName}<small>{roleName(p.role)}</small></th><td>{p.countryTerritory}</td>
             <td>{p.foodAllergyNotes ?? '—'}</td><td>{p.medicalAccessibilityNotes ?? '—'}</td><td>{p.emergencyContact ?? '—'}</td>
-            <td>{p.genderForRoomAllocation ?? '—'}{p.roomTypePreference && <small>{p.roomTypePreference === 'single' ? 'Single room' : p.roomTypePreference === 'shared' ? 'Shares a twin room' : p.roomTypePreference}</small>}</td>
+            <td>{p.genderForRoomAllocation ?? 'Gender not given'}{p.roomTypePreference && <small>{p.roomTypePreference === 'single' ? 'Single room' : p.roomTypePreference === 'shared' ? 'Shares a twin room' : p.roomTypePreference}</small>}</td>
           </tr>
         ))}</tbody>
       </TableWrap>}

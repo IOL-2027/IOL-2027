@@ -18,7 +18,7 @@ import {
   checkPasswordRules, createSession, destroySession, filterMember, hashPassword, loginBlocked, recordLogin,
   requireAuth, requireRequestHeader, requireRole, requireVerified, sessionMiddleware, verifyPassword,
 } from './auth.js'
-import { delegationFees, loadSettings, maxObservers, needsGuardianConsent, singleRoomCount } from './fees.js'
+import { delegationFees, loadSettings, maxObservers, needsGuardianConsent } from './fees.js'
 import {
   asyncHandler, buildUpdate, camelizeRow, camelizeRows, hashToken, insertAudit, isEmail, missingMemberDetails,
   exposeDevCodes, optionalNumber, optionalString, pool, query, requireDb, requiredString, portalUrl, withTransaction,
@@ -449,13 +449,10 @@ app.patch('/api/registration/delegations/:delegationId', ...signedIn, delegation
     const result = await client.query(`UPDATE delegations SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values)
     if (!result.rowCount) throw new HttpError(404, 'Delegation not found.')
     if ('numberOfTeams' in body) await ensureTeams(client, result.rows[0])
-    // An invoice not paid yet follows the new numbers, as it does when Finance changes the fees. The Team Leaders'
-    // answers are copied to their People records (first chosen, first record); observers answer in People.
+    // An invoice not paid yet follows the new numbers, as it does when Finance changes the fees, and the answers
+    // reach the Team Leaders' and observers' records in People.
     if ('singleRooms' in body) {
-      const leaders = (await client.query(`SELECT id FROM members WHERE delegation_id = $1 AND role = 'team_leader' ORDER BY created_at`, [result.rows[0].id])).rows
-      for (const [i, leader] of leaders.entries()) {
-        if (i < body.singleRooms.teamLeaders.length) await client.query('UPDATE members SET room_type_preference = $1, updated_at = now() WHERE id = $2', [body.singleRooms.teamLeaders[i] ? 'single' : 'shared', leader.id])
-      }
+      await syncSingleRooms(client, result.rows[0].id)
       const open = (await client.query(`SELECT id, fee_tier FROM payments WHERE delegation_id = $1 AND status IN ('awaiting_proof', 'rejected')`, [result.rows[0].id])).rows
       for (const p of open) await client.query('UPDATE payments SET amount_due = $1, updated_at = now() WHERE id = $2', [delegationFees(fees, result.rows[0], p.fee_tier).total, p.id])
     }
@@ -604,6 +601,24 @@ async function checkLeaderPlace(delegationId, memberId = null) {
   if (others >= d.number_of_teams) throw new HttpError(400, d.number_of_teams === 1 ? 'One team has one Team Leader. Register this person as an observer.' : 'Each team already has its Team Leader. Register this person as an observer.')
 }
 
+/**
+ * Single rooms are chosen once, in Team and observers: one yes or no per Team Leader and per observer. Each person's
+ * record follows in order (the first Team Leader gets the first answer, the first observer the first observer answer),
+ * so People shows the answer rather than asking again.
+ */
+async function syncSingleRooms(db, delegationId) {
+  const d = (await db.query('SELECT single_rooms FROM delegations WHERE id = $1', [delegationId])).rows[0]
+  if (!d) return
+  const answers = { team_leader: d.single_rooms?.teamLeaders ?? [], observer: d.single_rooms?.observers ?? [] }
+  const people = (await db.query(`SELECT id, role FROM members WHERE delegation_id = $1 AND role IN ('team_leader', 'observer') ORDER BY created_at`, [delegationId])).rows
+  const seen = { team_leader: 0, observer: 0 }
+  for (const person of people) {
+    const answer = answers[person.role][seen[person.role]++]
+    const value = answer === undefined ? null : answer ? 'single' : 'shared'
+    await db.query('UPDATE members SET room_type_preference = $1, updated_at = now() WHERE id = $2 AND room_type_preference IS DISTINCT FROM $1', [value, person.id])
+  }
+}
+
 async function checkTeamBelongs(teamId, delegationId) {
   if (!teamId) return
   const ok = await query('SELECT 1 FROM teams WHERE id = $1 AND delegation_id = $2', [teamId, delegationId])
@@ -613,6 +628,7 @@ async function checkTeamBelongs(teamId, delegationId) {
 app.post('/api/registration/delegations/:delegationId/members', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
   await requirePeopleOpen(req, req.params.delegationId)
   const body = { ...req.body, role: normalizeRole(req.body.role || 'contestant') }
+  delete body.roomTypePreference // set from Team and observers (syncSingleRooms)
   if (body.role === 'team_leader') await checkLeaderPlace(req.params.delegationId)
   await checkTeamBelongs(body.teamId, req.params.delegationId)
   requiredString(body.displayName, 'Display name')
@@ -623,13 +639,15 @@ app.post('/api/registration/delegations/:delegationId/members', ...signedIn, del
     `INSERT INTO members (${columns.join(', ')}) VALUES (${columns.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
     values,
   )
+  await syncSingleRooms(requireDb(), req.params.delegationId)
   await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.params.delegationId, eventType: 'member_added', entityType: 'member', entityId: result.rows[0].id })
-  res.status(201).json({ member: camelizeRow(result.rows[0]) })
+  res.status(201).json({ member: camelizeRow((await query('SELECT * FROM members WHERE id = $1', [result.rows[0].id])).rows[0]) })
 }))
 
 app.patch('/api/registration/members/:memberId', ...signedIn, childAccess('members', 'memberId'), asyncHandler(async (req, res) => {
   await requirePeopleOpen(req, req.delegationId)
   const body = { ...req.body }
+  delete body.roomTypePreference // set from Team and observers (syncSingleRooms)
   if (body.role) {
     body.role = normalizeRole(body.role)
     const primary = await primaryLeaderId(req.delegationId)
@@ -639,14 +657,16 @@ app.patch('/api/registration/members/:memberId', ...signedIn, childAccess('membe
   await checkTeamBelongs(body.teamId, req.delegationId)
   const { sets, values } = buildUpdate(body, memberFields)
   values.push(req.params.memberId)
-  const result = await query(`UPDATE members SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values)
+  await query(`UPDATE members SET ${sets.join(', ')} WHERE id = $${values.length}`, values)
+  if (body.role) await syncSingleRooms(requireDb(), req.delegationId)
   await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'member_updated', entityType: 'member', entityId: req.params.memberId, details: { fields: Object.keys(req.body) } })
-  res.json({ member: camelizeRow(result.rows[0]) })
+  res.json({ member: camelizeRow((await query('SELECT * FROM members WHERE id = $1', [req.params.memberId])).rows[0]) })
 }))
 
 app.delete('/api/registration/members/:memberId', ...signedIn, childAccess('members', 'memberId'), asyncHandler(async (req, res) => {
   if (req.params.memberId === await primaryLeaderId(req.delegationId)) throw new HttpError(400, 'The account’s own Team Leader cannot be removed.')
   await query('DELETE FROM members WHERE id = $1', [req.params.memberId])
+  await syncSingleRooms(requireDb(), req.delegationId)
   await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'member_removed', entityType: 'member', entityId: req.params.memberId })
   res.status(204).end()
 }))
@@ -709,6 +729,13 @@ app.patch('/api/registration/travel/:travelRecordId', ...signedIn, childAccess('
   })
   await sendBadgesIfSettled(req.delegationId).catch((e) => console.error(e.message))
   res.json({ travelRecord: camelizeRow(travel) })
+}))
+
+// A trip added by mistake, or a flight that was cancelled.
+app.delete('/api/registration/travel/:travelRecordId', ...signedIn, childAccess('travel', 'travelRecordId'), asyncHandler(async (req, res) => {
+  await query('DELETE FROM travel_records WHERE id = $1', [req.params.travelRecordId])
+  await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'travel_removed', entityType: 'travel_record', entityId: req.params.travelRecordId })
+  res.status(204).end()
 }))
 
 app.post('/api/registration/delegations/:delegationId/payment-proof', ...signedIn, delegationAccess('write'), upload.single('proof'), asyncHandler(async (req, res) => {
@@ -788,8 +815,6 @@ async function missingForSubmission(delegationId) {
   // People must match what the fees were worked out from (Team and observers).
   const observers = members.rows.filter((m) => m.role === 'observer').length
   if (observers !== d.number_of_observers) missing.push(`Observers: ${d.number_of_observers} in Team and observers, ${observers} in People`)
-  const singles = members.rows.filter((m) => m.role !== 'contestant' && m.room_type_preference === 'single').length
-  if (singles !== singleRoomCount(d.single_rooms)) missing.push(`Single rooms: ${singleRoomCount(d.single_rooms)} in Team and observers, ${singles} asked for in People`)
   const payment = (await query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC LIMIT 1', [delegationId])).rows[0]
   if (await splitsOutOfStep(d, payment)) missing.push('Invoice amounts: update them in Payment, the total has changed')
   return { delegation: d, missing }

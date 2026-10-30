@@ -22,13 +22,13 @@ const memberFieldDefs: MemberFieldDef[] = [
   { key: 'passportNumber', label: 'Passport number', value: '' },
   { key: 'passportNationality', label: 'Passport nationality', value: '' },
   { key: 'dateOfBirth', label: 'Date of birth', value: '', kind: 'date', help: 'Confirms contestant eligibility and whether a guardian consent is needed.' },
-  { key: 'examLanguage', label: 'Exam language', value: '', kind: 'select', roles: ['contestant'], help: 'Language of the individual contest paper.' },
+  { key: 'examLanguage', label: 'Individual contest language', value: '', kind: 'select', other: true, roles: ['contestant'], help: 'The language of their individual contest paper.' },
   { key: 'genderForRoomAllocation', label: 'Gender for room allocation', value: '', kind: 'select', help: 'Used only for rooming and safeguarding.' },
-  { key: 'roomTypePreference', label: 'Single room', value: '', kind: 'select', roles: ['team_leader', 'observer'], help: 'Everyone shares a twin room unless they ask for a single one, which costs extra. The people who say yes must match the single rooms chosen in Team and observers.' },
   { key: 'tshirtSize', label: 'T-shirt size', value: '', kind: 'select', help: shirtHelp },
   { key: 'poloSize', label: 'Polo shirt size', value: '', kind: 'select', help: shirtHelp },
-  { key: 'foodAllergyNotes', label: 'Food and allergy notes', value: '', kind: 'textarea', optional: true },
-  { key: 'medicalAccessibilityNotes', label: 'Medical or accessibility notes', value: '', kind: 'textarea', optional: true },
+  // Required, so a blank is never mistaken for "nothing to tell": "None" is an answer.
+  { key: 'foodAllergyNotes', label: 'Food and allergy notes', value: '', kind: 'textarea', help: 'Diet, allergies and how serious they are. Write “None” if there is nothing.' },
+  { key: 'medicalAccessibilityNotes', label: 'Medical or accessibility notes', value: '', kind: 'textarea', help: 'Conditions, medicines or access needs the organisers should know about. Write “None” if there is nothing.' },
   { key: 'emergencyContact', label: 'Emergency contact', value: '', help: 'Name and phone number of someone we can reach during the event.' },
 ]
 
@@ -42,19 +42,14 @@ export type LeaderSlots = { primary?: boolean; canLead?: boolean }
 function memberDefs(role: Member['role'], slots: LeaderSlots = {}) {
   return memberFieldDefs
     .filter((def) => (!def.roles || def.roles.includes(role)) && !(def.key === 'role' && slots.primary))
-    .map((def) => (def.key === 'teamId' && role === 'team_leader' ? { ...def, optional: true } : def))
+    .map((def) => (def.key === 'teamId' && role === 'team_leader' ? { ...def, optional: true, help: 'Leave it empty if you lead both teams.' } : def))
 }
-
-// Single rooms are stored as 'single' or 'shared'; answers from before the yes/no question count as yes only if
-// they asked for a single room.
-const singleRoomAnswer = (stored: string | null | undefined) => (!stored ? '' : /single/i.test(stored) ? 'Yes, a single room' : 'No, share a room')
 
 export function personFields(member: Partial<Member> & { role: Member['role'] }, teams: Team[], slots: LeaderSlots = {}): Field[] {
   return memberDefs(member.role, slots).map((def) => {
     let value = String(member[def.key] ?? '')
     if (def.key === 'role') value = roleToLabel[member.role]
     if (def.key === 'teamId') value = teams.find((t) => t.id === member.teamId)?.name ?? ''
-    if (def.key === 'roomTypePreference') value = singleRoomAnswer(member.roomTypePreference)
     const roles = ['Contestant', 'Observer', ...(slots.canLead || member.role === 'team_leader' ? ['Team Leader'] : [])]
     const options = def.key === 'teamId' ? [...teams.map((t) => t.name), 'Not assigned'] : def.key === 'role' ? roles : def.options
     const help = def.key === 'role' && roles.includes('Team Leader') ? 'With two teams, the second team may have its own Team Leader, included in its fee.' : def.help
@@ -81,12 +76,18 @@ export function personGaps(member: Member, attachments: Attachment[]) {
 export function personRecord(member: Member, teams: Team[], attachments: Attachment[], slots: LeaderSlots = {}): PortalRecord {
   const missing = personGaps(member, attachments)
   const team = teams.find((t) => t.id === member.teamId)
+  // Team Leaders' and observers' single rooms are chosen in Team and observers and copied here in order (the server's
+  // syncSingleRooms), so the record shows the answer instead of asking again.
+  const room = member.role === 'contestant' ? undefined
+    : [{ label: 'Single room', value: member.roomTypePreference === 'single' ? 'Yes' : member.roomTypePreference === 'shared' ? 'No, shares a twin room' : 'Not chosen yet', help: 'Chosen in Team and observers. Change it there.' }]
   return {
     id: member.id,
     label: member.displayName,
     meta: `${roleToLabel[member.role]}${team && member.role !== 'observer' ? ` · ${team.name}` : ''}`,
     status: missing.length ? 'attention' : 'complete',
     issue: missing.length ? (missing.length === 1 ? `${missing[0]} missing` : `${missing.length} details missing`) : undefined,
+    missing,
+    facts: room,
     fields: personFields(member, teams, slots),
   }
 }
@@ -98,35 +99,30 @@ export function personPayload(form: FormData, role: Member['role'], teams: Team[
     const raw = String(form.get(def.label) ?? '').trim()
     if (def.key === 'role') { if (raw) payload.role = labelToRole[raw] ?? role; continue }
     if (def.key === 'teamId') { payload.teamId = teams.find((t) => t.name === raw)?.id ?? null; continue }
-    if (def.key === 'roomTypePreference') { payload.roomTypePreference = raw ? (raw.startsWith('Yes') ? 'single' : 'shared') : null; continue }
     payload[def.key] = raw || null
   }
   return payload
 }
 
-/** Single rooms asked for in People, against the ones chosen in Team and observers (and so on the invoice). */
-export function singleRoomCheck(data: DelegationData) {
-  const chosen = [...data.delegation.singleRooms.teamLeaders, ...data.delegation.singleRooms.observers].filter(Boolean).length
-  const asked = data.members.filter((m) => m.role !== 'contestant' && m.roomTypePreference === 'single').length
-  return { chosen, asked, matches: chosen === asked }
-}
-
 export function teamRecord(team: Team, data: DelegationData): PortalRecord {
   const contestants = data.members.filter((m) => m.teamId === team.id && m.role === 'contestant').map((m) => m.badgeName || m.displayName)
+  // The Team Leader assigned to this team in People, or the one who leads both (no team assigned).
+  const leaders = data.members.filter((m) => m.role === 'team_leader')
+  const leader = leaders.find((m) => m.teamId === team.id) ?? leaders.find((m) => !m.teamId)
   return {
     id: team.id,
     label: team.name,
     meta: `${contestants.length} ${contestants.length === 1 ? 'contestant' : 'contestants'}`,
     status: team.contestLanguage ? 'complete' : 'attention',
-    issue: team.contestLanguage ? undefined : 'Working language missing',
+    issue: team.contestLanguage ? undefined : 'Contest language missing',
     facts: [
       { label: 'Team code', value: team.code },
-      { label: 'Team Leader', value: data.delegation.primaryTeamLeaderName, help: 'From the Team Leader account.' },
-      { label: 'Contestants', value: contestants.join(', ') || 'None assigned yet' },
+      { label: 'Team Leader', value: leader?.displayName ?? 'Not assigned yet', help: leader ? undefined : 'Assign one in People.' },
+      { label: 'Contestants', value: contestants.join(', ') || 'None assigned yet', help: contestants.length ? undefined : 'Assign contestants to this team in People.' },
     ],
     fields: [
       { label: 'Team name', value: team.name },
-      { label: 'Team contest language', value: team.contestLanguage ?? '', kind: 'select', help: 'One language per team. Changes close before the contest.' },
+      { label: 'Team contest language', value: team.contestLanguage ?? '', kind: 'select', other: true, help: 'One language for the whole team’s paper.' },
     ],
   }
 }
@@ -146,14 +142,15 @@ const tripFacts = {
   ],
 }
 
-export function tripRecord(direction: 'arrival' | 'departure', trip: TravelRecord | undefined, members: Member[]): PortalRecord {
+/** One arrival or departure. `number` tells several trips in the same direction apart (Arrival 1, Arrival 2). */
+export function tripRecord(direction: 'arrival' | 'departure', trip: TravelRecord | undefined, members: Member[], number?: number): PortalRecord {
   const pointLabel = direction === 'arrival' ? 'Arrival point' : 'Departure point'
   const people = members.map((m) => m.displayName)
   const chosen = (trip?.memberIds ?? []).map((id) => members.find((m) => m.id === id)?.displayName).filter(Boolean)
   const complete = Boolean(trip?.travelPoint && trip.flightServiceNumber && trip.localDate && trip.localTime)
   return {
     id: trip?.id ?? `new-${direction}`,
-    label: direction === 'arrival' ? 'Arrival' : 'Departure',
+    label: `${direction === 'arrival' ? 'Arrival' : 'Departure'}${number ? ` ${number}` : ''}`,
     meta: complete ? `${trip!.flightServiceNumber} · ${trip!.localDate}` : 'Add after booking',
     status: complete ? 'complete' : 'later',
     issue: trip && !complete ? 'Incomplete' : undefined,
@@ -164,7 +161,7 @@ export function tripRecord(direction: 'arrival' | 'departure', trip: TravelRecor
       { label: 'Date', value: trip?.localDate ?? '', kind: 'date', help: 'Bangkok local date.' },
       { label: 'Time', value: trip?.localTime?.slice(0, 5) ?? '', kind: 'time', help: 'Bangkok local time.' },
       ...(direction === 'arrival' ? [{ label: 'Airport terminal', value: trip?.terminal ?? '', kind: 'select' as const, optional: true }] : []),
-      { label: 'People on this trip', value: chosen.join(', '), kind: 'checkboxes', options: people },
+      { label: 'People on this trip', value: chosen.join(', '), kind: 'checkboxes', options: people, help: 'Everyone on this flight. Anyone on a different flight goes on a trip of their own.' },
     ],
   }
 }
@@ -194,21 +191,26 @@ function guardianConsentFact(members: Member[], policy: GuardianConsentPolicy, a
   }
 }
 
+// "Name: note" for every note worth reading, so the Team Leader can check whose it is.
+const notesOf = (members: Member[], key: 'foodAllergyNotes' | 'medicalAccessibilityNotes') => members
+  .filter((m) => m[key] && !/^(none|no|n\/a|-|no restrictions|no special requirements)\.?$/i.test(m[key]!.trim()))
+  .map((m) => `${m.badgeName || m.displayName}: ${m[key]!.trim()}`)
+
 export function welfareFacts({ members, guardianConsent, attachments, feeRules }: DelegationData) {
   const contestants = members.filter((m) => m.role === 'contestant')
   const male = contestants.filter((m) => m.genderForRoomAllocation === 'Male').length
   const female = contestants.filter((m) => m.genderForRoomAllocation === 'Female').length
   const others = contestants.length - male - female
   const singles = members.filter((m) => m.role !== 'contestant' && m.roomTypePreference === 'single').map((m) => m.displayName)
-  const diets = members.map((m) => m.foodAllergyNotes).filter((f): f is string => Boolean(f && !/no restrictions/i.test(f)))
-  const medical = members.map((m) => m.medicalAccessibilityNotes).filter((m): m is string => Boolean(m && !/no special requirements/i.test(m)))
+  const diets = notesOf(members, 'foodAllergyNotes')
+  const medical = notesOf(members, 'medicalAccessibilityNotes')
   return [
     { label: 'Contestants’ rooms', value: `${male} male, ${female} female${others ? `, ${others} other or not given` : ''}`, help: 'Contestants share twin rooms with someone of the same gender, from their own country where possible.' },
-    { label: 'Single rooms', value: singles.join(', ') || 'None', help: `For Team Leaders and observers, USD ${feeRules.singleRoomFee.toLocaleString('en-US')} each. Chosen in Team and observers and on each person’s record.` },
-    { label: 'Food', value: diets.length ? diets.join(' · ') : 'No restrictions reported', help: 'Taken from each person’s food and allergy notes.' },
-    { label: 'Medical and accessibility', value: medical.length ? medical.join(' · ') : 'Nothing reported' },
+    { label: 'Single rooms', value: singles.join(', ') || 'None', help: `For Team Leaders and observers, USD ${feeRules.singleRoomFee.toLocaleString('en-US')} each. Chosen in Team and observers.` },
+    { label: 'Food', value: diets.length ? diets.join(' · ') : 'Nothing reported', help: 'From each person’s food and allergy notes.' },
+    { label: 'Medical and accessibility', value: medical.length ? medical.join(' · ') : 'Nothing reported', help: 'From each person’s medical or accessibility notes.' },
     guardianConsentFact(members, guardianConsent, attachments),
-    { label: 'Who can see this', value: 'Welfare, food and check-in staff only', help: 'Access is limited by role under Thailand’s PDPA.' },
-    { label: 'How long it is kept', value: 'Deleted after the event', help: 'The exact retention period is awaiting approval.' },
+    { label: 'Who can see this', value: 'The organising team only', help: 'Handled under Thailand’s Personal Data Protection Act (PDPA); every download is logged.' },
+    { label: 'How long it is kept', value: 'Deleted after the event', help: 'The exact date will be announced.' },
   ]
 }

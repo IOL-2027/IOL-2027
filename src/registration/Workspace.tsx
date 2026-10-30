@@ -1,14 +1,13 @@
 // The Team Leader's registration workspace: an overview of the whole track for anyone coming back, then a step
 // rail on the left and one step at a time on the right.
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, FileText, Info, LayoutGrid, Lock, Upload, UserPlus } from 'lucide-react'
-import { portalPath } from '../launch'
-import { api, ApiError, type DelegationData, type Member } from './api'
+import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, FileText, Info, LayoutGrid, Lock, Plus, Upload, UserPlus } from 'lucide-react'
+import { api, ApiError, type DelegationData, type Member, type TravelRecord } from './api'
 import { personFieldGroups, programmeWindow, sections, type Field, type PortalRecord, type Section, type SectionId } from './portalData'
-import { consentFor, personFields, personGaps, personPayload, personRecord, singleRoomCheck, teamRecord, tripPayload, tripRecord, welfareFacts } from './live'
+import { consentFor, personFields, personPayload, personRecord, teamRecord, tripPayload, tripRecord, welfareFacts } from './live'
 import { FeeTable, InvoiceDetails, TeamSetup, UnsavedNote, invoiceProblems, readInvoices, usd, type SetupBody } from './SetupForms'
 import { openReceipt } from './invoice'
-import { Alert, Card, Chip, Facts, FieldControl, PageHead, daysBetween, focusFirstError, formatDate, messageOf } from './ui'
+import { Alert, Card, Chip, Facts, FieldControl, PageHead, daysBetween, focusFirstError, formatDate, messageOf, unsavedWork } from './ui'
 
 type StepStatus = 'done' | 'todo' | 'locked' | 'info' | 'waiting' | 'after'
 const statusLabel: Record<StepStatus, string> = {
@@ -33,6 +32,8 @@ function recordChip(record: PortalRecord) {
 }
 
 const NEW_PERSON = 'new-person'
+// Trips in date and time order; undated ones last, and trips at the same time in the order they were added.
+const tripOrder = (t: TravelRecord) => `${t.localDate ?? '9999'}${t.localTime ?? ''}${t.createdAt ?? ''}`
 // Room requests go to the welfare team as free text, as the IOL Host's Handbook (6.2.2) asks registration to allow.
 const welfareNoteLabel = 'Room requests and anything else the welfare team should know'
 const main = sections.filter((s) => !s.afterSubmission)
@@ -60,17 +61,20 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const [sectionError, setSectionError] = useState<ReactNode>(null)
   const [savedNote, setSavedNote] = useState('')
   const [busy, setBusy] = useState(false)
-  const [infoNote, setInfoNote] = useState('')
+  // Said at the top of the step just opened: a step saved (ok), or one left unfinished (warn).
+  const [infoNote, setInfoNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null)
   const [stay, setStay] = useState({ arrival: '', departure: '' })
   const [stayNote, setStayNote] = useState('')
   const [stayState, setStayState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [navOpen, setNavOpen] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState('')
+  const [draftTrip, setDraftTrip] = useState<'arrival' | 'departure' | null>(null)
   // Forms with changes that are not saved yet, by their data-dirty-key: setup, invoice, welfare, record (the person,
-  // team or trip being edited) and stay-note. Leaving one of them asks first (`leaving`), and so does closing the tab.
+  // team or trip being edited) and stay-note. Leaving one of them asks first, and so does closing the tab.
   const [dirty, setDirty] = useState<Record<string, true>>({})
-  const [leaving, setLeaving] = useState<{ go: () => void; keys: string[] } | null>(null)
-  const leaveRef = useRef<HTMLDialogElement>(null)
+  // A question before something that cannot be taken back: leaving unsaved changes, removing a person or a trip.
+  const [ask, setAsk] = useState<{ title: string; text: ReactNode; stay: string; go: string; onGo: () => void } | null>(null)
+  const askRef = useRef<HTMLDialogElement>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
   const panelRef = useRef<HTMLElement>(null)
   const invoiceRef = useRef<HTMLFormElement>(null)
@@ -83,7 +87,11 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [hasUnsaved])
-  useEffect(() => { if (leaving && !leaveRef.current?.open) leaveRef.current?.showModal() }, [leaving])
+  useEffect(() => { if (ask && !askRef.current?.open) askRef.current?.showModal() }, [ask])
+  useEffect(() => {
+    unsavedWork.current = hasUnsaved
+    return () => { unsavedWork.current = false }
+  }, [hasUnsaved])
 
   const load = useCallback(async () => {
     const next = await api<DelegationData>(`/api/registration/delegations/${delegationId}`)
@@ -137,10 +145,16 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
         ...data.members.map((m) => personRecord(m, data.teams, data.attachments, { primary: m.id === leaders[0]?.id, canLead })),
         ...(draftOpen ? [{ id: NEW_PERSON, label: 'New person', meta: 'Not saved yet', status: 'attention' as const, issue: 'Not saved yet', fields: personFields(draftMember, data.teams, { canLead }) }] : []),
       ],
-      travel: (['arrival', 'departure'] as const).map((dir) => tripRecord(dir, data.travelRecords.find((t) => t.direction === dir), data.members)),
+      // Every arrival and departure saved, by date, with an empty one to fill when there is none yet or one is being added.
+      travel: (['arrival', 'departure'] as const).flatMap((dir) => {
+        const trips = data.travelRecords.filter((t) => t.direction === dir).sort((a, b) => tripOrder(a).localeCompare(tripOrder(b)))
+        const adding = !trips.length || draftTrip === dir
+        const several = trips.length + (adding && trips.length ? 1 : 0) > 1
+        return [...trips.map((t, i) => tripRecord(dir, t, data.members, several ? i + 1 : undefined)), ...(adding ? [tripRecord(dir, undefined, data.members, several ? trips.length + 1 : undefined)] : [])]
+      }),
     }
     return { d, steps, payment, paymentDone, submitted, records }
-  }, [data, draftOpen])
+  }, [data, draftOpen, draftTrip])
 
   const eyebrow = staff ? `Back office · ${staff.roleLabel}` : 'Team Leader portal'
   if (loadError || !data || !derived) {
@@ -157,7 +171,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const doneCount = required.filter((s) => isDone(s.id)).length
   const allRequiredDone = doneCount === required.length
   const statusOf = (s: Section): StepStatus => {
-    if (s.id === 'people' && !paymentDone) return 'locked'
+    // People, and Rooms and welfare (built from People), open once the proof of payment is uploaded.
+    if ((s.id === 'people' || s.id === 'welfare') && !paymentDone) return 'locked'
     if (isDone(s.id)) return 'done'
     if (s.id === 'start') return 'info'
     if (s.id === 'review') return allRequiredDone ? 'todo' : 'waiting'
@@ -187,20 +202,24 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   /** Runs `go` straight away, or asks first when any of `keys` (every form, by default) has unsaved changes. */
   const guard = (go: () => void, keys = Object.keys(dirty)) => {
     const pending = keys.filter((key) => dirty[key])
-    if (pending.length) setLeaving({ go, keys: pending })
-    else go()
+    if (!pending.length) { go(); return }
+    setAsk({
+      title: 'Leave without saving?', stay: 'Keep editing', go: 'Leave without saving',
+      text: <>Your changes to {pending.map((key) => unsavedNames[key] ?? key).join(' and ')} are not saved yet. If you leave now, they will be lost.</>,
+      onGo: () => { clean(...pending); go() },
+    })
   }
 
   const go = (id: SectionId) => {
     navigated.current = true
     setHome(false); setActiveId(id); setNavOpen(false); setRecordOpen(false)
-    setFieldErrors({}); setSectionError(null); setSavedNote(''); setInfoNote('')
+    setFieldErrors({}); setSectionError(null); setSavedNote(''); setInfoNote(null); setDraftTrip(null)
   }
   const open = (id: SectionId) => guard(() => go(id))
 
   /** Runs a server action, reloads, and turns failures into a visible message. */
   const run = async (work: () => Promise<void>) => {
-    setBusy(true); setSectionError(null); setInfoNote('')
+    setBusy(true); setSectionError(null); setInfoNote(null)
     try {
       await work()
     } catch (e) {
@@ -219,8 +238,12 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     const next = nextOf(id)
     if (next) go(next)
     const finished = sections.find((s) => s.id === id)
-    // Team Leaders pass the organisers' information on to their team and observers (IOL Host's Handbook, 2.2.2).
-    if (finished?.required) setInfoNote(`“${finished.title}” is saved. Pass on anything your team and observers need to know from it.`)
+    if (finished?.required) setInfoNote({ tone: 'ok', text: `“${finished.title}” is saved.` })
+  }
+  /** Moves on from a step that is not finished; it stays on the to-do list, and the next step says so. */
+  const moveOn = (text: string) => {
+    const next = nextOf(activeId)
+    if (next) { go(next); setInfoNote({ tone: 'warn', text }) }
   }
 
   /* records ------------------------------------------------------- */
@@ -243,13 +266,16 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
         clean('record')
         setSavedNote('Saved.')
       } else if (activeId === 'travel') {
-        const direction = currentRecord.id.endsWith('arrival') || currentRecord.label === 'Arrival' ? 'arrival' : 'departure'
+        const isNew = currentRecord.id.startsWith('new-')
+        const direction = isNew ? (currentRecord.id.slice(4) as 'arrival' | 'departure') : data.travelRecords.find((t) => t.id === currentRecord.id)!.direction
         const body = tripPayload(form, direction, data.members)
-        if (currentRecord.id.startsWith('new-')) await api(`/api/registration/delegations/${d.id}/travel`, { method: 'POST', body })
+        const before = new Set(data.travelRecords.map((t) => t.id))
+        if (isNew) await api(`/api/registration/delegations/${d.id}/travel`, { method: 'POST', body })
         else await api(`/api/registration/travel/${currentRecord.id}`, { method: 'PATCH', body })
         const fresh = await load()
-        const saved = fresh.travelRecords.find((t) => t.direction === direction)
+        const saved = isNew ? fresh.travelRecords.find((t) => !before.has(t.id)) : fresh.travelRecords.find((t) => t.id === currentRecord.id)
         if (saved) setSelected((s) => ({ ...s, travel: saved.id }))
+        setDraftTrip(null)
         clean('record')
         setSavedNote(body.travelPoint && body.flightServiceNumber && body.localDate && body.localTime ? 'Saved.' : 'Saved. Finish this trip once flights are booked.')
       } else if (activeId === 'people') {
@@ -265,12 +291,11 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
         } else {
           await api(`/api/registration/members/${id}`, { method: 'PATCH', body: payload })
         }
-        const fresh = await load()
-        const saved = fresh.members.find((m) => m.id === id)
-        const missing = saved ? personGaps(saved, fresh.attachments) : []
+        await load()
         setFieldErrors({})
         clean('record')
-        setSavedNote(missing.length ? `Saved. Still needed before you submit: ${missing.map((label) => label.toLowerCase()).join(', ')}.` : 'Saved.')
+        // What is still missing shows above the form, in "Still needed".
+        setSavedNote('Saved.')
       }
     })
   }
@@ -283,6 +308,27 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const cancelNewPerson = () => {
     setDraftOpen(false); setSelected((s) => ({ ...s, people: undefined })); clean('record')
   }
+  const addTrip = (direction: 'arrival' | 'departure') => guard(() => {
+    setDraftTrip(direction)
+    setSelected((s) => ({ ...s, travel: `new-${direction}` }))
+    setRecordOpen(true); setFieldErrors({}); setSavedNote(''); clean('record')
+  }, ['record'])
+  const cancelNewTrip = () => {
+    setDraftTrip(null); setSelected((s) => ({ ...s, travel: undefined })); clean('record')
+  }
+  /** Removing a person or a trip asks first: it cannot be undone. */
+  const remove = (what: 'person' | 'trip', id: string, name: string) => setAsk({
+    title: `Remove ${name}?`, stay: what === 'person' ? 'Keep them' : 'Keep it', go: 'Remove',
+    text: what === 'person' ? `${name}’s details are deleted from your registration. This cannot be undone.` : `This ${name.toLowerCase()} is deleted from your registration. This cannot be undone.`,
+    onGo: () => run(async () => {
+      await api(what === 'person' ? `/api/registration/members/${id}` : `/api/registration/travel/${id}`, { method: 'DELETE' })
+      clean('record')
+      setSelected((s) => ({ ...s, [activeId]: undefined }))
+      setRecordOpen(false); setSavedNote('')
+      await load()
+      setInfoNote({ tone: 'ok', text: `${name} is removed.` })
+    }),
+  })
 
   const finishRecords = () => guard(() => {
     if (activeId === 'travel') {
@@ -294,11 +340,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       run(() => finishStep('travel', { declaredArrivalDate: stay.arrival, declaredDepartureDate: stay.departure, stayWindowNote: outsideWindow > 0 ? stayNote || null : null }))
       return
     }
-    const pending = sectionRecords.filter((r) => r.status === 'attention')
+    const pending = sectionRecords.filter((r) => r.status === 'attention' && r.id !== NEW_PERSON)
     if (pending.length) {
-      setSectionError(<>Finish {pending.length === 1 ? 'this' : `these ${pending.length}`} first: {pending.map((r, i) => (
-        <span key={r.id}>{i > 0 && ', '}<button type="button" className="reg-inline-btn" onClick={() => chooseRecord(r.id)}>{r.label}</button> ({r.issue?.toLowerCase()})</span>
-      ))}.</>)
+      moveOn(`${section.title} is not finished yet, so it stays on your list: ${pending.map((r) => `${r.label} (${r.issue?.toLowerCase()})`).join(', ')}.`)
       return
     }
     run(() => finishStep(activeId))
@@ -323,6 +367,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     await api(`/api/registration/delegations/${d.id}/payment-proof`, { method: 'POST', form })
     await load()
     setFieldErrors({})
+    setSavedNote('Proof uploaded.')
   })
   const uploadConsent = (memberId: string, file: File) => run(async () => {
     const form = new FormData()
@@ -333,11 +378,10 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   })
   const savePayment = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (paymentDone) { open('teams'); return }
+    if (paymentDone) { go('teams'); return }
     run(async () => {
-      if (!(await saveInvoice())) return
-      setFieldErrors({ proof: 'Upload the bank’s proof of transfer to finish this step. Your invoice details are saved.' })
-      focusFirstError(panelRef.current)
+      if ((!payment || dirty.invoice) && !(await saveInvoice())) return
+      moveOn('Payment stays on your list until you upload the bank’s proof of transfer. Come back to it after you transfer.')
     })
   }
 
@@ -369,23 +413,31 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     saveStay({ stayWindowNote: stayNote.trim() || null })
   }
 
-  const copyReference = async () => {
-    if (!payment) return
-    try { await navigator.clipboard.writeText(payment.paymentReference); setCopied(true); window.setTimeout(() => setCopied(false), 1800) } catch { /* clipboard blocked: the reference stays visible to copy by hand */ }
-  }
+  /** A Copy button for something typed into online banking: the payment reference, account number, SWIFT code. */
+  const copyButton = (what: string, text: string) => (
+    <button type="button" className="reg-copy" onClick={async () => {
+      try { await navigator.clipboard.writeText(text); setCopied(what); window.setTimeout(() => setCopied((c) => (c === what ? '' : c)), 1800) } catch { /* clipboard blocked: the text stays visible to copy by hand */ }
+    }}><Copy size={14} aria-hidden="true" />{copied === what ? 'Copied' : 'Copy'}<span className="reg-visually-hidden"> {what}</span></button>
+  )
 
-  /* outstanding items for review ---------------------------------- */
-  const outstanding: { text: string; to: SectionId }[] = []
-  required.forEach((s) => { if (!isDone(s.id)) outstanding.push({ text: s.id === 'payment' ? 'Upload proof of payment' : `Finish “${s.title}”`, to: s.id }) })
-  if (!d.declaredArrivalDate || !d.declaredDepartureDate) outstanding.push({ text: 'Add your stay dates', to: 'travel' })
+  /* still to do before submitting, by step -------------------------- */
+  const todo: { step: SectionId; items: string[] }[] = []
+  const needs = (step: SectionId, item?: string) => {
+    const group = todo.find((t) => t.step === step) ?? (todo.push({ step, items: [] }), todo[todo.length - 1])
+    if (item) group.items.push(item)
+  }
+  required.forEach((s) => { if (!isDone(s.id)) needs(s.id, s.id === 'payment' ? 'Upload the bank’s proof of transfer' : undefined) })
+  if (!d.declaredArrivalDate || !d.declaredDepartureDate) needs('travel', 'Add your stay dates')
   for (const id of ['teams', 'people'] as const) {
-    (records[id] ?? []).filter((r) => r.status === 'attention' && r.id !== NEW_PERSON).forEach((r) => outstanding.push({ text: `${r.label}: ${r.issue?.toLowerCase()}`, to: id }))
+    (records[id] ?? []).filter((r) => r.status === 'attention' && r.id !== NEW_PERSON).forEach((r) => needs(id, `${r.label}: ${r.issue?.toLowerCase()}`))
   }
   // People must match what the fees were worked out from.
   const namedObservers = data.members.filter((m) => m.role === 'observer').length
-  if (namedObservers !== d.numberOfObservers) outstanding.push({ text: `Observers: ${d.numberOfObservers} in Team and observers, ${namedObservers} in People`, to: namedObservers > d.numberOfObservers ? 'setup' : 'people' })
-  const rooms = singleRoomCheck(data)
-  if (!rooms.matches) outstanding.push({ text: `Single rooms: ${rooms.chosen} in Team and observers, ${rooms.asked} asked for in People`, to: 'people' })
+  if (namedObservers !== d.numberOfObservers) needs(namedObservers > d.numberOfObservers ? 'setup' : 'people', `Observers: ${d.numberOfObservers} in Team and observers, ${namedObservers} in People`)
+  const stillToDoText: Partial<Record<SectionId, string>> = { setup: 'Save this step', welfare: 'Check the summary and confirm it', teams: 'Not finished yet', people: 'Not finished yet', travel: 'Not finished yet' }
+  todo.forEach((t) => { if (!t.items.length) t.items.push(stillToDoText[t.step] ?? 'Not finished yet') })
+  todo.sort((a, b) => main.findIndex((s) => s.id === a.step) - main.findIndex((s) => s.id === b.step))
+  const outstanding = todo
   const submit = () => {
     if (outstanding.length) { setSectionError('Finish the items listed above before submitting.'); return }
     run(async () => { await api(`/api/registration/delegations/${d.id}/submit`, { method: 'POST' }); await load() })
@@ -404,7 +456,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   }
 
   const proofAttachment = payment?.proofAttachmentId ? data.attachments.find((a) => a.id === payment.proofAttachmentId) : undefined
-  const canUpload = Boolean(payment && ['awaiting_proof', 'rejected'].includes(payment.status))
+  // A proof can be replaced until Finance has approved it (a wrong file, or a better scan).
+  const canUpload = Boolean(payment && ['awaiting_proof', 'rejected', 'awaiting_review'].includes(payment.status))
   const receipt = payment?.status === 'approved' && payment.receiptNumber ? payment : undefined
   // One PDF per invoice: a split has one for each payer, numbered IOL2027/23-1, -2 and so on.
   const invoiceFiles = !payment ? [] : payment.invoiceSplits?.length
@@ -439,7 +492,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     teams: steps.has('teams') ? data.teams.map((t) => `${t.name}: ${t.contestLanguage ?? 'no language yet'}`).join(' · ') : 'Choose each team’s contest language.',
     people: !paymentDone ? 'Opens once the proof of payment is uploaded.'
       : `${peopleCount} ${peopleCount === 1 ? 'person' : 'people'} entered${peopleToFinish ? `, ${peopleToFinish} still to finish` : ''}.`,
-    welfare: steps.has('welfare') ? 'Summary checked.' : 'Check the summary built from everyone’s details.',
+    welfare: !paymentDone ? 'Opens with People, once the proof of payment is uploaded.' : steps.has('welfare') ? 'Summary checked.' : 'Check the summary built from everyone’s details, and add any room requests.',
     travel: d.declaredArrivalDate && d.declaredDepartureDate
       ? `Staying ${formatDate(d.declaredArrivalDate)} to ${formatDate(d.declaredDepartureDate)}. ${flightsIn} of 2 flights added.`
       : 'Stay dates now; flights once they are booked.',
@@ -474,7 +527,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     : allRequiredDone ? { tone: 'go', kicker: 'Ready', title: 'Everything is in. Submit your registration.', to: 'review', cta: 'Review and submit',
       body: 'Check it once more, then submit. You can still update people and travel afterwards.' }
     : { tone: 'go', kicker: doneCount ? 'Pick up where you left off' : 'Where to start', title: `Next: ${firstOpenStep?.title ?? 'Review'}`, to: firstOpenStep?.id ?? 'review', cta: `Continue to ${firstOpenStep?.title ?? 'Review'}`,
-      body: <>{firstOpenStep?.intro}{paymentStatus === 'awaiting_review' && <> Finance is checking your proof of payment; carry on meanwhile.</>}</> }
+      body: <>{firstOpenStep ? trackDetail[firstOpenStep.id] : ''}{paymentStatus === 'awaiting_review' && <> Finance is checking your proof of payment; carry on meanwhile.</>}</> }
 
   // Registration steps keep the numbers the step rail gives them.
   const trackMark = (step: TrackStep) => step.state === 'done' ? <Check size={15} strokeWidth={3} />
@@ -516,7 +569,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
       <div className="reg-home-foot">
         <dl>
-          <div><dt>Early bird fee</dt><dd>Registrations submitted by 12 March 2027</dd></div>
+          <div><dt>Early bird rate</dt><dd>Invoice details saved by 12 March 2027</dd></div>
           <div><dt>Registration closes</dt><dd>30 April 2027</dd></div>
           <div><dt>The Olympiad</dt><dd>21–28 July 2027, Bangkok</dd></div>
         </dl>
@@ -525,23 +578,26 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     </section>
   )
 
-  const goHome = () => guard(() => { setHome(true); setNavOpen(false); setRecordOpen(false); setSectionError(null); setSavedNote(''); setInfoNote('') })
-  const leave = () => {
-    const next = leaving
-    leaveRef.current?.close()
-    if (!next) return
-    clean(...next.keys)
-    next.go()
+  const goHome = () => guard(() => { setHome(true); setNavOpen(false); setRecordOpen(false); setSectionError(null); setSavedNote(''); setInfoNote(null) })
+  const answer = () => {
+    const question = ask
+    askRef.current?.close()
+    question?.onGo()
   }
+  const primaryLeader = data.members.find((m) => m.role === 'team_leader')
+  // Who is not on any arrival or departure yet: their badges wait for it.
+  const offTrips = (direction: 'arrival' | 'departure') => data.members
+    .filter((m) => !data.travelRecords.some((t) => t.direction === direction && t.memberIds.includes(m.id)))
+    .map((m) => m.badgeName || m.displayName)
 
   const recordsCard = section.records && !locked && (
     <div className={`reg-card reg-records${recordOpen ? ' is-open' : ''}`}>
       <div className="reg-record-list">
         <div className="reg-record-list-head">
-          <h4>{activeId === 'travel' ? 'Flights' : `${sectionRecords.filter((r) => r.id !== NEW_PERSON).length} ${section.records.plural}`}</h4>
+          <h3>{activeId === 'travel' ? 'Flights' : `${sectionRecords.filter((r) => r.id !== NEW_PERSON).length} ${section.records.plural}`}</h3>
           {activeId === 'people' && !draftOpen && <button type="button" className="reg-btn-link" onClick={addPerson}><UserPlus size={16} aria-hidden="true" />Add person</button>}
         </div>
-        {activeId === 'travel' && <p className="reg-hint">Add these once flights are booked. You can change them until the travel deadline.</p>}
+        {activeId === 'travel' && <p className="reg-hint">Add these once flights are booked. If people travel on different flights, add a trip for each.</p>}
         <ul>
           {sectionRecords.map((record) => (
             <li key={record.id}>
@@ -552,15 +608,29 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
             </li>
           ))}
         </ul>
+        {activeId === 'travel' && !draftTrip && (
+          <div className="reg-record-adds">
+            {(['arrival', 'departure'] as const).filter((dir) => data.travelRecords.some((t) => t.direction === dir)).map((dir) => (
+              <button key={dir} type="button" className="reg-btn-link" onClick={() => addTrip(dir)}><Plus size={16} aria-hidden="true" />Add another {dir}</button>
+            ))}
+          </div>
+        )}
+        {activeId === 'travel' && data.travelRecords.length > 0 && data.members.length > 0 && (['arrival', 'departure'] as const).map((dir) => {
+          const left = offTrips(dir)
+          return left.length ? <p key={dir} className="reg-hint reg-off-trip">Not on {dir === 'arrival' ? 'an arrival' : 'a departure'} yet: {left.join(', ')}.</p> : null
+        })}
       </div>
 
       {currentRecord && (
         <form className="reg-record-editor" onSubmit={saveRecord} noValidate key={currentRecord.id} data-dirty-key="record">
           <button type="button" className="reg-btn-link reg-back-to-list" onClick={() => guard(() => { setRecordOpen(false); clean('record') }, ['record'])}><ArrowLeft size={16} aria-hidden="true" />All {section.records.plural}</button>
           <div className="reg-editor-head">
-            <h4>{currentRecord.label}</h4>
+            <h3>{currentRecord.label}</h3>
             {recordChip(currentRecord)}
           </div>
+          {currentRecord.missing && currentRecord.missing.length > 0 && (
+            <p className="reg-aside reg-aside-warn reg-still"><CircleAlert size={18} aria-hidden="true" /><span><strong>Still needed:</strong> {currentRecord.missing.map((label) => label.toLowerCase()).join(', ')}.</span></p>
+          )}
           {currentRecord.facts && <Facts compact items={currentRecord.facts} />}
           {groupFields(currentRecord.fields).map((group) => group.legend ? (
             <fieldset className="reg-fieldset" key={group.legend}>
@@ -580,13 +650,20 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                   onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadConsent(consentMember.id, file); e.target.value = '' }} />
                 {consent
                   ? <><Check size={22} strokeWidth={2.6} aria-hidden="true" /><span><strong>{consent.originalFilename}</strong>Uploaded. Choose another file to replace it.</span></>
-                  : <><Upload size={22} aria-hidden="true" /><span><strong>{busy ? 'Uploading…' : 'Choose a file'}</strong>or drag it here</span></>}
+                  : <><Upload size={22} aria-hidden="true" /><span><strong>{busy ? 'Uploading…' : 'Choose a file'}</strong><span className="reg-drag-hint">or drag it here</span></span></>}
               </label>
             </div>
           )}
           <div className="reg-editor-actions">
             <button type="submit" className="reg-btn reg-btn-secondary" disabled={busy}>{busy ? 'Saving…' : `Save ${section.records.noun}`}</button>
             {currentRecord.id === NEW_PERSON && <button type="button" className="reg-btn-link" onClick={cancelNewPerson}>Cancel</button>}
+            {draftTrip && currentRecord.id === `new-${draftTrip}` && <button type="button" className="reg-btn-link" onClick={cancelNewTrip}>Cancel</button>}
+            {activeId === 'people' && currentRecord.id !== NEW_PERSON && currentRecord.id !== primaryLeader?.id && (
+              <button type="button" className="reg-btn-link reg-btn-remove" onClick={() => remove('person', currentRecord.id, currentRecord.label)}>Remove this person</button>
+            )}
+            {activeId === 'travel' && !currentRecord.id.startsWith('new-') && (
+              <button type="button" className="reg-btn-link reg-btn-remove" onClick={() => remove('trip', currentRecord.id, currentRecord.label)}>Remove this trip</button>
+            )}
             {dirty.record ? <UnsavedNote show /> : <span className="reg-saved" role="status">{savedNote && <><Check size={15} strokeWidth={3} aria-hidden="true" />{savedNote}</>}</span>}
           </div>
         </form>
@@ -668,20 +745,26 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
         <section className="reg-step" ref={panelRef} aria-labelledby="reg-panel-title" aria-busy={busy} key={activeId} onChange={trackChange}>
           <header className="reg-panel-head">
             <p className="reg-step-kicker">{section.afterSubmission ? 'After you submit' : section.id === 'start' ? 'Start here' : `Step ${stepNumber(section)} of ${numbered.length}`}</p>
-            <h3 id="reg-panel-title" ref={titleRef} tabIndex={-1}>{section.title}</h3>
+            <h2 id="reg-panel-title" ref={titleRef} tabIndex={-1}>{section.title}</h2>
             <p>{section.intro}</p>
           </header>
 
-          {infoNote && <p className="reg-aside reg-aside-ok reg-step-note" role="status"><Check size={18} strokeWidth={3} aria-hidden="true" />{infoNote}</p>}
+          {infoNote && (
+            <p className={`reg-aside reg-step-note ${infoNote.tone === 'ok' ? 'reg-aside-ok' : 'reg-aside-warn'}`} role="status">
+              {infoNote.tone === 'ok' ? <Check size={18} strokeWidth={3} aria-hidden="true" /> : <Info size={18} aria-hidden="true" />}{infoNote.text}
+            </p>
+          )}
 
           {locked && (
-            <Card id="people-locked" title="Opens after the proof of payment" intro="People opens as soon as you upload the bank’s proof of transfer in Payment, so no registration is completed before its fees are settled.">
+            <Card id="step-locked" title="Opens after the proof of payment"
+              intro={`${section.id === 'welfare' ? 'Rooms and welfare is built from People, which opens' : 'People opens'} as soon as you upload the bank’s proof of transfer in Payment, so no registration is completed before its fees are settled.`}>
               <button type="button" className="reg-btn reg-btn-primary" onClick={() => open('payment')}>Go to Payment <ArrowRight size={18} aria-hidden="true" /></button>
             </Card>
           )}
 
           {activeId === 'start' && <>
             <Card id="start-steps" title="How registration works" intro="Seven steps. Everything you save is kept, so you can stop at any point and come back later, on any device.">
+              <p className="reg-hint reg-card-lead">As Team Leader you are the organisers’ contact for your whole delegation, so please pass on to your team and observers what you read here.</p>
               <ol className="reg-journey">
                 <li><strong>Team and observers.</strong> How many are coming, and who would like a single room. This sets your fees.</li>
                 <li><strong>Payment.</strong> Your invoice details, the bank transfer, then the bank’s proof of transfer.</li>
@@ -694,19 +777,21 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
             </Card>
             <div className="reg-panel-actions">
               <Alert>{sectionError}</Alert>
-              <button type="button" className="reg-btn reg-btn-primary" disabled={busy} onClick={() => run(() => finishStep('start'))}>Start with team and observers <ArrowRight size={18} aria-hidden="true" /></button>
+              {steps.has('start')
+                ? <button type="button" className="reg-btn reg-btn-primary" onClick={() => go(firstOpenStep?.id ?? 'review')}>Continue to {firstOpenStep?.title ?? 'Review and submit'} <ArrowRight size={18} aria-hidden="true" /></button>
+                : <button type="button" className="reg-btn reg-btn-primary" disabled={busy} onClick={() => run(() => finishStep('start'))}>Start with team and observers <ArrowRight size={18} aria-hidden="true" /></button>}
             </div>
           </>}
 
           {activeId === 'setup' && <TeamSetup key={`${d.numberOfTeams}-${d.numberOfObservers}`} data={data} paymentDone={paymentDone} busy={busy} error={sectionError} dirty={Boolean(dirty.setup)} onSave={saveSetup} />}
 
-          {activeId === 'welfare' && (
+          {activeId === 'welfare' && !locked && (
             <form onSubmit={saveWelfare} noValidate data-dirty-key="welfare">
               <div className="reg-cards">
                 <Card id="welfare-summary" title="Summary from People" intro="Built from everyone’s records. To change something, edit that person in People.">
                   <Facts items={welfareFacts(data)} />
                 </Card>
-                <Card id="welfare-requests" title="Requests" intro="For example: a contestant who should share with a particular teammate, or would rather not share with someone they do not know, needs a room of their own, or has access needs. Seen only by the welfare and accommodation teams.">
+                <Card id="welfare-requests" title="Requests" intro="For example: a contestant who should share with a particular teammate, or would rather not share with someone they do not know, needs a room of their own, or has access needs. Seen only by the organising team.">
                   <div className="reg-grid">
                     <FieldControl idPrefix="welfare" field={{ label: welfareNoteLabel, value: d.welfareNote ?? '', kind: 'textarea', optional: true }} />
                   </div>
@@ -730,10 +815,13 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                     {payment?.invoiceNumber && <div><dt>Invoice number</dt><dd>{payment.invoiceNumber}</dd></div>}
                     <div><dt>Payment reference</dt><dd>{payment ? <>
                       <span className="reg-code">{payment.paymentReference}</span>
-                      <button type="button" className="reg-copy" onClick={copyReference}><Copy size={14} aria-hidden="true" />{copied ? 'Copied' : 'Copy'}</button>
+                      {copyButton('payment reference', payment.paymentReference)}
                     </> : <span className="reg-muted">Given when you save the invoice details</span>}</dd></div>
                   </dl>
-                  <span className="reg-visually-hidden" role="status">{copied ? 'Payment reference copied' : ''}</span>
+                  <span className="reg-visually-hidden" role="status">{copied ? `${copied} copied` : ''}</span>
+                  {!payment && data.fees.tier === 'early_bird' && (
+                    <p className="reg-hint reg-card-foot">The rate is fixed when you save the invoice details: save them by {new Date(`${data.fees.dueDate}T12:00:00+07:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} to keep the early bird rate.</p>
+                  )}
                 </Card>
 
                 <Card id="pay-invoice" number={1} done={Boolean(payment) && !dirty.invoice} title="Invoice details" intro="Who the invoice is made out to. Invoices cannot be split after you transfer."
@@ -765,17 +853,19 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                   </> : <p className="reg-muted reg-card-empty">Save the invoice details first.</p>}
                 </Card>
 
-                <Card id="pay-transfer" number={3} done={paymentDone} title="Transfer the full amount" intro={`Send ${usd(data.fees.total)} from your bank to the account below by the due date.`}>
+                <Card id="pay-transfer" number={3} done={paymentDone} title="Transfer the full amount" intro={`Make sure ${usd(data.fees.total)} arrives in this account by the due date.`}>
                   {data.bank
                     ? <dl className="reg-ref reg-bank">
                       <div><dt>Beneficiary</dt><dd>{data.bank.beneficiaryName}{data.bank.beneficiaryAddress && <small>{data.bank.beneficiaryAddress}</small>}</dd></div>
                       <div><dt>Bank</dt><dd>{data.bank.bankName}{data.bank.bankAddress && <small>{data.bank.bankAddress}</small>}</dd></div>
-                      <div><dt>Account number</dt><dd><span className="reg-code">{data.bank.accountNumber}</span></dd></div>
-                      <div><dt>SWIFT code</dt><dd><span className="reg-code">{data.bank.swiftCode}</span></dd></div>
-                      <div><dt>Transfer description</dt><dd>{payment ? <span className="reg-code">{payment.paymentReference}</span> : <span className="reg-muted">Your payment reference, given in part 1</span>}</dd></div>
+                      <div><dt>Account number</dt><dd><span className="reg-inline"><span className="reg-code">{data.bank.accountNumber}</span>{copyButton('account number', data.bank.accountNumber)}</span></dd></div>
+                      <div><dt>SWIFT code</dt><dd><span className="reg-inline"><span className="reg-code">{data.bank.swiftCode}</span>{copyButton('SWIFT code', data.bank.swiftCode)}</span></dd></div>
+                      <div><dt>Payment reference</dt><dd>{payment
+                        ? <><span className="reg-inline"><span className="reg-code">{payment.paymentReference}</span>{copyButton('payment reference ', payment.paymentReference)}</span><small>Put it in the transfer description, so Finance can match your payment.</small></>
+                        : <span className="reg-muted">Given when you save part 1</span>}</dd></div>
                     </dl>
                     : <p className="reg-aside"><Info size={18} aria-hidden="true" />The account name, number and SWIFT code appear here, and on the invoice, once Finance confirms them.</p>}
-                  <h5 className="reg-card-subhead">Charges and exchange rates</h5>
+                  <h4 className="reg-card-subhead">Charges and exchange rates</h4>
                   <ul className="reg-rules">
                     <li><strong>Bank transfer only.</strong> There is no card or online payment.</li>
                     <li><strong>All bank charges are paid by you.</strong> Your bank’s transfer fee, any intermediary (correspondent) bank fees and the receiving bank’s fee for an incoming transfer. Choose <strong>OUR</strong> as the charge option, so none of them is taken from the amount.</li>
@@ -798,8 +888,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={!canUpload || busy} aria-labelledby="proof-label" aria-describedby={`proof-hint${fieldErrors.proof ? ' proof-error' : ''}`}
                         onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadProof(file); e.target.value = '' }} />
                       {paymentDone
-                        ? <><Check size={22} strokeWidth={2.6} aria-hidden="true" /><span><strong>{proofAttachment?.originalFilename ?? 'Proof uploaded'}</strong>{payment?.status === 'approved' ? 'Approved by Finance.' : 'Uploaded. Finance will check it against the bank statement.'}</span></>
-                        : <><Upload size={22} aria-hidden="true" /><span><strong>{busy ? 'Uploading…' : 'Choose a file'}</strong>{canUpload ? 'or drag it here' : 'Available once the invoice details are saved'}</span></>}
+                        ? <><Check size={22} strokeWidth={2.6} aria-hidden="true" /><span><strong>{busy ? 'Uploading…' : proofAttachment?.originalFilename ?? 'Proof uploaded'}</strong>{payment?.status === 'approved' ? 'Approved by Finance.' : 'Uploaded. Wrong file? Choose another to replace it until Finance has checked it.'}</span></>
+                        : <><Upload size={22} aria-hidden="true" /><span><strong>{busy ? 'Uploading…' : 'Choose a file'}</strong>{canUpload ? <span className="reg-drag-hint">or drag it here</span> : 'Available once the invoice details are saved'}</span></>}
                     </label>
                   </div>
                   {receipt
@@ -810,13 +900,14 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                         tierLabel: receipt.feeTier === 'early_bird' ? 'Early bird' : 'Normal', approvedAt: receipt.reviewedAt,
                       })}><Download size={14} aria-hidden="true" />Download the e-receipt</button></span>
                     </p>
-                    : <p className="reg-hint reg-card-foot">Finance checks each proof against the bank statement. Once they approve it, your e-receipt is here.</p>}
+                    : <p className="reg-hint reg-card-foot">Finance checks each proof against the bank statement. Once they approve it, your e-receipt will appear here.</p>}
                 </Card>
               </div>
 
               <div className="reg-panel-actions">
                 <Alert>{sectionError}</Alert>
-                <button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{paymentDone ? 'Continue' : 'Save and continue'} <ArrowRight size={18} aria-hidden="true" /></button>
+                <button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{!paymentDone && (!payment || dirty.invoice) ? 'Save and continue' : 'Continue'} <ArrowRight size={18} aria-hidden="true" /></button>
+                {!paymentDone && payment && <span className="reg-muted reg-actions-note">You can upload the proof later, after you transfer.</span>}
               </div>
             </form>
           )}
@@ -864,9 +955,14 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
               <Card id="review-done" title="Registration submitted" status={<Chip tone="ok">Submitted</Chip>}
                 intro={<>A confirmation has been sent to {d.teamLeaderEmail}. Finance will check your payment next. You can still update people and travel until the change deadline.</>} />
             ) : outstanding.length > 0 ? (
-              <Card id="review-left" title="Still to do" intro="Each item opens the step where it is done." status={<Chip tone="attention">{outstanding.length} {outstanding.length === 1 ? 'item' : 'items'}</Chip>}>
+              <Card id="review-left" title="Still to do" intro="By step. Each step’s name opens it." status={<Chip tone="attention">{outstanding.length} {outstanding.length === 1 ? 'step' : 'steps'}</Chip>}>
                 <ul className="reg-todo">
-                  {outstanding.map((item) => <li key={item.text}><button type="button" className="reg-inline-btn" onClick={() => open(item.to)}>{item.text}</button></li>)}
+                  {outstanding.map((group) => (
+                    <li key={group.step}>
+                      <button type="button" className="reg-inline-btn" onClick={() => open(group.step)}>{sections.find((s) => s.id === group.step)!.title}</button>
+                      <ul>{group.items.map((item) => <li key={item}>{item}</li>)}</ul>
+                    </li>
+                  ))}
                 </ul>
               </Card>
             ) : (
@@ -876,7 +972,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
               <Facts items={[
                 { label: 'Registration', value: submitted ? `Submitted${d.submittedAt ? ` on ${new Date(d.submittedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}` : ''}` : 'Draft, not submitted yet' },
                 { label: 'Payment', value: paymentLabel[payment?.status ?? 'none'].replace(/^Payment: (.)/, (_, c: string) => c.toUpperCase()) },
-                { label: 'Changes after submitting', value: 'Allowed until the change deadline', help: 'The final lock date and the change-request channel are awaiting approval.' },
+                { label: 'Changes after submitting', value: 'People and travel can still change', help: 'Until a deadline the organisers will announce.' },
                 { label: 'Travel', value: d.declaredArrivalDate && d.declaredDepartureDate ? 'Stay dates added; flights can follow' : 'Stay dates still needed' },
               ]} />
             </Card>
@@ -893,7 +989,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
           </>}
 
           {activeId === 'badges' && (
-            <Card id="badges-about" title="Your QR badges" intro={<>Staff use the <a href={portalPath('/check-in')}>badge scanner</a> during event week.</>}>
+            <Card id="badges-about" title="Your QR badges" intro="Emailed to you as PDFs, one for each person, so you can check every name. The organisers print the badges for you.">
               <Facts items={section.facts ?? []} />
             </Card>
           )}
@@ -901,12 +997,13 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       </div>}
     </div>
 
-    <dialog ref={leaveRef} className="reg-dialog" aria-labelledby="leave-title" aria-describedby="leave-text" onClose={() => setLeaving(null)}>
-      <h2 id="leave-title">Leave without saving?</h2>
-      <p id="leave-text">Your changes to {(leaving?.keys ?? []).map((key) => unsavedNames[key] ?? key).join(' and ')} are not saved yet. If you leave now, they will be lost.</p>
+    {/* The safe answer comes first and has the focus; Escape gives it too. */}
+    <dialog ref={askRef} className="reg-dialog" aria-labelledby="ask-title" aria-describedby="ask-text" onClose={() => setAsk(null)}>
+      <h2 id="ask-title">{ask?.title}</h2>
+      <p id="ask-text">{ask?.text}</p>
       <div className="reg-dialog-actions">
-        <button type="button" className="reg-btn reg-btn-primary" autoFocus onClick={() => leaveRef.current?.close()}>Keep editing</button>
-        <button type="button" className="reg-btn reg-btn-secondary" onClick={leave}>Leave without saving</button>
+        <button type="button" className="reg-btn reg-btn-primary" autoFocus onClick={() => askRef.current?.close()}>{ask?.stay}</button>
+        <button type="button" className="reg-btn reg-btn-secondary" onClick={answer}>{ask?.go}</button>
       </div>
     </dialog>
   </>
