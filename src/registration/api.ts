@@ -44,7 +44,7 @@ export type Member = {
 }
 export type TravelRecord = {
   id: string; direction: 'arrival' | 'departure'; travelPoint: string | null; flightServiceNumber: string | null
-  localDate: string | null; localTime: string | null; terminal: string | null; memberIds: string[]
+  localDate: string | null; localTime: string | null; terminal: string | null; memberIds: string[]; createdAt?: string
 }
 export type Payment = {
   id: string; status: 'awaiting_proof' | 'awaiting_review' | 'approved' | 'rejected' | 'refunded'

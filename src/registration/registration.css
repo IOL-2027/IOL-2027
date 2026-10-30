@@ -314,7 +314,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-record-name small { font-size: 13px; color: var(--reg-muted); }
 .reg-record-editor { min-width: 0; padding-left: 32px; border-left: 1px solid var(--reg-border); }
 .reg-editor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
-.reg-editor-head h3 { font-size: 22px; letter-spacing: -.025em; }
+.reg-step .reg-editor-head h3 { font-size: 22px; letter-spacing: -.025em; }
 .reg-record-editor > .reg-fieldset:first-of-type { margin-top: 14px; }
 .reg-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 28px; }
 .reg-saved { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--reg-ok-text); }
@@ -778,7 +778,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-card-number { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: var(--cream); font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .reg-card-number.is-done { background: var(--reg-ok-text); color: var(--reg-surface); }
 .reg-card-status { flex: none; margin-top: 3px; }
-.reg-card-subhead { margin: 28px 0 12px; font-size: 16px; font-weight: 800; }
+.reg-step .reg-card-subhead { margin: 28px 0 12px; font-size: 16px; font-weight: 800; }
 .reg-card-lead { margin: 0 0 18px !important; }
 .reg-card-foot { margin: 16px 0 0; }
 .reg-card-empty { margin: 0; font-size: 15px; }

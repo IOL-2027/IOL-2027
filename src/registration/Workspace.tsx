@@ -2,9 +2,9 @@
 // rail on the left and one step at a time on the right.
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, FileText, Info, LayoutGrid, Lock, Plus, Upload, UserPlus } from 'lucide-react'
-import { api, ApiError, type DelegationData, type Member } from './api'
+import { api, ApiError, type DelegationData, type Member, type TravelRecord } from './api'
 import { personFieldGroups, programmeWindow, sections, type Field, type PortalRecord, type Section, type SectionId } from './portalData'
-import { consentFor, personFields, personGaps, personPayload, personRecord, teamRecord, tripPayload, tripRecord, welfareFacts } from './live'
+import { consentFor, personFields, personPayload, personRecord, teamRecord, tripPayload, tripRecord, welfareFacts } from './live'
 import { FeeTable, InvoiceDetails, TeamSetup, UnsavedNote, invoiceProblems, readInvoices, usd, type SetupBody } from './SetupForms'
 import { openReceipt } from './invoice'
 import { Alert, Card, Chip, Facts, FieldControl, PageHead, daysBetween, focusFirstError, formatDate, messageOf, unsavedWork } from './ui'
@@ -32,6 +32,8 @@ function recordChip(record: PortalRecord) {
 }
 
 const NEW_PERSON = 'new-person'
+// Trips in date and time order; undated ones last, and trips at the same time in the order they were added.
+const tripOrder = (t: TravelRecord) => `${t.localDate ?? '9999'}${t.localTime ?? ''}${t.createdAt ?? ''}`
 // Room requests go to the welfare team as free text, as the IOL Host's Handbook (6.2.2) asks registration to allow.
 const welfareNoteLabel = 'Room requests and anything else the welfare team should know'
 const main = sections.filter((s) => !s.afterSubmission)
@@ -145,7 +147,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       ],
       // Every arrival and departure saved, by date, with an empty one to fill when there is none yet or one is being added.
       travel: (['arrival', 'departure'] as const).flatMap((dir) => {
-        const trips = data.travelRecords.filter((t) => t.direction === dir).sort((a, b) => `${a.localDate}${a.localTime}`.localeCompare(`${b.localDate}${b.localTime}`))
+        const trips = data.travelRecords.filter((t) => t.direction === dir).sort((a, b) => tripOrder(a).localeCompare(tripOrder(b)))
         const adding = !trips.length || draftTrip === dir
         const several = trips.length + (adding && trips.length ? 1 : 0) > 1
         return [...trips.map((t, i) => tripRecord(dir, t, data.members, several ? i + 1 : undefined)), ...(adding ? [tripRecord(dir, undefined, data.members, several ? trips.length + 1 : undefined)] : [])]
@@ -289,12 +291,11 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
         } else {
           await api(`/api/registration/members/${id}`, { method: 'PATCH', body: payload })
         }
-        const fresh = await load()
-        const saved = fresh.members.find((m) => m.id === id)
-        const missing = saved ? personGaps(saved, fresh.attachments) : []
+        await load()
         setFieldErrors({})
         clean('record')
-        setSavedNote(missing.length ? `Saved. Still needed before you submit: ${missing.map((label) => label.toLowerCase()).join(', ')}.` : 'Saved.')
+        // What is still missing shows above the form, in "Still needed".
+        setSavedNote('Saved.')
       }
     })
   }
