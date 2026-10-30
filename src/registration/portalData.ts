@@ -32,13 +32,13 @@ export type PortalRecord = {
   facts?: Fact[]
 }
 
-export type SectionId = 'start' | 'setup' | 'payment' | 'teams' | 'people' | 'welfare' | 'travel' | 'badges'
+export type SectionId = 'start' | 'setup' | 'payment' | 'teams' | 'people' | 'welfare' | 'travel' | 'submit' | 'badges'
 
 export type Section = {
   id: SectionId
   title: string
   intro: string
-  /** Counts towards "steps done" and must be finished before submission. */
+  /** Must be finished before submission. */
   required: boolean
   /** Sections used only after the registration is submitted. */
   afterSubmission?: boolean
@@ -79,6 +79,7 @@ export const sections: Section[] = [
   { id: 'people', title: 'People', required: true, intro: 'Everyone coming with your delegation. Each person is saved on their own, so you can fill this in stages. Opens once the proof of payment is uploaded.', records: { noun: 'person', plural: 'people' } },
   { id: 'welfare', title: 'Rooms and welfare', required: true, intro: 'Check what the welfare team will see about your delegation, and tell them about any room requests.' },
   { id: 'travel', title: 'Travel', required: true, intro: 'Your stay dates set the hotel nights we reserve, so they are needed now. Flights can wait until they are booked. Once everyone’s arrival and departure are in and the payment is confirmed, we email you everyone’s badges.', records: { noun: 'trip', plural: 'trips' } },
+  { id: 'submit', title: 'Submit', required: false, intro: 'Where every step stands, and anything still missing. Once steps 1 to 6 are done, you submit your registration here.' },
   {
     id: 'badges', title: 'Badges and check-in', required: false, afterSubmission: true,
     intro: 'Every registered person gets their own QR badge. Staff scan it on arrival and at event checkpoints.',

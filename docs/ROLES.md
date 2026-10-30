@@ -92,7 +92,7 @@ It is never committed to the repository. Recreate or reset the accounts with `np
 
 | Account | Email | Use it for |
 | --- | --- | --- |
-| Demo Team Leader | `demo.leader@iol2027.test`, or the address in `DEMO_LEADER_EMAIL` when the data was seeded | **Demoland (TEST)**, at the very start, as if the invitation code had just been used. Go through every step: Team and observers → Payment (any PDF, JPG or PNG works as the proof) → Teams → People → Rooms and welfare → Travel, then submit from the Overview. |
+| Demo Team Leader | `demo.leader@iol2027.test`, or the address in `DEMO_LEADER_EMAIL` when the data was seeded | **Demoland (TEST)**, at the very start, as if the invitation code had just been used. Go through every step: Team and observers → Payment (any PDF, JPG or PNG works as the proof) → Teams → People → Rooms and welfare → Travel → Submit. |
 | Super admin | `superadmin@iol2027.test` | The back office, in a second browser or a private window: approve Demoland's payment under **Payments**, follow its people and stages, and read **Email log**. |
 
 Along the way the system sends the Team Leader: proof received, registration submitted (with the invoice as a PDF), payment confirmed (with a link to the Travel step) and, once the registration is submitted, paid and everyone has an arrival and departure, everyone's badges as PDFs (and an updated set the next morning after any change). To a `.test` address they are only recorded (Skipped in the email log); seeded with `DEMO_LEADER_EMAIL` pointing at a real inbox, they arrive there. `npm run db:seed-test` puts Demoland back at the start (pass `DEMO_LEADER_EMAIL` again to keep the real inbox).
