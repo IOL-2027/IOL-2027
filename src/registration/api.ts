@@ -26,7 +26,8 @@ export type Fees = {
 export type FeeCategory = 'previous_host' | 'accredited' | 'non_accredited'
 export const feeCategoryLabel: Record<FeeCategory, string> = { previous_host: 'Accredited, previous host', accredited: 'Accredited', non_accredited: 'Not accredited' }
 /** The rules Team and observers follows: observers per team and the price of a single room. */
-export type FeeRules = { maxObserversPerTeam: number; singleRoomFee: number; observerFee: number | null; currency: string }
+/** teamFees: the first and second team's fees at this delegation's rate and tier. */
+export type FeeRules = { maxObserversPerTeam: number; singleRoomFee: number; observerFee: number | null; currency: string; teamFees: number[] }
 /** One of several invoices the fees are split into. */
 export type InvoiceSplit = { recipientName: string; recipientAddress: string | null; recipientTin: string | null; amount: number }
 

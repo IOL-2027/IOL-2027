@@ -51,7 +51,6 @@ export const selectOptions: Record<string, string[]> = {
   'Exam language': ['English', 'French', 'German', 'Russian', 'Spanish', 'Arabic', 'Chinese', 'Other'],
   'T-shirt size': ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'],
   'Polo shirt size': ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'],
-  'Room type preference': ['Twin/shared room (ห้องคู่)', 'Single room (ห้องเดี่ยว)', 'No preference'],
   'Single room': ['No, share a room', 'Yes, a single room'],
   'T-shirt style': ['Unisex (standard)', 'Ladies fit'],
   'Observer category': ['Regular observer', 'Guest observer', 'Observer pending approval'],
@@ -69,12 +68,12 @@ export const personFieldGroups: { legend: string; note?: string; labels: string[
 ]
 
 export const sections: Section[] = [
-  { id: 'start', title: 'Before you begin', required: false, intro: 'Registration happens in stages. You only need the team count to start; names and travel can come later.' },
-  { id: 'setup', title: 'Team and observers', required: true, intro: 'These two numbers set your fees. Names are not needed yet.' },
-  { id: 'payment', title: 'Payment', required: true, intro: 'Check the amount, tell us how to invoice you, transfer, then upload the bank’s proof of transfer.' },
+  { id: 'start', title: 'Before you begin', required: false, intro: 'Registration happens in stages. To start you only need to know how many are coming; names and travel can follow.' },
+  { id: 'setup', title: 'Team and observers', required: true, intro: 'How many teams and observers are coming, and who would like a single room. This sets your fees; names come later, in People.' },
+  { id: 'payment', title: 'Payment', required: true, intro: 'Four parts, in this order. Your invoice details are kept once saved, so you can transfer later and come back to upload the proof.' },
   { id: 'teams', title: 'Teams', required: true, intro: 'Each team needs a contest working language. Contestants are assigned on each person’s record.', records: { noun: 'team', plural: 'teams' } },
   { id: 'people', title: 'People', required: true, intro: 'Contestants and observers. Opens once proof of payment is uploaded, and can be completed in stages.', records: { noun: 'person', plural: 'people' } },
-  { id: 'welfare', title: 'Rooms and welfare', required: true, intro: 'A summary built from each person’s record. Check it reads correctly; edit the person if it does not.' },
+  { id: 'welfare', title: 'Rooms and welfare', required: true, intro: 'A summary built from everyone’s records in People. If something is wrong, change it on that person’s record.' },
   { id: 'travel', title: 'Travel', required: true, intro: 'Your stay dates set the hotel nights we reserve, so they are needed now. Flights can wait until they are booked. Once everyone’s arrival and departure are in and the payment is confirmed, we email you everyone’s badges.', records: { noun: 'trip', plural: 'trips' } },
   {
     id: 'review', title: 'Review and submit', required: false,

@@ -1,6 +1,6 @@
 // Form pieces shared by the Team Leader portal, sign-in screens and the staff back office.
 import type { InputHTMLAttributes, ReactNode } from 'react'
-import { CircleAlert, LogOut } from 'lucide-react'
+import { Check, CircleAlert, Clock, LogOut } from 'lucide-react'
 import { ApiError, type User } from './api'
 import { selectOptions, type Field } from './portalData'
 
@@ -79,6 +79,36 @@ export function Facts({ items, compact }: { items: { label: string; value: strin
       ))}
     </dl>
   )
+}
+
+/**
+ * One part of a step on a card of its own, so the parts of a long step read as separate things. `number` gives the
+ * order to do them in (Payment); `done` turns the number into a tick. `status` sits on the right: a chip, usually.
+ */
+export function Card({ id, title, intro, number, done, status, children, className }: {
+  id: string; title: ReactNode; intro?: ReactNode; number?: number; done?: boolean; status?: ReactNode; children?: ReactNode; className?: string
+}) {
+  return (
+    <section className={`reg-card${className ? ` ${className}` : ''}`} id={id} aria-labelledby={`${id}-title`}>
+      <header className="reg-card-head">
+        {number !== undefined && (
+          <span className={`reg-card-number${done ? ' is-done' : ''}`} aria-hidden="true">{done ? <Check size={16} strokeWidth={3} /> : number}</span>
+        )}
+        <div className="reg-card-title">
+          <h4 id={`${id}-title`}>{number !== undefined && <span className="reg-visually-hidden">{`Part ${number}${done ? ', done' : ''}: `}</span>}{title}</h4>
+          {intro && <p>{intro}</p>}
+        </div>
+        {status && <div className="reg-card-status">{status}</div>}
+      </header>
+      {children}
+    </section>
+  )
+}
+
+/** A short status beside a card or a button: ok (green), attention (amber) or later (grey). */
+export function Chip({ tone, children }: { tone: 'ok' | 'attention' | 'later'; children: ReactNode }) {
+  const Icon = tone === 'ok' ? Check : tone === 'attention' ? CircleAlert : Clock
+  return <span className={`reg-chip is-${tone}`}><Icon size={13} strokeWidth={tone === 'ok' ? 3 : 2} aria-hidden="true" />{children}</span>
 }
 
 export function focusFirstError(container: HTMLElement | null) {

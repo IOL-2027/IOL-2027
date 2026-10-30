@@ -5,16 +5,18 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { ArrowRight, CircleAlert, Info } from 'lucide-react'
 import type { DelegationData, Payment } from './api'
 import { selectOptions } from './portalData'
-import { Alert, Facts, FieldControl, slug } from './ui'
+import { Alert, Card, Chip, Facts, FieldControl, slug } from './ui'
 
 export const MAX_INVOICES = 5
 const singleAnswers = selectOptions['Single room']
 const range = (n: number) => Array.from({ length: n }, (_, i) => i)
-const usd = (n: number) => `USD ${n.toLocaleString('en-US', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
+export const usd = (n: number) => `USD ${n.toLocaleString('en-US', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 const cents = (n: number) => Math.round(n * 100)
 
 /** A select whose value the form reacts to (FieldControl's are read only when the form is sent). */
-function LiveSelect({ id, label, value, options, help, error, onChange, disabled }: { id: string; label: string; value: string; options: string[]; help?: string; error?: string; onChange: (value: string) => void; disabled?: boolean }) {
+function LiveSelect({ id, label, value, options, help, error, onChange, disabled, placeholder }: {
+  id: string; label: string; value: string; options: string[]; help?: string; error?: string; onChange: (value: string) => void; disabled?: boolean; placeholder?: string
+}) {
   return (
     <div className={`reg-field${error ? ' has-error' : ''}`}>
       <label htmlFor={id}>{label}</label>
@@ -22,71 +24,110 @@ function LiveSelect({ id, label, value, options, help, error, onChange, disabled
       {error && <p className="reg-error" id={`${id}-error`}><CircleAlert size={16} aria-hidden="true" />{error}</p>}
       <select id={id} name={label} className="reg-control" value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}
         aria-describedby={[help && `${id}-hint`, error && `${id}-error`].filter(Boolean).join(' ') || undefined} aria-invalid={error ? true : undefined}>
+        {placeholder !== undefined && <option value="">{placeholder}</option>}
         {options.map((option) => <option key={option} value={option}>{option}</option>)}
       </select>
     </div>
   )
 }
 
-export type SetupBody = { numberOfTeams: number; numberOfObservers: number; contestantRoomType: string | null; singleRooms: { teamLeaders: boolean[]; observers: boolean[] } }
+export type FeeLine = { key: string; label: string; detail: string; amount: number | null }
 
-/** Team and observers: how many teams and observers, and which Team Leaders and observers want a single room. */
-export function TeamSetup({ data, paymentDone, busy, error, onSave }: { data: DelegationData; paymentDone: boolean; busy: boolean; error: ReactNode; onSave: (body: SetupBody) => void }) {
+/** Fee lines and their total, on Team and observers (as they are chosen) and on Payment (as invoiced). */
+export function FeeTable({ lines, total, pending }: { lines: FeeLine[]; total: number; pending?: boolean }) {
+  return (
+    <table className="reg-fee-table">
+      <tbody>
+        {lines.map((line) => (
+          <tr key={line.key}><th scope="row">{line.label}<small>{line.detail}</small></th><td>{line.amount === null ? 'Rate to be confirmed' : usd(line.amount)}</td></tr>
+        ))}
+      </tbody>
+      <tfoot><tr><th scope="row">Total</th><td>{usd(total)}{pending ? ' + observer fees' : ''}</td></tr></tfoot>
+    </table>
+  )
+}
+
+/** Shown beside a Save button while its form has changes that are not saved yet. */
+export function UnsavedNote({ show }: { show: boolean }) {
+  return show ? <span className="reg-unsaved"><span aria-hidden="true" />Unsaved changes</span> : null
+}
+
+export type SetupBody = { numberOfTeams: number; numberOfObservers: number; singleRooms: { teamLeaders: boolean[]; observers: boolean[] } }
+
+/** Team and observers: how many teams and observers, who wants a single room, and what that costs. */
+export function TeamSetup({ data, paymentDone, busy, error, dirty, onSave }: { data: DelegationData; paymentDone: boolean; busy: boolean; error: ReactNode; dirty: boolean; onSave: (body: SetupBody) => void }) {
   const d = data.delegation
   const rules = data.feeRules
   const oneTeamOnly = d.feeCategory === 'non_accredited'
   const [teams, setTeams] = useState(oneTeamOnly ? 1 : d.numberOfTeams)
   const most = rules.maxObserversPerTeam * teams
   const [observers, setObservers] = useState(Math.min(d.numberOfObservers, most))
+  const answer = (yes: boolean | undefined) => (yes === undefined ? '' : yes ? singleAnswers[1] : singleAnswers[0])
+  const [leaderRooms, setLeaderRooms] = useState(() => range(2).map((i) => answer(d.singleRooms.teamLeaders[i])))
+  const [observerRooms, setObserverRooms] = useState(() => range(rules.maxObserversPerTeam * 2).map((i) => answer(d.singleRooms.observers[i])))
   const [errors, setErrors] = useState<Record<string, string>>({})
   const shownObservers = Math.min(observers, most)
   const leaderLabel = (i: number) => `Team Leader, ${data.teams[i]?.name ?? (i === 0 ? 'first team' : 'second team')}${i === 0 ? ' (you)' : ''}`
-  const observerLabel = (i: number) => `Observer ${i + 1}`
-  const answer = (yes: boolean | undefined) => (yes === undefined ? '' : yes ? singleAnswers[1] : singleAnswers[0])
-  const singleFee = usd(rules.singleRoomFee)
+  const observerLabel = (i: number) => (most === 1 ? 'Observer' : `Observer ${i + 1}`)
+  const rooms = [...range(teams).map((i) => ({ id: `setup-${slug(leaderLabel(i))}`, label: leaderLabel(i), value: leaderRooms[i], set: (v: string) => setLeaderRooms((l) => l.map((a, j) => (j === i ? v : a))) })),
+    ...range(shownObservers).map((i) => ({ id: `setup-observer-${i + 1}`, label: observerLabel(i), value: observerRooms[i], set: (v: string) => setObserverRooms((l) => l.map((a, j) => (j === i ? v : a))) }))]
+
+  // The fees for what is chosen right now, worked out as the server will once this is saved.
+  const singles = rooms.filter((r) => r.value === singleAnswers[1]).length
+  const rate = `${data.fees.tierLabel} rate, ${data.fees.categoryLabel.toLowerCase()}`
+  const lines: FeeLine[] = [
+    ...rules.teamFees.slice(0, teams).map((amount, i) => ({ key: `team${i}`, label: oneTeamOnly ? 'Team' : i === 0 ? 'First team' : 'Second team', detail: `${rate}. Four contestants and their Team Leader.`, amount })),
+    { key: 'observers', label: 'Observers', detail: shownObservers ? `${shownObservers} × ${rules.observerFee === null ? 'rate to be confirmed' : usd(rules.observerFee)}` : 'None', amount: !shownObservers ? 0 : rules.observerFee === null ? null : shownObservers * rules.observerFee },
+    { key: 'singles', label: 'Single rooms', detail: singles ? `${singles} × ${usd(rules.singleRoomFee)}` : 'None: everyone shares a twin room', amount: singles * rules.singleRoomFee },
+  ]
+  const total = lines.reduce((sum, line) => sum + (line.amount ?? 0), 0)
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const form = new FormData(event.currentTarget)
-    const read = (label: string) => String(form.get(label) ?? '')
-    const missing: Record<string, string> = {}
-    const pick = (labels: string[]) => labels.map((label) => {
-      const value = read(label)
-      if (!value) missing[label] = 'Choose yes or no.'
-      return value.startsWith('Yes')
-    })
-    const singleRooms = { teamLeaders: pick(range(teams).map(leaderLabel)), observers: pick(range(shownObservers).map(observerLabel)) }
+    const missing = Object.fromEntries(rooms.filter((r) => !r.value).map((r) => [r.id, 'Choose yes or no.']))
     setErrors(missing)
-    if (Object.keys(missing).length) { document.getElementById(`setup-${slug(Object.keys(missing)[0])}`)?.focus(); return }
-    onSave({ numberOfTeams: teams, numberOfObservers: shownObservers, contestantRoomType: read('Room type preference') || null, singleRooms })
+    if (Object.keys(missing).length) { document.getElementById(Object.keys(missing)[0])?.focus(); return }
+    onSave({
+      numberOfTeams: teams, numberOfObservers: shownObservers,
+      singleRooms: { teamLeaders: range(teams).map((i) => leaderRooms[i] === singleAnswers[1]), observers: range(shownObservers).map((i) => observerRooms[i] === singleAnswers[1]) },
+    })
   }
 
   return (
-    <form onSubmit={submit} noValidate>
-      <Facts items={[
-        { label: 'Team Leader', value: `${d.primaryTeamLeaderName} · ${d.teamLeaderEmail}`, help: 'From your verified account.' },
-        { label: 'Country', value: `${d.countryTerritory} · set by your invitation code` },
-        { label: 'Fee rate', value: data.fees.categoryLabel, help: d.feeCategory === 'previous_host' ? 'Countries that have hosted the IOL get 10% off the team fees.' : 'Set by your invitation code. Ask the organisers if it looks wrong.' },
-      ]} />
-      <div className="reg-grid">
-        <LiveSelect id="setup-number-of-teams" label="Number of teams" value={String(teams)} options={oneTeamOnly ? ['1'] : ['1', '2']} onChange={(v) => setTeams(Number(v))}
-          help={oneTeamOnly ? 'A country or territory that is not accredited registers one team.' : 'Each team is four contestants and their Team Leader. A second team costs more than the first.'} />
-        <LiveSelect id="setup-number-of-observers" label="Number of observers" value={String(shownObservers)} options={range(most + 1).map(String)} onChange={(v) => setObservers(Number(v))}
-          help={`Optional. Up to ${rules.maxObserversPerTeam} per team${rules.observerFee === null ? '' : `, ${usd(rules.observerFee)} each`}: a second Team Leader, a parent, someone from your olympiad.`} />
-        <FieldControl idPrefix="setup" field={{ label: 'Room type preference', value: d.contestantRoomType ?? '', kind: 'select', optional: true, help: 'For the contestants, who share twin rooms. If someone needs a different arrangement, say so in Rooms and welfare.' }} />
+    <form onSubmit={submit} noValidate data-dirty-key="setup">
+      <div className="reg-cards">
+        <Card id="setup-delegation" title="Your delegation" intro="From your invitation code and your account. If anything looks wrong, email the organisers.">
+          <Facts items={[
+            { label: 'Team Leader', value: d.primaryTeamLeaderName, help: d.teamLeaderEmail },
+            { label: 'Country or territory', value: d.countryTerritory },
+            { label: 'Fee rate', value: data.fees.categoryLabel, help: d.feeCategory === 'previous_host' ? 'Countries that have hosted the IOL pay a lower team fee.' : d.feeCategory === 'non_accredited' ? 'Not yet accredited: one team.' : undefined },
+          ]} />
+        </Card>
+
+        <Card id="setup-numbers" title="Teams and observers" intro="Each team is four contestants and one Team Leader, whose place is in the team fee.">
+          <div className="reg-grid">
+            <LiveSelect id="setup-number-of-teams" label="Number of teams" value={String(teams)} options={oneTeamOnly ? ['1'] : ['1', '2']} onChange={(v) => setTeams(Number(v))}
+              help={oneTeamOnly ? 'A country or territory that is not accredited registers one team.' : 'One or two. A second team costs more than the first.'} />
+            <LiveSelect id="setup-number-of-observers" label="Number of observers" value={String(shownObservers)} options={range(most + 1).map(String)} onChange={(v) => setObservers(Number(v))}
+              help={`Optional. At most ${rules.maxObserversPerTeam} per team${rules.observerFee === null ? '' : `, ${usd(rules.observerFee)} each`}. For example a parent or someone from your national olympiad. You name them later, in People.`} />
+          </div>
+        </Card>
+
+        <Card id="setup-rooms" title="Single rooms" intro={`Team Leaders and observers share twin rooms. Anyone who would rather have a room to themselves can ask for a single room, at ${usd(rules.singleRoomFee)} more. Contestants share with a teammate of the same gender.`}>
+          <div className="reg-grid">
+            {rooms.map((r) => <LiveSelect key={r.id} id={r.id} label={r.label} value={r.value} options={singleAnswers} placeholder="Choose…" error={errors[r.id]} onChange={r.set} />)}
+          </div>
+        </Card>
+
+        <Card id="setup-fees" title="Your fees" intro="Updates as you choose. Saving this step sets the amount on your invoice." status={<Chip tone="later">{data.fees.tierLabel} rate</Chip>}>
+          <FeeTable lines={lines} total={total} pending={shownObservers > 0 && rules.observerFee === null} />
+          {paymentDone && <p className="reg-aside"><Info size={18} aria-hidden="true" />You have already paid. If a change here alters the total, Finance will contact you about the difference.</p>}
+        </Card>
       </div>
-      <fieldset className="reg-fieldset">
-        <legend>Single rooms</legend>
-        <p className="reg-hint">Team Leaders and observers share twin rooms unless they ask for a single room, which adds {singleFee} per person. You name the observers later, in People.</p>
-        <div className="reg-grid">
-          {range(teams).map((i) => <FieldControl key={leaderLabel(i)} idPrefix="setup" error={errors[leaderLabel(i)]} field={{ label: leaderLabel(i), value: answer(d.singleRooms.teamLeaders[i]), kind: 'select', options: singleAnswers }} />)}
-          {range(shownObservers).map((i) => <FieldControl key={observerLabel(i)} idPrefix="setup" error={errors[observerLabel(i)]} field={{ label: observerLabel(i), value: answer(d.singleRooms.observers[i]), kind: 'select', options: singleAnswers }} />)}
-        </div>
-      </fieldset>
-      {paymentDone && <p className="reg-aside"><Info size={18} aria-hidden="true" />You have already paid. Changing these may change your fees; Finance will contact you if it does.</p>}
       <div className="reg-panel-actions">
         <Alert>{error}</Alert>
-        <button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>Save and continue <ArrowRight size={18} aria-hidden="true" /></button>
+        <button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save and continue'} <ArrowRight size={18} aria-hidden="true" /></button>
+        <UnsavedNote show={dirty} />
       </div>
     </form>
   )
@@ -139,7 +180,7 @@ export function InvoiceDetails({ data, payment, disabled, errors }: { data: Dele
     // A fresh split starts evenly; one already under way keeps its amounts.
     if (next > 1 && range(next).every((i) => !amounts[i])) setAmounts(evenSplit(total, next))
   }
-  const field = (i: number, key: 'name' | 'tin' | 'address' | 'amount', label: string, value: string, extra: { optional?: boolean; help?: string; type?: string; area?: boolean } = {}) => {
+  const field = (i: number, key: 'name' | 'tin' | 'address' | 'amount', label: string, value: string, extra: { optional?: boolean; help?: string; area?: boolean } = {}) => {
     const name = `invoice-${i}-${key}`
     const error = errors[name]
     const describedBy = [extra.help && `${name}-hint`, error && `${name}-error`].filter(Boolean).join(' ') || undefined
@@ -156,38 +197,34 @@ export function InvoiceDetails({ data, payment, disabled, errors }: { data: Dele
     )
   }
   const recipient = payment?.invoiceRecipientName ?? data.delegation.accreditedOrganisation ?? ''
-  return (
-    <fieldset className="reg-fieldset">
-      <legend>Invoice details</legend>
-      {disabled && <p className="reg-hint">Locked while Finance reviews your payment. Contact the organisers to change them.</p>}
-      <div className="reg-grid">
-        <LiveSelect id="payment-number-of-invoices" label="Number of invoices" value={String(count)} options={range(MAX_INVOICES).map((i) => String(i + 1))} onChange={changeCount} disabled={disabled}
-          help="More than one if several organisations pay part of the fees. Each invoice gets its own payer and amount; together they make the total. Invoices cannot be split after the transfer." />
+  return <>
+    <div className="reg-grid">
+      <LiveSelect id="payment-number-of-invoices" label="Number of invoices" value={String(count)} options={range(MAX_INVOICES).map((i) => String(i + 1))} onChange={changeCount} disabled={disabled}
+        help="One, unless several organisations each pay part of the fees. Each invoice then gets its own payer and amount." />
+    </div>
+    {count === 1 ? (
+      <div className="reg-grid reg-invoice-one">
+        <FieldControl idPrefix="payment" disabled={disabled} error={errors['Invoice recipient name']} field={{ label: 'Invoice recipient name', value: recipient, help: 'The organisation named on the invoice.' }} />
+        <FieldControl idPrefix="payment" disabled={disabled} field={{ label: 'Tax identification number (TIN)', value: payment?.invoiceRecipientTin ?? '', optional: true, help: 'Only if your institution needs it on the invoice.' }} />
+        <FieldControl idPrefix="payment" disabled={disabled} field={{ label: 'Invoice recipient address', value: payment?.invoiceRecipientAddress ?? '', kind: 'textarea', optional: true, help: 'Only if your institution needs a postal address on the invoice.' }} />
       </div>
-      {count === 1 ? (
-        <div className="reg-grid">
-          <FieldControl idPrefix="payment" disabled={disabled} error={errors['Invoice recipient name']} field={{ label: 'Invoice recipient name', value: recipient, help: 'The organisation named on the invoice.' }} />
-          <FieldControl idPrefix="payment" disabled={disabled} field={{ label: 'Tax identification number (TIN)', value: payment?.invoiceRecipientTin ?? '', optional: true, help: 'Only if your institution needs it on the invoice.' }} />
-          <FieldControl idPrefix="payment" disabled={disabled} field={{ label: 'Invoice recipient address', value: payment?.invoiceRecipientAddress ?? '', kind: 'textarea', optional: true, help: 'Only if your institution needs a postal address on the invoice.' }} />
-        </div>
-      ) : <>
-        {range(count).map((i) => (
-          <div className="reg-invoice-part" key={i}>
-            <h5>Invoice {i + 1} of {count}</h5>
-            <div className="reg-grid">
-              {field(i, 'name', 'Invoice recipient name', saved?.[i]?.recipientName ?? (i === 0 ? recipient : ''), { help: 'The organisation that pays this part.' })}
-              {field(i, 'amount', 'Amount (USD)', '')}
-              {field(i, 'tin', 'Tax identification number (TIN)', saved?.[i]?.recipientTin ?? (i === 0 ? payment?.invoiceRecipientTin ?? '' : ''), { optional: true })}
-              {field(i, 'address', 'Invoice recipient address', saved?.[i]?.recipientAddress ?? (i === 0 ? payment?.invoiceRecipientAddress ?? '' : ''), { optional: true, area: true })}
-            </div>
+    ) : <>
+      {range(count).map((i) => (
+        <fieldset className="reg-invoice-part" key={i}>
+          <legend>Invoice {i + 1} of {count}</legend>
+          <div className="reg-grid">
+            {field(i, 'name', 'Invoice recipient name', saved?.[i]?.recipientName ?? (i === 0 ? recipient : ''), { help: 'The organisation that pays this part.' })}
+            {field(i, 'amount', 'Amount (USD)', '', { help: 'Whole dollars, or dollars and cents.' })}
+            {field(i, 'tin', 'Tax identification number (TIN)', saved?.[i]?.recipientTin ?? (i === 0 ? payment?.invoiceRecipientTin ?? '' : ''), { optional: true })}
+            {field(i, 'address', 'Invoice recipient address', saved?.[i]?.recipientAddress ?? (i === 0 ? payment?.invoiceRecipientAddress ?? '' : ''), { optional: true, area: true })}
           </div>
-        ))}
-        <p className={`reg-invoice-sum${left === 0 ? ' is-even' : ''}${errors['invoice-split'] ? ' has-error' : ''}`} role="status" id="invoice-split">
-          {left === 0 ? <>The {count} invoices add up to the total, {usd(total)}.</>
-            : left > 0 ? <>{usd(assigned)} of {usd(total)} assigned. <strong>{usd(left)} still to assign.</strong></>
-            : <>{usd(assigned)} assigned. <strong>That is {usd(-left)} more than the total of {usd(total)}.</strong></>}
-        </p>
-      </>}
-    </fieldset>
-  )
+        </fieldset>
+      ))}
+      <p className={`reg-invoice-sum${left === 0 ? ' is-even' : ''}${errors['invoice-split'] ? ' has-error' : ''}`} role="status" id="invoice-split">
+        {left === 0 ? <>The {count} invoices add up to the total, {usd(total)}.</>
+          : left > 0 ? <>{usd(assigned)} of {usd(total)} assigned. <strong>{usd(left)} still to assign.</strong></>
+          : <>{usd(assigned)} assigned. <strong>That is {usd(-left)} more than the total of {usd(total)}.</strong></>}
+      </p>
+    </>}
+  </>
 }

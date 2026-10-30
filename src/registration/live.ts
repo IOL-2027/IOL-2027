@@ -194,20 +194,20 @@ function guardianConsentFact(members: Member[], policy: GuardianConsentPolicy, a
   }
 }
 
-export function welfareFacts(members: Member[], policy: GuardianConsentPolicy, attachments: Attachment[]) {
+export function welfareFacts({ members, guardianConsent, attachments, feeRules }: DelegationData) {
   const contestants = members.filter((m) => m.role === 'contestant')
   const male = contestants.filter((m) => m.genderForRoomAllocation === 'Male').length
   const female = contestants.filter((m) => m.genderForRoomAllocation === 'Female').length
-  const singles = members.filter((m) => /single/i.test(m.roomTypePreference ?? '')).map((m) => m.displayName)
+  const others = contestants.length - male - female
+  const singles = members.filter((m) => m.role !== 'contestant' && m.roomTypePreference === 'single').map((m) => m.displayName)
   const diets = members.map((m) => m.foodAllergyNotes).filter((f): f is string => Boolean(f && !/no restrictions/i.test(f)))
   const medical = members.map((m) => m.medicalAccessibilityNotes).filter((m): m is string => Boolean(m && !/no special requirements/i.test(m)))
   return [
-    { label: 'Rooming', value: `${male} male and ${female} female contestants`, help: 'Contestants share same-gender rooms. Team Leaders and observers get single rooms.' },
-    { label: 'Single-room requests', value: singles.join(', ') || 'None', help: 'A single room may carry a supplement or need approval.' },
-    { label: 'Room sharing', value: 'Same team preferred', help: 'Arranged by the accommodation team.' },
+    { label: 'Contestants’ rooms', value: `${male} male, ${female} female${others ? `, ${others} other or not given` : ''}`, help: 'Contestants share twin rooms with someone of the same gender, from their own country where possible.' },
+    { label: 'Single rooms', value: singles.join(', ') || 'None', help: `For Team Leaders and observers, USD ${feeRules.singleRoomFee.toLocaleString('en-US')} each. Chosen in Team and observers and on each person’s record.` },
     { label: 'Food', value: diets.length ? diets.join(' · ') : 'No restrictions reported', help: 'Taken from each person’s food and allergy notes.' },
     { label: 'Medical and accessibility', value: medical.length ? medical.join(' · ') : 'Nothing reported' },
-    guardianConsentFact(members, policy, attachments),
+    guardianConsentFact(members, guardianConsent, attachments),
     { label: 'Who can see this', value: 'Welfare, food and check-in staff only', help: 'Access is limited by role under Thailand’s PDPA.' },
     { label: 'How long it is kept', value: 'Deleted after the event', help: 'The exact retention period is awaiting approval.' },
   ]

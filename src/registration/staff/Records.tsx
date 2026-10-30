@@ -9,12 +9,12 @@ const exportInfo: Record<string, { title: string; description: string }> = {
   summary: { title: 'Summary by country', description: 'One row per country with numbers only: teams, observers, single rooms, people entered, statuses, amount due, badges and check-ins. No names. Good for charts.' },
   people: { title: 'People, every detail', description: 'Everyone with every detail, including passports, health notes and status. Handle as confidential.' },
   people_status: { title: 'People and progress', description: 'Everyone’s name, country, team, role, registration stage, badge and first check-in. No personal details.' },
-  delegations: { title: 'Countries', description: 'One row per country: fee rate, Team Leader and contacts, counts, registration, payment and travel status, stay dates.' },
+  delegations: { title: 'Countries', description: 'One row per country: fee rate, Team Leader and contacts, counts, registration, payment and travel status, stay dates, room and welfare requests.' },
   payments: { title: 'Payments', description: 'One row per payment: references, receipt numbers, amounts, fee rate and tier, and who reviewed it.' },
   invoices: { title: 'Invoices', description: 'One row per invoice. A payment split between payers has a row for each payer and amount.' },
   travel: { title: 'Travel', description: 'Arrival and departure trips in date order, with how many people and who is on each.' },
   checkins: { title: 'Check-ins', description: 'Every badge scan: time, checkpoint, result, person and who scanned.' },
-  rooming: { title: 'Rooming', description: 'One row per person: gender for rooming, single room, contestants’ room preference, under 18 or not, and stay dates.' },
+  rooming: { title: 'Rooming', description: 'One row per person: gender for rooming, single room, under 18 or not, stay dates and their country’s room requests.' },
   welfare: { title: 'Food, health and emergency contacts', description: 'One row per person. No passport data.' },
   contestants: { title: 'Contestants and languages', description: 'Every contestant with their team and their individual and team contest languages, for the Problem Committee and results.' },
 }
@@ -23,9 +23,9 @@ const exportOrder = Object.keys(exportInfo)
 export function Exports() {
   const { data, error } = useLoad<{ kinds: string[] }>('/api/admin/exports')
   return (
-    <Panel id="exports" title="Exports" intro="Spreadsheet downloads (CSV, opens in Excel, Google Sheets or any data tool). You see the files your role needs. Every download is recorded in the activity log.">
+    <Panel id="exports" title="Exports" intro="Spreadsheet downloads (CSV, opens in Excel, Google Sheets or any data tool). Every staff role can download every file; each download is recorded in the activity log.">
       <Problem message={error} />
-      {data && (data.kinds.length === 0 ? <Note>Your role has no exports.</Note> : (
+      {data && (
         <ul className="reg-export-list">
           {[...data.kinds].sort((a, b) => exportOrder.indexOf(a) - exportOrder.indexOf(b)).map((kind) => (
             <li key={kind}>
@@ -34,7 +34,7 @@ export function Exports() {
             </li>
           ))}
         </ul>
-      ))}
+      )}
       <Note>Personal data in these files is covered by Thailand’s PDPA. Keep downloads on organiser devices and delete them when you are done.</Note>
     </Panel>
   )

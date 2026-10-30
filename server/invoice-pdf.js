@@ -62,13 +62,15 @@ function invoiceParts(delegation, payment, fees) {
  * @param {object|null} opts.payment payments row (latest), or null before the invoice details are saved
  * @param {object} opts.fees        calculateFees() result, at the invoice's own fee tier
  * @param {object} opts.invoice     settings.invoice: the issuer and, once Finance enters it, the bank account
+ * @param {number|null} [opts.part] one invoice of a split, from 1; without it, every invoice
  * @returns {Promise<Buffer>} one page per invoice
  */
-export function invoicePdf({ delegation, payment, fees, invoice, issuedOn = payment?.created_at ?? new Date() }) {
-  const parts = invoiceParts(delegation, payment, fees)
+export function invoicePdf({ delegation, payment, fees, invoice, part = null, issuedOn = payment?.created_at ?? new Date() }) {
+  const all = invoiceParts(delegation, payment, fees)
+  const parts = part && all.length > 1 ? [all[part - 1]] : all
   const doc = new PDFDocument({
     size: 'LETTER', margins: { top: 40, bottom: 40, left: 42, right: 42 }, autoFirstPage: false,
-    info: { Title: `IOL 2027 invoice ${payment?.invoice_number ?? ''}, ${delegation.country_territory}`.replace('  ', ' '), Author: invoice.issuerName },
+    info: { Title: `IOL 2027 invoice ${parts.length === 1 && payment?.invoice_number ? parts[0].number : payment?.invoice_number ?? ''}, ${delegation.country_territory}`.replace('  ', ' '), Author: invoice.issuerName },
   })
   doc.registerFont('Regular', asset('fonts/NotoSans-Regular.ttf'))
   doc.registerFont('Bold', asset('fonts/NotoSans-Bold.ttf'))

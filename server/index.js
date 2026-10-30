@@ -374,11 +374,16 @@ app.get('/api/registration/delegations/:delegationId', ...signedIn, delegationAc
     query(`SELECT id, member_id, kind, original_filename, mime_type, size_bytes, created_at FROM attachments WHERE delegation_id = $1 ORDER BY created_at DESC`, [id]),
     query(`SELECT bc.member_id, bc.status, bc.issued_at FROM badge_credentials bc JOIN members m ON m.id = bc.member_id WHERE m.delegation_id = $1`, [id]),
   ])
+  // Once an invoice exists, at its fee tier, so the Payment step and the invoice agree.
+  const fees = delegationFees(settings.fees, delegation, payments.rows[0]?.fee_tier)
   res.json({
     delegation: camelizeRow(delegation),
-    // Once an invoice exists, at its fee tier, so the Payment step and the invoice agree.
-    fees: delegationFees(settings.fees, delegation, payments.rows[0]?.fee_tier),
-    feeRules: { maxObserversPerTeam: settings.fees.maxObserversPerTeam, singleRoomFee: settings.fees.singleRoomFee, observerFee: settings.fees.observerFee, currency: settings.fees.currency },
+    fees,
+    // teamFees are the first and second team's fees at this rate and tier, so Team and observers can show the total as it changes.
+    feeRules: {
+      maxObserversPerTeam: settings.fees.maxObserversPerTeam, singleRoomFee: settings.fees.singleRoomFee, observerFee: settings.fees.observerFee, currency: settings.fees.currency,
+      teamFees: settings.fees.teamFees[fees.tier][fees.category] ?? settings.fees.teamFees[fees.tier].accredited,
+    },
     guardianConsent: settings.guardianConsent,
     bank: settings.invoice.bank,
     teams: camelizeRows(teams.rows),
@@ -525,14 +530,18 @@ app.put('/api/registration/delegations/:delegationId/invoice', ...signedIn, dele
   res.json({ payment: camelizeRow(payment) })
 }))
 
-// The invoice as a PDF: the same document the "registration submitted" email attaches.
+// The invoice as a PDF: the same document the "registration submitted" email attaches. A split invoice is one file per
+// payer: ?part=2 is the second (IOL2027/23-2).
 app.get('/api/registration/delegations/:delegationId/invoice', ...signedIn, delegationAccess('read'), asyncHandler(async (req, res) => {
   const d = (await query('SELECT * FROM delegations WHERE id = $1', [req.params.delegationId])).rows[0]
   if (!d) throw new HttpError(404, 'Delegation not found.')
   const payment = (await query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC LIMIT 1', [d.id])).rows[0]
   if (!payment) throw new HttpError(409, 'Save the invoice details first.')
   if (await splitsOutOfStep(d, payment)) throw new HttpError(409, 'The total has changed since the invoices were split. Update the invoice amounts in Payment, then download them again.')
-  res.set('Content-Type', 'application/pdf').set('Content-Disposition', `inline; filename="${invoiceFilename(d, payment)}"`).send(await delegationInvoice(d, payment))
+  const parts = payment.invoice_splits?.length ?? 0
+  const part = req.query.part === undefined ? null : Number(req.query.part)
+  if (part !== null && !(parts && Number.isInteger(part) && part >= 1 && part <= parts)) throw new HttpError(404, parts ? `There are ${parts} invoices: choose one from 1 to ${parts}.` : 'This invoice is not split.')
+  res.set('Content-Type', 'application/pdf').set('Content-Disposition', `inline; filename="${invoiceFilename(d, payment, part)}"`).send(await delegationInvoice(d, payment, part))
 }))
 
 app.post('/api/registration/delegations/:delegationId/teams', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
@@ -810,20 +819,25 @@ async function notifySubmitted(d) {
     query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC LIMIT 1', [d.id]).then((r) => r.rows[0] ?? null),
     missingTravel(d.id),
   ])
-  const invoice = await delegationInvoice(d, payment)
+  // A split invoice is attached as one PDF per payer, as each payer pays their own.
+  const parts = payment?.invoice_splits?.length ? payment.invoice_splits.map((_, i) => i + 1) : [null]
+  const attachments = await Promise.all(parts.map(async (part) => ({ filename: invoiceFilename(d, payment, part), content: await delegationInvoice(d, payment, part), contentType: 'application/pdf' })))
   const { subject, html } = buildRegistrationSubmittedEmail({
     countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, numberOfTeams: d.number_of_teams, numberOfObservers: d.number_of_observers,
     paymentConfirmed: payment?.status === 'approved', travelComplete: !travelGaps.length, travelUrl: `${portalUrl}/?step=travel`,
   })
   // Kept and tried again if sending fails, so the badges below do not wait on it.
-  await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, attachments: [{ filename: invoiceFilename(d, payment), content: invoice, contentType: 'application/pdf' }], purpose: 'registration_submitted', delegationId: d.id, retry: true })
+  await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, attachments, purpose: 'registration_submitted', delegationId: d.id, retry: true })
   await sendBadgesIfSettled(d.id)
 }
 
-/** The delegation's invoice PDF, priced at the fee tier the invoice was issued at, so its total and due date hold. */
-async function delegationInvoice(d, payment) {
+/**
+ * The delegation's invoice PDF, priced at the fee tier the invoice was issued at, so its total and due date hold.
+ * `part` (from 1) is one payer's invoice of a split; without it, every invoice.
+ */
+async function delegationInvoice(d, payment, part = null) {
   const settings = await loadSettings(requireDb())
-  return invoicePdf({ delegation: d, payment, fees: delegationFees(settings.fees, d, payment?.fee_tier), invoice: settings.invoice })
+  return invoicePdf({ delegation: d, payment, fees: delegationFees(settings.fees, d, payment?.fee_tier), invoice: settings.invoice, part })
 }
 
 /** True when an unpaid invoice was split for a total that has since changed (more observers, a single room). */
@@ -834,9 +848,9 @@ async function splitsOutOfStep(d, payment) {
   return payment.invoice_splits.reduce((sum, item) => sum + cents(item.amount), 0) !== cents(total)
 }
 
-function invoiceFilename(d, payment) {
+function invoiceFilename(d, payment, part = null) {
   const number = payment?.invoice_number?.split('/')[1]
-  return `IOL2027-invoice-${number ? `${number}-` : ''}${d.country_territory.replace(/[^\w-]+/g, '-').replace(/^-|-$/g, '')}.pdf`
+  return `IOL2027-invoice-${number ? `${number}-${part ? `${part}-` : ''}` : ''}${d.country_territory.replace(/[^\w-]+/g, '-').replace(/^-|-$/g, '')}.pdf`
 }
 
 /* ------------------------------------------------------------------ */

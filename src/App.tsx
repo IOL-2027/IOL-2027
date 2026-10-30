@@ -96,7 +96,7 @@ function Header() {
     <header className="topbar">
       <a className="wordmark" href="/" aria-label="IOL 2027 home"><img src="/assets/iol-mark-light.png" alt="" /><span>IOL 2027</span></a>
       <nav className="desktop-nav" aria-label="Main navigation">
-        {navigation.map((item) => item.children ? <div className="nav-dropdown" key={item.href}><NavLink item={item} className="nav-parent" /><ChevronRight size={13} /><div className="nav-menu">{item.overview && <a className="nav-menu-overview" href={item.href}>{item.overview}</a>}{item.children.map((child) => <a key={child.href} href={child.href}>{child.label}</a>)}</div></div> : <NavLink key={item.href} item={item} />)}
+        {navigation.map((item) => item.children ? <div className="nav-dropdown" key={item.href}><NavLink item={item} className="nav-parent" /><ChevronRight size={13} /><div className="nav-menu">{item.overview && <a href={item.href}>{item.overview}</a>}{item.children.map((child) => <a key={child.href} href={child.href}>{child.label}</a>)}</div></div> : <NavLink key={item.href} item={item} />)}
       </nav>
       <button className="menu-button" onClick={() => setOpen(!open)} aria-label="Toggle menu" aria-expanded={open} aria-controls="mobile-navigation">{open ? <X /> : <Menu />}</button>
     </header>

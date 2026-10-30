@@ -97,7 +97,10 @@ export default function Payments({ canReview }: { canReview: boolean }) {
             </dl>
             {p.reviewNote && <p className="reg-pay-note"><strong>Note to the Team Leader:</strong> {p.reviewNote}</p>}
             <div className="reg-pay-files">
-              <a className="reg-btn-link" href={`/api/registration/delegations/${p.delegationId}/invoice`} target="_blank" rel="noreferrer"><FileText size={16} aria-hidden="true" />Invoice {p.invoiceNumber ?? ''}</a>
+              {/* A split invoice is one PDF per payer. */}
+              {p.invoiceSplits?.length
+                ? p.invoiceSplits.map((_, i) => <a key={i} className="reg-btn-link" href={`/api/registration/delegations/${p.delegationId}/invoice?part=${i + 1}`} target="_blank" rel="noreferrer"><FileText size={16} aria-hidden="true" />Invoice {p.invoiceNumber}-{i + 1}</a>)
+                : <a className="reg-btn-link" href={`/api/registration/delegations/${p.delegationId}/invoice`} target="_blank" rel="noreferrer"><FileText size={16} aria-hidden="true" />Invoice {p.invoiceNumber ?? ''}</a>}
               {p.proofAttachmentId && <>
                 <button type="button" className="reg-btn-link" aria-expanded={previewing === p.id} onClick={() => setPreviewing(previewing === p.id ? null : p.id)}>
                   {previewing === p.id ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}{previewing === p.id ? 'Hide proof' : 'Preview proof'}

@@ -47,8 +47,9 @@ export const defaultSettings = {
     observerFee: 600,
     // Everyone shares a room unless they ask for a single one (Team Leaders and observers, in Team and observers).
     singleRoomFee: 400,
-    // Up to this many observers per team; each team has one Team Leader, included in the team fee.
-    maxObserversPerTeam: 2,
+    // Up to this many observers per team, as in POSN's fee table ("max 1 person/team"); each team has one Team
+    // Leader, included in the team fee.
+    maxObserversPerTeam: 1,
   },
   // Off until the organisers confirm the policy. When on, contestants under the age threshold on the
   // reference date need a signed consent form before their Team Leader can submit.
