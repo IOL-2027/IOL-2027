@@ -129,6 +129,8 @@ Source §5. Front end: `src/registration/`. API: `server/index.js`.
 
 Team and observer counts (at most one observer per team, as in POSN's fee table); a single room, yes or no, for each Team Leader and observer, everyone else sharing (contestants same-gender twin rooms); fee table by fee rate (previous host, accredited, not accredited), first and second team; invoices split between payers with an amount each that must add up to the total, each downloaded and emailed as its own PDF; OUR bank-charge rule; currency conversion is the sender's responsibility; payment reference; proof upload unlocks People; per-person role, team, names, passport, date of birth, gender, exam language, T-shirt and polo sizes, food, medical and emergency contact; team code and contest language; welfare summary; stay dates and flights; review checklist; badges and check-in.
 
+Saving is explicit, with a warning before unsaved changes are lost (decided 30 Oct 2026, against autosave): saving Team and observers or the invoice details changes the amount on an unpaid invoice, and a person's record is checked as a whole, so half-typed changes should not reach the server on their own. Each form shows “Unsaved changes” beside its Save button; moving to another step, record or the overview asks first (“Leave without saving?”), and so do closing the tab and signing out. Stay dates, and the note about extra nights, save on their own.
+
 ---
 
 ## 5. Payment and finance

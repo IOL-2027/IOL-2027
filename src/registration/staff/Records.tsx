@@ -48,7 +48,7 @@ type AuditEvent = {
 export const eventText: Record<string, string> = {
   team_leader_account_created: 'Created the Team Leader account', delegation_updated: 'Changed the registration', invoice_saved: 'Saved invoice details',
   team_updated: 'Changed a team', member_added: 'Added a person', member_updated: 'Changed a person', member_removed: 'Removed a person',
-  travel_saved: 'Saved a trip', payment_proof_uploaded: 'Uploaded proof of payment', payment_approved: 'Approved a payment', payment_rejected: 'Returned a proof',
+  travel_saved: 'Saved a trip', travel_removed: 'Removed a trip', payment_proof_uploaded: 'Uploaded proof of payment', payment_approved: 'Approved a payment', payment_rejected: 'Returned a proof',
   registration_submitted: 'Submitted the registration', guardian_consent_uploaded: 'Uploaded a consent form', badge_issued: 'Issued a badge',
   invite_created: 'Created an invitation code', invite_sent: 'Sent an invitation', invite_revoked: 'Revoked an invitation code', invite_reactivated: 'Reactivated an invitation code',
   invite_updated: 'Changed an invitation contact', export_downloaded: 'Downloaded an export', settings_updated: 'Changed settings', role_changed: 'Changed a role',

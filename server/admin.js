@@ -342,7 +342,7 @@ export function registerAdminRoutes(app, { signedIn }) {
     people: {
       columns: [['country_territory', 'Country'], ['team_name', 'Team'], ['role', 'Role'], ['display_name', 'Display name'], ['badge_name', 'Badge name'],
         ['official_name', 'Official name'], ['passport_name', 'Passport name'], ['passport_number', 'Passport number'], ['passport_nationality', 'Nationality'],
-        ['date_of_birth', 'Date of birth'], ['gender_for_room_allocation', 'Gender (rooming)'], ['exam_language', 'Exam language'], ['tshirt_size', 'T-shirt'],
+        ['date_of_birth', 'Date of birth'], ['gender_for_room_allocation', 'Gender (rooming)'], ['exam_language', 'Individual contest language'], ['tshirt_size', 'T-shirt'],
         ['polo_size', 'Polo'], ['email', 'Email'], ['single_room', 'Single room'], ['food_allergy_notes', 'Food and allergies'],
         ['medical_accessibility_notes', 'Medical or accessibility'], ['emergency_contact', 'Emergency contact'], ['needs_guardian_consent', 'Needs guardian consent'],
         ['has_guardian_consent', 'Guardian consent uploaded'], ['stage', 'Status'], ['missing_details', 'Missing details']],

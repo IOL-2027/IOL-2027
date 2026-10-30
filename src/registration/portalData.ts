@@ -10,6 +10,8 @@ export type Field = {
   kind?: FieldKind
   options?: string[]
   optional?: boolean
+  /** A select whose "Other" asks which, in words (languages beyond the list). */
+  other?: boolean
 }
 
 /** Something the system already knows. Shown as text, never as an input. */
@@ -24,6 +26,8 @@ export type PortalRecord = {
   status: RecordStatus
   /** Why the record needs attention, in plain words. */
   issue?: string
+  /** Every detail still needed, for the editor's "Still needed" line. */
+  missing?: string[]
   fields: Field[]
   facts?: Fact[]
 }
@@ -48,7 +52,7 @@ export const selectOptions: Record<string, string[]> = {
   'Number of teams': ['1', '2'],
   'Team contest language': ['English', 'French', 'German', 'Russian', 'Spanish', 'Arabic', 'Chinese', 'Other'],
   'Gender for room allocation': ['Female', 'Male', 'Non-binary', 'Prefer to discuss with the organisers'],
-  'Exam language': ['English', 'French', 'German', 'Russian', 'Spanish', 'Arabic', 'Chinese', 'Other'],
+  'Individual contest language': ['English', 'French', 'German', 'Russian', 'Spanish', 'Arabic', 'Chinese', 'Other'],
   'T-shirt size': ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'],
   'Polo shirt size': ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'],
   'Single room': ['No, share a room', 'Yes, a single room'],
@@ -63,24 +67,24 @@ export const selectOptions: Record<string, string[]> = {
 export const personFieldGroups: { legend: string; note?: string; labels: string[] }[] = [
   { legend: 'Role and names', labels: ['Role', 'Team assignment', 'Observer category', 'Display name', 'Badge name', 'Official name', 'Email'] },
   { legend: 'Passport', note: 'Only used to match travel and hotel records.', labels: ['Passport name', 'Passport number', 'Passport nationality', 'Date of birth'] },
-  { legend: 'Contest and stay', labels: ['Exam language', 'Gender for room allocation', 'Single room', 'T-shirt size', 'Polo shirt size', 'T-shirt style'] },
-  { legend: 'Welfare and safety', note: 'Seen only by the welfare, food and check-in teams.', labels: ['Food and allergy notes', 'Medical or accessibility notes', 'Emergency contact'] },
+  { legend: 'Contest and stay', labels: ['Individual contest language', 'Gender for room allocation', 'T-shirt size', 'Polo shirt size', 'T-shirt style'] },
+  { legend: 'Welfare and safety', note: 'Seen only by the organising team, to keep everyone safe and fed.', labels: ['Food and allergy notes', 'Medical or accessibility notes', 'Emergency contact'] },
 ]
 
 export const sections: Section[] = [
   { id: 'start', title: 'Before you begin', required: false, intro: 'Registration happens in stages. To start you only need to know how many are coming; names and travel can follow.' },
   { id: 'setup', title: 'Team and observers', required: true, intro: 'How many teams and observers are coming, and who would like a single room. This sets your fees; names come later, in People.' },
   { id: 'payment', title: 'Payment', required: true, intro: 'Four parts, in this order. Your invoice details are kept once saved, so you can transfer later and come back to upload the proof.' },
-  { id: 'teams', title: 'Teams', required: true, intro: 'Each team needs a contest working language. Contestants are assigned on each person’s record.', records: { noun: 'team', plural: 'teams' } },
-  { id: 'people', title: 'People', required: true, intro: 'Contestants and observers. Opens once proof of payment is uploaded, and can be completed in stages.', records: { noun: 'person', plural: 'people' } },
-  { id: 'welfare', title: 'Rooms and welfare', required: true, intro: 'A summary built from everyone’s records in People. If something is wrong, change it on that person’s record.' },
+  { id: 'teams', title: 'Teams', required: true, intro: 'Each team needs its team contest language. Contestants are put in a team on their own record in People.', records: { noun: 'team', plural: 'teams' } },
+  { id: 'people', title: 'People', required: true, intro: 'Everyone coming with your delegation. Each person is saved on their own, so you can fill this in stages. Opens once the proof of payment is uploaded.', records: { noun: 'person', plural: 'people' } },
+  { id: 'welfare', title: 'Rooms and welfare', required: true, intro: 'Check what the welfare team will see about your delegation, and tell them about any room requests.' },
   { id: 'travel', title: 'Travel', required: true, intro: 'Your stay dates set the hotel nights we reserve, so they are needed now. Flights can wait until they are booked. Once everyone’s arrival and departure are in and the payment is confirmed, we email you everyone’s badges.', records: { noun: 'trip', plural: 'trips' } },
   {
     id: 'review', title: 'Review and submit', required: false,
     intro: 'Submit once every step is done. You can still update travel and people afterwards until the change deadline.',
     facts: [
       { label: 'Invitation letters', value: 'Sent after payment is confirmed', help: 'Each person’s letter supports their visa application.' },
-      { label: 'Invoice', value: 'Emailed to you as a PDF when you submit' },
+      { label: 'Invoice', value: 'Emailed to you again', help: 'As a PDF, or one PDF for each payer if you split it. It is in Payment already.' },
       { label: 'E-receipt', value: 'In the Payment step once Finance approves the payment', help: 'The payment confirmation email links to it.' },
       { label: 'QR badges', value: 'Emailed to you as PDFs once payment is confirmed and everyone’s travel is in' },
       { label: 'Arrival check-in', value: 'Recorded at the venue during event week' },
