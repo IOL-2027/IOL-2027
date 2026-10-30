@@ -3,21 +3,19 @@
 Two apps for the 24th International Linguistics Olympiad in Thailand, built from one repository:
 
 - the **public website** (`index.html`, `src/App.tsx`), and
-- the **registration portal** (`portal/index.html`, `src/portal/`), where Team Leaders register and organisers work in the back office. It reuses the screens in `src/registration/` and talks to the API in `server/` (see `server/README.md`).
+- the **registration portal** at `/portal` on the same site (`portal/index.html`, `src/portal/`), where Team Leaders register and organisers work in the back office. Every page in it needs an account. It reuses the screens in `src/registration/` and talks to the API in `server/` (see `server/README.md`).
 
 ## Local development
 
 ```bash
 npm install
-npm run dev          # public website, http://localhost:5180
-npm run dev:portal   # registration portal, http://localhost:5181 (needs the API: npm run dev:api)
+npm run dev          # http://localhost:5180, and the registration portal at /portal (needs the API: npm run dev:api)
 ```
 
 Production validation:
 
 ```bash
-npm run build && npm run preview                  # public website (dist)
-npm run build:portal && npm run preview:portal    # registration portal (dist-portal)
+npm run build && npm run preview    # the website and the portal at /portal (dist)
 ```
 
 ## Site routes
@@ -35,11 +33,11 @@ npm run build:portal && npm run preview:portal    # registration portal (dist-po
 - `/registration` — how to register, who can register, key dates, working languages, and the button to the registration portal
 - `/registration/team-leader`, `/registration/check-in` — old addresses; they forward to the portal (or show `/registration` before it opens)
 
-Registration portal routes:
+Registration portal routes (all under `/portal`, served by `portal/index.html`; each needs an account):
 
-- `/` — sign in, or create a Team Leader account with an invitation code (`?invite=CODE` fills it in; `?step=travel` opens a step after sign-in)
-- `/staff` — organiser sign-in (no invitation-code option); every role lands on what it may see
-- `/check-in` — badge scanner for check-in staff, registration admins and super admins
+- `/portal` — sign in, or create a Team Leader account with an invitation code (`?invite=CODE` fills it in; `?step=travel` opens a step after sign-in)
+- `/portal/staff` — organiser sign-in (no invitation-code option); every role lands on what it may see
+- `/portal/check-in` — badge scanner for check-in staff, registration admins and super admins: allow the camera, choose the checkpoint, start scanning. Badges are only scanned here; their QR holds a bare code, so a phone's camera app has nothing to open
 - `/resources` — source and editorial notes
 
 ## Content sources
@@ -68,11 +66,11 @@ Mandarin Hotel Bangkok images come from the hotel's official website.
 | Site | URL | Deploys from |
 | --- | --- | --- |
 | Public website (`prod` target) | https://iol2027.web.app | push to `main` |
-| Registration portal (`portal` target) | https://iol2027-portal.web.app | push to `development` until launch, with the test API behind it (`/api/**` → Cloud Run `iol2027-api`). The public website does not link to it before registration opens |
-| Development website (`dev` target) | https://iol2027-dev.web.app | push to `development` (not indexed by search engines) |
+| Development website (`dev` target) | https://iol2027-dev.web.app, portal at https://iol2027-dev.web.app/portal | push to `development` (not indexed by search engines). Its `/api/**` goes to the test API on Cloud Run (`iol2027-api`) |
+| Old portal address (`portal` target) | https://iol2027-portal.web.app | redirects to the development site's `/portal` since 30 Oct 2026; deployed by hand (`firebase deploy --only hosting:portal`), not by the workflows |
 | Pull request previews | posted as a PR comment | every PR (public website only), expires after 7 days |
 
-Custom domains: the IOL Board, which manages `ioling.org`, adds the DNS records Firebase gives for each name (one A and one TXT record per name), for example `iol2027.ioling.org` for the website and `iol2027-portal.ioling.org` for the portal. Each name needs its own records. Until then the `web.app` addresses are used, and `VITE_PORTAL_URL` / `VITE_PUBLIC_SITE_URL` in the workflows (and `PORTAL_URL` on the API) say which addresses link to each other.
+Custom domains: the IOL Board, which manages `ioling.org`, adds the DNS records Firebase gives for each name (one A and one TXT record per name), for example `iol2027.ioling.org`. The portal is part of the website (`/portal`), so one name is enough. Until then the `web.app` addresses are used; `PORTAL_URL` on the API says where links in emails point.
 
 ### Branches until registration opens (18 January 2027)
 

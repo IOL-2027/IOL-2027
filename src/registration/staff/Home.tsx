@@ -2,6 +2,7 @@
 // see them) the headline numbers and the latest activity. Every count comes from an endpoint the role can already read.
 import type { ComponentType, ReactNode } from 'react'
 import { ArrowRight, Banknote, Check, CreditCard, Download, Globe2, HeartPulse, Mail, QrCode, Search, UserCog } from 'lucide-react'
+import { portalPath } from '../../launch'
 import type { Role } from '../api'
 import { eventText } from './Records'
 import { Panel, Problem, useLoad, when } from './common'
@@ -22,7 +23,7 @@ const shortcuts: { key: string; icon: Icon; title: (role: Role) => string; detai
   { key: 'invites', icon: Mail, title: () => 'Create invitation codes', detail: 'Add countries and email each one its code.', go: 'invites' },
   { key: 'payments', icon: CreditCard, title: (role) => (role === 'registration_admin' ? 'See payments' : 'Review payments'), detail: 'Proofs of transfer, approvals and e-receipts.', go: 'payments' },
   { key: 'people', icon: Search, title: () => 'Find a person', detail: 'Anyone, by name, country or stage.', go: 'people' },
-  { key: 'scanner', icon: QrCode, title: () => 'Open the badge scanner', detail: 'Scan badges at arrival and checkpoints.', href: '/check-in' },
+  { key: 'scanner', icon: QrCode, title: () => 'Open the badge scanner', detail: 'Scan badges at arrival and checkpoints.', href: portalPath('/check-in') },
   { key: 'welfare', icon: HeartPulse, title: () => 'Welfare list', detail: 'Food, medical and rooming notes.', go: 'welfare' },
   { key: 'exports', icon: Download, title: () => 'Download lists', detail: 'Spreadsheets of people, travel and more.', go: 'exports' },
   { key: 'accounts', icon: UserCog, title: () => 'Staff accounts', detail: 'Add organisers and set their roles.', go: 'accounts' },
@@ -56,7 +57,7 @@ export default function Home({ role, sections, onGo }: { role: Role; sections: s
   }
   if (scans.data) {
     const waiting = scans.data.people.filter((p) => p.stage === 'badge_issued').length
-    tasks.push({ key: 'checkin', count: waiting, text: waiting === 1 ? 'person with a badge, not checked in yet' : 'people with a badge, not checked in yet', clear: 'Nobody is waiting to check in', action: { label: 'Open the badge scanner', href: '/check-in' } })
+    tasks.push({ key: 'checkin', count: waiting, text: waiting === 1 ? 'person with a badge, not checked in yet' : 'people with a badge, not checked in yet', clear: 'Nobody is waiting to check in', action: { label: 'Open the badge scanner', href: portalPath('/check-in') } })
   }
   if (welfare.data) {
     const notes = welfare.data.people.filter((p) => p.foodAllergyNotes || p.medicalAccessibilityNotes).length

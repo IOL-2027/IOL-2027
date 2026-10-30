@@ -1,7 +1,8 @@
-# Development website https://iol2027-dev.web.app and the registration portal https://iol2027-portal.web.app.
-# Every push to the development branch deploys to the "dev" and "portal" hosting targets. Until launch the portal
-# is only built from here (with the test API behind it); the public website never links to it before then. It never touches the public site, which deploys from main.
+# Development website https://iol2027-dev.web.app, with the registration portal at /portal.
+# Every push to the development branch deploys to the "dev" hosting target, whose /api/** goes to the test API on
+# Cloud Run (firebase.json). It never touches the public site, which deploys from main.
 # The dev site sends X-Robots-Tag: noindex so search engines do not list it.
+# The old portal address (iol2027-portal.web.app, the "portal" target) only redirects here; it is not redeployed.
 name: Deploy development to iol2027-dev
 on:
   push:
@@ -12,11 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # The development website and the portal link to each other; the portal shows its test-environment note.
-      - run: npm ci && npm run build && npm run build:portal
+      # The portal shows its test-environment note.
+      - run: npm ci && npm run build
         env:
-          VITE_PUBLIC_SITE_URL: https://iol2027-dev.web.app
-          VITE_PORTAL_URL: https://iol2027-portal.web.app
           VITE_TEST_ENVIRONMENT: 'true'
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
@@ -25,10 +24,3 @@ jobs:
           channelId: live
           projectId: iol2027
           target: dev
-      - uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_IOL2027 }}
-          channelId: live
-          projectId: iol2027
-          target: portal

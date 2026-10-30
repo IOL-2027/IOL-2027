@@ -127,7 +127,9 @@ Source §5. Front end: `src/registration/`. API: `server/index.js`.
 
 ### 4.3 Portal details already designed (keep when wiring)
 
-Team and observer counts; pre-assigned rooms (Team Leaders and observers single, contestants same-gender shared); fee table with team fees and USD 220 rooms; invoice recipient, address, count and split; OUR bank-charge rule; currency conversion is the sender's responsibility; payment reference; proof upload unlocks People; per-person role, team, names, passport, date of birth, gender, exam language, T-shirt and polo sizes, food, medical and emergency contact; team code and contest language; welfare summary; stay dates and flights; review checklist; badges and check-in.
+Team and observer counts (at most one observer per team, as in POSN's fee table); a single room, yes or no, for each Team Leader and observer, everyone else sharing (contestants same-gender twin rooms); fee table by fee rate (previous host, accredited, not accredited), first and second team; invoices split between payers with an amount each that must add up to the total, each downloaded and emailed as its own PDF; OUR bank-charge rule; currency conversion is the sender's responsibility; payment reference; proof upload unlocks People; per-person role, team, names, passport, date of birth, gender, exam language, T-shirt and polo sizes, food, medical and emergency contact; team code and contest language; welfare summary; stay dates and flights; review checklist; badges and check-in.
+
+Saving is explicit, with a warning before unsaved changes are lost (decided 30 Oct 2026, against autosave): saving Team and observers or the invoice details changes the amount on an unpaid invoice, and a person's record is checked as a whole, so half-typed changes should not reach the server on their own. Each form shows “Unsaved changes” beside its Save button; moving to another step, record or the overview asks first (“Leave without saving?”), and so do closing the tab and signing out. Stay dates, and the note about extra nights, save on their own.
 
 ---
 
@@ -137,11 +139,11 @@ Source §7.
 
 | Task | Owner | Status | Notes |
 | --- | --- | --- | --- |
-| Currency USD; team fee USD 1,000 | Finance | ✅ | |
-| Room fee USD 220 per room, 2 rooms per team | Finance | ✅ | Confirmed by the user, 15 Oct 2026 |
+| Currency USD; team fees from POSN's signed fee table (19 Aug 2026) | Finance | ✅ | 30 Oct 2026. Early bird / regular × first / second team × previous host / accredited; not accredited registers one team at the second-team rate. Previous hosts from ioling.org/past_contests, set on each invitation code (editable) |
+| Single room supplement USD 400 per person | Finance | ✅ | 30 Oct 2026. Team Leaders and observers choose yes or no in Team and observers; replaces the USD 220 room fee |
 | Early bird and normal rates as configuration, not code | Web/Dev | ✅ | Finance edits them in the back office (Fees); unpaid invoices follow changes |
 | Late-fee tier | Finance | ⚠️ | Q3 |
-| Observer fee | Finance | ⬜ | Rate not set; Finance can now enter it under Fees |
+| Observer fee | Finance | ✅ | USD 600 (fee table), at most one observer per team, as the fee table says (confirmed by the professor, 30 Oct 2026). Finance can change the limit under Fees |
 | Per-person fee for members added later | Finance | ⚠️ | Q1 |
 | Wire transfer only, OUR charges | Web/Dev | ✅ | Shown on the payment step and invoice |
 | SCB account name, number and SWIFT for สอวน | Finance | ✅ | From Finance's invoice template (27 Oct 2026). Finance enters it in the back office (Fees and invoice), not in this public repository; until then the payment step and invoice say it is to come |
@@ -200,8 +202,8 @@ Source §8.
 
 | Task | Status | Notes |
 | --- | --- | --- |
-| QR holds only a random reference, never personal data | ✅ | Signed badge credential. Since 27 Oct 2026 the QR is a link to the portal's badge page, `/b#<code>`: staff who open it sign in and see whose badge it is; anyone else sees only that it is an IOL 2027 badge. The code is after `#`, so it never reaches a server log. QR codes emailed earlier still scan |
-| Scan from phone camera or webcam, no app install | ✅ | `/check-in` on the registration portal, for signed-in check-in staff (24 Oct 2026). A phone's own camera also works: the QR opens `/b`, which shows the person and records the check-in at the chosen checkpoint (27 Oct 2026) |
+| QR holds only a random reference, never personal data | ✅ | Signed badge credential. Since 30 Oct 2026 the QR is a bare code (`IOL2027:<code>`), not a link: only the portal's scanner can tell whose badge it is. QR codes emailed earlier (links) still scan |
+| Scan from phone camera or webcam, no app install | ✅ | `/portal/check-in`, for signed-in check-in staff: allow the camera, choose the checkpoint, start scanning (30 Oct 2026). The checkpoint is fixed while scanning; the same badge is recorded once until it leaves the frame. Phones' own camera apps are no longer used |
 | Fallback search by name or passport | 🟡 | Check-in staff can search People by name; marking someone checked in by hand is not built |
 | Offline or cached mode for weak venue Wi-Fi | ⬜ | Q8 with LOC |
 | Printed badges with QR from a vendor | 🟡 | Source §12.1. The print file is ready (back office, Badges, 27 Oct 2026): one badge per page with 3 mm bleed, or four to an A4 sheet for the registration desk. Badges are marked printed, and a later change to a name, role, country or QR lists the badge under Needs reprint. Vendor and material (likely a PVC card in a plastic sleeve) with LOC. Print cut-off 1 July 2027 for now, editable there |
@@ -240,8 +242,8 @@ Source §9.1.
 | Database: `iol2027` on Cloud SQL `papertrend-pg` | ✅ | Shared instance (Architecture.md §12) |
 | Secrets in Secret Manager | ✅ | |
 | Budget alert (THB 350 / month) | ✅ | |
-| Registration portal on its own site | ✅ | 24 Oct 2026: https://iol2027-portal.web.app, deployed from `development` (test API) until launch, like IOL 2026's iol2026-regsy.ioling.org. Team Leaders at `/`, organisers at `/staff`, scanner at `/check-in`. The public website's `/registration` is now an information page with a button to the portal |
-| Custom domains `iol2027.ioling.org` (website) and `iol2027-portal.ioling.org` (portal) | ⬜ | ⚠️ D4: Firebase gives one A and one TXT record per name; the IOL Board adds them for both names in one request. The web.app addresses work until then |
+| Registration portal at `/portal` on the website | ✅ | 30 Oct 2026, at the professor's request (it had its own site, iol2027-portal.web.app, from 24 Oct; that address now redirects). Team Leaders at `/portal`, organisers at `/portal/staff`, scanner at `/portal/check-in`; every page needs an account. The public website's `/registration` is an information page with a button to the portal |
+| Custom domain `iol2027.ioling.org` | ⬜ | ⚠️ D4: Firebase gives one A and one TXT record; the IOL Board adds them. The portal is under `/portal`, so no second name is needed. The web.app addresses work until then |
 | Monitoring and uptime alerts | ⬜ | Sprint 4 |
 | Load test for deadline peaks (~60 countries, 300+ people) | ⬜ | Sprint 4 |
 
@@ -287,7 +289,7 @@ Source §9.2 and the question list's testing section.
 | D3 | Host for at least five years, then hand over to the faculty | After the event the site becomes a static archive; the database and API are deleted | Decided 9 Oct 2026 |
 | D4 | Give the IOL central team our server IP for DNS | Firebase Hosting provides DNS records (A and TXT), not a single server IP | Technical correction |
 | D5 | Central email such as contact@iol2027.ioling.org as the From address | Emails come from iol2027.th@gmail.com, sent through Gmail | Confirmed 16 Oct 2026: there is no IOL 2027 domain; Gmail only |
-| D6 | Team = 5 people for USD 1,000 | Team fee USD 1,000 plus USD 220 per room, 2 rooms per team | Board meeting and fee sheet |
+| D6 | Team = 5 people for USD 1,000 | POSN's fee table: USD 2,200 to 2,750 for the first team (previous host and early bird discounts), double for a second team; USD 600 per observer; USD 400 per single room | Fee table signed 19 Aug 2026, applied 30 Oct 2026 |
 | D7 | Results entered in the admin with draft and publish | Results currently link to the IOL central archive | Decide before the event whether we host live results |
 | D8 | Roles: Guest, Team Leader, Admin (later list adds Super Admin, Registration, Finance, Check-in, Viewer) | Nine roles, see ROLES.md | Least-privilege for PDPA |
 | D9 | English only with a Thai mirror | English only so far | Confirm the Thai mirror is still needed |

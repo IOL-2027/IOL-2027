@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Check, Download, Eye, EyeOff, FileText, RotateCcw } from 'lucide-react'
-import { api } from '../api'
+import { api, feeCategoryLabel, type FeeCategory } from '../api'
 import { openReceipt } from '../invoice'
 import { Done, FilterField, Note, Panel, Problem, day, errorText, human, useLoad, when } from './common'
 
@@ -8,6 +8,7 @@ type PaymentRow = {
   id: string; delegationId: string; countryTerritory: string; primaryTeamLeaderName: string; teamLeaderEmail: string
   numberOfTeams: number; numberOfObservers: number; paymentReference: string; amountDue: string; currency: string; feeTier: string
   status: string; invoiceRecipientName: string | null; invoiceRecipientAddress: string | null; invoiceCount: number; invoiceSplitNote: string | null
+  invoiceSplits: { recipientName: string; amount: number }[] | null; feeCategory: string; singleRooms: { teamLeaders: boolean[]; observers: boolean[] } | null
   invoiceNumber: string | null; invoiceRecipientTin: string | null
   proofAttachmentId: string | null; proofFilename: string | null; proofMimeType: string | null
   reviewNote: string | null; reviewedByName: string | null; reviewedAt: string | null; receiptNumber: string | null; updatedAt: string
@@ -79,19 +80,27 @@ export default function Payments({ canReview }: { canReview: boolean }) {
           <li key={p.id}>
             <div className="reg-pay-main">
               <strong>{p.countryTerritory}</strong>
-              <span className="reg-pay-amount">{p.currency} {Number(p.amountDue).toLocaleString('en-US')} · {p.feeTier === 'early_bird' ? 'Early bird' : 'Normal'}</span>
+              <span className="reg-pay-amount">{p.currency} {Number(p.amountDue).toLocaleString('en-US')} · {p.feeTier === 'early_bird' ? 'Early bird' : 'Regular'} · {feeCategoryLabel[p.feeCategory as FeeCategory] ?? p.feeCategory}</span>
               <span>Reference <span className="reg-code">{p.paymentReference}</span>{p.receiptNumber && <> · Receipt {p.receiptNumber}</>}</span>
               <span>{human(p.status)}{p.reviewedByName ? ` by ${p.reviewedByName}` : ''} · {when(p.reviewedAt ?? p.updatedAt)}</span>
             </div>
             <dl className="reg-pay-details">
               <div><dt>Team Leader</dt><dd>{p.primaryTeamLeaderName}<small>{p.teamLeaderEmail}</small></dd></div>
               <div><dt>Invoice to</dt><dd>{p.invoiceRecipientName ?? '—'}{p.invoiceRecipientTin && <small>TIN {p.invoiceRecipientTin}</small>}{p.invoiceRecipientAddress && <small>{p.invoiceRecipientAddress}</small>}</dd></div>
-              <div><dt>Invoices</dt><dd>{p.invoiceCount}{p.invoiceSplitNote && <small>{p.invoiceSplitNote}</small>}</dd></div>
-              <div><dt>Declared</dt><dd>{p.numberOfTeams} {p.numberOfTeams === 1 ? 'team' : 'teams'}, {p.numberOfObservers} {p.numberOfObservers === 1 ? 'observer' : 'observers'}</dd></div>
+              <div><dt>Invoices</dt><dd>{p.invoiceCount}{p.invoiceSplits
+                ? p.invoiceSplits.map((s, i) => <small key={i}>{p.invoiceNumber}-{i + 1}: {s.recipientName}, {p.currency} {Number(s.amount).toLocaleString('en-US')}</small>)
+                : p.invoiceSplitNote && <small>{p.invoiceSplitNote}</small>}</dd></div>
+              <div><dt>Declared</dt><dd>{p.numberOfTeams} {p.numberOfTeams === 1 ? 'team' : 'teams'}, {p.numberOfObservers} {p.numberOfObservers === 1 ? 'observer' : 'observers'}{(() => {
+                const singles = [...(p.singleRooms?.teamLeaders ?? []), ...(p.singleRooms?.observers ?? [])].filter(Boolean).length
+                return singles ? `, ${singles} single ${singles === 1 ? 'room' : 'rooms'}` : ''
+              })()}</dd></div>
             </dl>
             {p.reviewNote && <p className="reg-pay-note"><strong>Note to the Team Leader:</strong> {p.reviewNote}</p>}
             <div className="reg-pay-files">
-              <a className="reg-btn-link" href={`/api/registration/delegations/${p.delegationId}/invoice`} target="_blank" rel="noreferrer"><FileText size={16} aria-hidden="true" />Invoice {p.invoiceNumber ?? ''}</a>
+              {/* A split invoice is one PDF per payer. */}
+              {p.invoiceSplits?.length
+                ? p.invoiceSplits.map((_, i) => <a key={i} className="reg-btn-link" href={`/api/registration/delegations/${p.delegationId}/invoice?part=${i + 1}`} target="_blank" rel="noreferrer"><FileText size={16} aria-hidden="true" />Invoice {p.invoiceNumber}-{i + 1}</a>)
+                : <a className="reg-btn-link" href={`/api/registration/delegations/${p.delegationId}/invoice`} target="_blank" rel="noreferrer"><FileText size={16} aria-hidden="true" />Invoice {p.invoiceNumber ?? ''}</a>}
               {p.proofAttachmentId && <>
                 <button type="button" className="reg-btn-link" aria-expanded={previewing === p.id} onClick={() => setPreviewing(previewing === p.id ? null : p.id)}>
                   {previewing === p.id ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}{previewing === p.id ? 'Hide proof' : 'Preview proof'}

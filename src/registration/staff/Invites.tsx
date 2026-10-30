@@ -1,13 +1,16 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { Ban, Copy, Plus, RotateCcw, Send } from 'lucide-react'
-import { api } from '../api'
+import { api, feeCategoryLabel, type FeeCategory } from '../api'
 import { Alert, TextField } from '../ui'
 import { Done, FilterField, Note, Panel, Problem, TableWrap, day, errorText, useLoad } from './common'
 
 type Invite = {
   id: string; code: string; countryTerritory: string; accreditedOrganisation: string | null; contactEmail: string | null
   status: 'active' | 'used' | 'revoked'; usedAt: string | null; usedByEmail: string | null; sentAt: string | null; sendCount: number
+  feeCategory: FeeCategory
 }
+
+const feeCategories = Object.keys(feeCategoryLabel) as FeeCategory[]
 
 /** "Country, Organisation, email" per line; organisation and email may be left out. */
 function parseLines(text: string) {
@@ -39,7 +42,7 @@ export default function Invites() {
     const form = new FormData(event.currentTarget)
     setFormError(''); setFieldErrors({}); setDone('')
     const invites = mode === 'one'
-      ? [{ countryTerritory: String(form.get('country') ?? '').trim(), accreditedOrganisation: String(form.get('organisation') ?? '').trim(), contactEmail: String(form.get('email') ?? '').trim() }]
+      ? [{ countryTerritory: String(form.get('country') ?? '').trim(), accreditedOrganisation: String(form.get('organisation') ?? '').trim(), contactEmail: String(form.get('email') ?? '').trim(), feeCategory: String(form.get('feeCategory') ?? '') || undefined }]
       : parseLines(String(form.get('lines') ?? ''))
     if (mode === 'one' && !invites[0].countryTerritory) { setFieldErrors({ country: 'Enter the country or territory.' }); return }
     if (mode === 'many' && !invites.length) { setFieldErrors({ lines: 'Add at least one line.' }); return }
@@ -77,6 +80,10 @@ export default function Invites() {
       return `${invite.countryTerritory}: contact saved.`
     })
   }
+  const setFeeRate = (invite: Invite, feeCategory: FeeCategory) => act(invite, async () => {
+    await api(`/api/admin/invites/${invite.id}`, { method: 'PATCH', body: { feeCategory } })
+    return `${invite.countryTerritory}: fee rate is now ${feeCategoryLabel[feeCategory].toLowerCase()}.${invite.status === 'used' ? ' An invoice not paid yet is worked out again.' : ''}`
+  })
   const copy = (invite: Invite) => act(invite, async () => {
     await navigator.clipboard.writeText(invite.code)
     return `${invite.code} copied.`
@@ -97,11 +104,19 @@ export default function Invites() {
             <TextField idPrefix="invite" name="country" label="Country or territory" error={fieldErrors.country} autoComplete="off" />
             <TextField idPrefix="invite" name="organisation" label="Organisation (optional)" autoComplete="off" />
             <TextField idPrefix="invite" name="email" label="Contact email (optional)" type="email" autoComplete="off" />
+            <div className="reg-field">
+              <label htmlFor="invite-fee">Fee rate</label>
+              <p className="reg-hint" id="invite-fee-hint">Automatic finds previous IOL hosts by name. Choose not accredited for a guest country.</p>
+              <select id="invite-fee" name="feeCategory" className="reg-control" defaultValue="" aria-describedby="invite-fee-hint">
+                <option value="">Automatic</option>
+                {feeCategories.map((c) => <option key={c} value={c}>{feeCategoryLabel[c]}</option>)}
+              </select>
+            </div>
           </div>
         ) : (
           <div className={`reg-field${fieldErrors.lines ? ' has-error' : ''}`}>
             <label htmlFor="invite-lines">Countries, one per line</label>
-            <p className="reg-hint" id="invite-lines-hint">Country, organisation, contact email. Only the country is required. Up to 100 lines; paste straight from a spreadsheet.</p>
+            <p className="reg-hint" id="invite-lines-hint">Country, organisation, contact email. Only the country is required. Up to 100 lines; paste straight from a spreadsheet. Previous IOL hosts get their fee rate automatically; change any rate in the list below.</p>
             {fieldErrors.lines && <p className="reg-error" id="invite-lines-error">{fieldErrors.lines}</p>}
             <textarea id="invite-lines" name="lines" className="reg-control" rows={6} aria-describedby={`invite-lines-hint${fieldErrors.lines ? ' invite-lines-error' : ''}`}
               placeholder={'Estonia, Estonian Linguistics Olympiad, contact@example.ee\nJapan, Japan Linguistics Olympiad'} />
@@ -125,11 +140,17 @@ export default function Invites() {
       <Done message={done} />
       {data && (rows.length === 0 ? <Note>No codes match.</Note> : (
         <TableWrap label="Invitation codes">
-          <thead><tr><th scope="col">Country</th><th scope="col">Code</th><th scope="col">Contact</th><th scope="col">Status</th><th scope="col"><span className="reg-visually-hidden">Actions</span></th></tr></thead>
+          <thead><tr><th scope="col">Country</th><th scope="col">Code</th><th scope="col">Fee rate</th><th scope="col">Contact</th><th scope="col">Status</th><th scope="col"><span className="reg-visually-hidden">Actions</span></th></tr></thead>
           <tbody>{rows.map((i) => (
             <tr key={i.id}>
               <th scope="row">{i.countryTerritory}{i.accreditedOrganisation && <small>{i.accreditedOrganisation}</small>}</th>
               <td><span className="reg-code">{i.code}</span></td>
+              <td>
+                <label className="reg-visually-hidden" htmlFor={`inv-fee-${i.id}`}>Fee rate for {i.countryTerritory}</label>
+                <select id={`inv-fee-${i.id}`} className="reg-control reg-control-compact" value={i.feeCategory} disabled={i.status === 'revoked'} onChange={(e) => setFeeRate(i, e.target.value as FeeCategory)}>
+                  {feeCategories.map((c) => <option key={c} value={c}>{feeCategoryLabel[c]}</option>)}
+                </select>
+              </td>
               <td>{editing === i.id ? (
                 <form className="reg-inline-form" onSubmit={(e) => saveContact(i, e)}>
                   <label className="reg-visually-hidden" htmlFor={`inv-email-${i.id}`}>Contact email for {i.countryTerritory}</label>
