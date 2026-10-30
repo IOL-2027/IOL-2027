@@ -238,8 +238,6 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-meter span { display: block; height: 100%; background: var(--reg-accent); transform-origin: left; transition: transform 420ms var(--reg-ease); }
 
 .reg-ws-body { display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: 28px; align-items: start; }
-.reg-rail-home { margin-bottom: 12px; }
-.reg-mark.is-home { border-color: transparent; background: var(--reg-tint-strong); color: var(--ink); }
 
 .reg-rail { position: sticky; top: var(--reg-header-offset); }
 .reg-rail-toggle { display: none; }
@@ -335,7 +333,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-todo li::marker { color: var(--reg-attn-text); }
 
 /* ---------- Team Leader overview: the next step, then the whole track ---------- */
-.reg-home { display: grid; gap: 28px; animation: reg-enter var(--reg-med) var(--reg-ease); }
+.reg-home { display: grid; gap: 24px; }
 .reg-home-next { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 22px 48px; padding: clamp(24px, 3.4vw, 40px); border: 1px solid var(--reg-border); border-left: 6px solid var(--orange); border-radius: var(--reg-radius-lg); background: var(--reg-surface); }
 .reg-home-next.is-warn { border-left-color: var(--red); }
 .reg-home-next.is-done { border-left-color: var(--reg-ok-text); }
@@ -343,15 +341,13 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-home-kicker { margin: 0 0 8px; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--reg-attn-text); }
 .is-warn .reg-home-kicker { color: var(--reg-error); }
 .is-done .reg-home-kicker { color: var(--reg-ok-text); }
-.reg-home-next h2 { margin: 0; font-size: clamp(26px, 2.8vw, 36px); line-height: 1.1; letter-spacing: -.035em; }
-.reg-home-next h2:focus { outline: none; }
+.reg-step .reg-home-next h3 { margin: 0; font-size: clamp(24px, 2.4vw, 30px); font-weight: 700; line-height: 1.15; letter-spacing: -.03em; }
 .reg-home-next p:not(.reg-home-kicker, .reg-error) { margin: 10px 0 0; max-width: 62ch; font-size: 16px; line-height: 1.55; color: var(--reg-muted); }
 .reg-home-next .reg-section-error { margin: 14px 0 0; }
-.reg-home > .reg-step-note { margin: 0; }
 .reg-track { padding: 6px clamp(24px, 3.4vw, 40px); border: 1px solid var(--reg-border); border-radius: var(--reg-radius-lg); background: var(--reg-surface); }
 .reg-track-phase { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 16px 48px; padding: 32px 0; border-top: 1px solid var(--reg-border); }
 .reg-track-phase:first-child { border-top: 0; }
-.reg-track-phase h3 { margin: 4px 0 0; font-size: 20px; letter-spacing: -.02em; }
+.reg-step .reg-track-phase h3 { margin: 4px 0 0; font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
 .reg-track ol { margin: 0; padding: 0; list-style: none; }
 .reg-track li { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 16px; padding-bottom: 24px; }
 .reg-track li:last-child { padding-bottom: 0; }
@@ -547,7 +543,6 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
   .reg-landing { grid-template-columns: 1fr; }
   .reg-guide { padding-top: 44px; }
   .reg-track-phase { grid-template-columns: 1fr; gap: 16px; }
-  .reg-rail:not(.is-open) .reg-rail-home { display: none; }
   .reg-ws-body { grid-template-columns: 1fr; gap: 16px; }
   .reg-rail { position: static; padding: 6px; border: 1px solid var(--reg-border); border-radius: var(--reg-radius-lg); background: var(--reg-surface); }
   .reg-rail-toggle { display: grid; gap: 2px; width: 100%; padding: 12px 44px 12px 14px; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; position: relative; }
