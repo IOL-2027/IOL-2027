@@ -1,14 +1,14 @@
 // The Team Leader's registration workspace: an overview of the whole track for anyone coming back, then a step
 // rail on the left and one step at a time on the right.
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, Info, LayoutGrid, Lock, Upload, UserPlus } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
+import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, FileText, Info, LayoutGrid, Lock, Upload, UserPlus } from 'lucide-react'
 import { portalPath } from '../launch'
 import { api, ApiError, type DelegationData, type Member } from './api'
 import { personFieldGroups, programmeWindow, sections, type Field, type PortalRecord, type Section, type SectionId } from './portalData'
 import { consentFor, personFields, personGaps, personPayload, personRecord, singleRoomCheck, teamRecord, tripPayload, tripRecord, welfareFacts } from './live'
-import { InvoiceDetails, TeamSetup, invoiceProblems, readInvoices, type SetupBody } from './SetupForms'
+import { FeeTable, InvoiceDetails, TeamSetup, UnsavedNote, invoiceProblems, readInvoices, usd, type SetupBody } from './SetupForms'
 import { openReceipt } from './invoice'
-import { Alert, Facts, FieldControl, PageHead, daysBetween, focusFirstError, formatDate, messageOf } from './ui'
+import { Alert, Card, Chip, Facts, FieldControl, PageHead, daysBetween, focusFirstError, formatDate, messageOf } from './ui'
 
 type StepStatus = 'done' | 'todo' | 'locked' | 'info' | 'waiting' | 'after'
 const statusLabel: Record<StepStatus, string> = {
@@ -33,6 +33,8 @@ function recordChip(record: PortalRecord) {
 }
 
 const NEW_PERSON = 'new-person'
+// Room requests go to the welfare team as free text, as the IOL Host's Handbook (6.2.2) asks registration to allow.
+const welfareNoteLabel = 'Room requests and anything else the welfare team should know'
 const main = sections.filter((s) => !s.afterSubmission)
 // "Before you begin" is an introduction, not a step: the numbered steps run from Team and observers to Review and submit.
 const numbered = main.filter((s) => s.id !== 'start')
@@ -61,12 +63,27 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const [infoNote, setInfoNote] = useState('')
   const [stay, setStay] = useState({ arrival: '', departure: '' })
   const [stayNote, setStayNote] = useState('')
+  const [stayState, setStayState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [navOpen, setNavOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  // Forms with changes that are not saved yet, by their data-dirty-key: setup, invoice, welfare, record (the person,
+  // team or trip being edited) and stay-note. Leaving one of them asks first (`leaving`), and so does closing the tab.
+  const [dirty, setDirty] = useState<Record<string, true>>({})
+  const [leaving, setLeaving] = useState<{ go: () => void; keys: string[] } | null>(null)
+  const leaveRef = useRef<HTMLDialogElement>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
   const panelRef = useRef<HTMLElement>(null)
   const invoiceRef = useRef<HTMLFormElement>(null)
   const firstRender = useRef(true)
+  const hasUnsaved = Object.keys(dirty).length > 0
+
+  useEffect(() => {
+    if (!hasUnsaved) return
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [hasUnsaved])
+  useEffect(() => { if (leaving && !leaveRef.current?.open) leaveRef.current?.showModal() }, [leaving])
 
   const load = useCallback(async () => {
     const next = await api<DelegationData>(`/api/registration/delegations/${delegationId}`)
@@ -81,6 +98,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     load().then((d) => {
       if (!current) return
       setStay({ arrival: d.delegation.declaredArrivalDate ?? '', departure: d.delegation.declaredDepartureDate ?? '' })
+      setStayNote(d.delegation.stayWindowNote ?? '')
       const steps = new Set(d.delegation.completedSteps)
       const paid = d.payments[0] && ['awaiting_review', 'approved'].includes(d.payments[0].status)
       if (navigated.current) return
@@ -154,11 +172,31 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const stepsDone = numbered.filter((s) => isDone(s.id)).length
   const nextOf = (id: SectionId) => main[main.findIndex((s) => s.id === id) + 1]?.id
 
-  const open = (id: SectionId) => {
+  /* unsaved changes ------------------------------------------------ */
+  const trackChange = (event: ChangeEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement
+    if (target instanceof HTMLInputElement && target.type === 'file') return
+    const key = target.closest<HTMLElement>('[data-dirty-key]')?.dataset.dirtyKey
+    if (key) setDirty((now) => (now[key] ? now : { ...now, [key]: true }))
+  }
+  const clean = (...keys: string[]) => setDirty((now) => {
+    const next = { ...now }
+    for (const key of keys) delete next[key]
+    return next
+  })
+  /** Runs `go` straight away, or asks first when any of `keys` (every form, by default) has unsaved changes. */
+  const guard = (go: () => void, keys = Object.keys(dirty)) => {
+    const pending = keys.filter((key) => dirty[key])
+    if (pending.length) setLeaving({ go, keys: pending })
+    else go()
+  }
+
+  const go = (id: SectionId) => {
     navigated.current = true
     setHome(false); setActiveId(id); setNavOpen(false); setRecordOpen(false)
-    setFieldErrors({}); setSectionError(null); setSavedNote('')
+    setFieldErrors({}); setSectionError(null); setSavedNote(''); setInfoNote('')
   }
+  const open = (id: SectionId) => guard(() => go(id))
 
   /** Runs a server action, reloads, and turns failures into a visible message. */
   const run = async (work: () => Promise<void>) => {
@@ -176,20 +214,23 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const finishStep = async (id: SectionId, extra: Record<string, unknown> = {}) => {
     await patchDelegation({ ...extra, completedSteps: [...new Set([...d.completedSteps, id])] })
     await load()
+    // The step is saved, so nothing on it is left unsaved (an open record was asked about before finishing).
+    setDirty({})
     const next = nextOf(id)
-    if (next) open(next)
-    if (sections.find((s) => s.id === id)?.required) {
-      setInfoNote('Section saved. Please email your team leader to distribute any information from this section.')
-    }
+    if (next) go(next)
+    const finished = sections.find((s) => s.id === id)
+    // Team Leaders pass the organisers' information on to their team and observers (IOL Host's Handbook, 2.2.2).
+    if (finished?.required) setInfoNote(`“${finished.title}” is saved. Pass on anything your team and observers need to know from it.`)
   }
 
   /* records ------------------------------------------------------- */
   const sectionRecords = records[activeId] ?? []
   const currentRecord = sectionRecords.find((r) => r.id === selected[activeId]) ?? sectionRecords[0]
-  const chooseRecord = (id: string) => {
+  // Opening another record (or a new person) replaces the editor, so unsaved changes in it are asked about first.
+  const chooseRecord = (id: string) => guard(() => {
     setSelected((s) => ({ ...s, [activeId]: id }))
-    setRecordOpen(true); setFieldErrors({}); setSavedNote('')
-  }
+    setRecordOpen(true); setFieldErrors({}); setSavedNote(''); clean('record')
+  }, id === currentRecord?.id ? [] : ['record'])
 
   const saveRecord = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -199,6 +240,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       if (activeId === 'teams') {
         await api(`/api/registration/teams/${currentRecord.id}`, { method: 'PATCH', body: { name: String(form.get('Team name') ?? '').trim() || currentRecord.label, contestLanguage: String(form.get('Team contest language') ?? '') || null } })
         await load()
+        clean('record')
         setSavedNote('Saved.')
       } else if (activeId === 'travel') {
         const direction = currentRecord.id.endsWith('arrival') || currentRecord.label === 'Arrival' ? 'arrival' : 'departure'
@@ -208,6 +250,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
         const fresh = await load()
         const saved = fresh.travelRecords.find((t) => t.direction === direction)
         if (saved) setSelected((s) => ({ ...s, travel: saved.id }))
+        clean('record')
         setSavedNote(body.travelPoint && body.flightServiceNumber && body.localDate && body.localTime ? 'Saved.' : 'Saved. Finish this trip once flights are booked.')
       } else if (activeId === 'people') {
         const member = data.members.find((m) => m.id === currentRecord.id)
@@ -226,18 +269,22 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
         const saved = fresh.members.find((m) => m.id === id)
         const missing = saved ? personGaps(saved, fresh.attachments) : []
         setFieldErrors({})
+        clean('record')
         setSavedNote(missing.length ? `Saved. Still needed before you submit: ${missing.map((label) => label.toLowerCase()).join(', ')}.` : 'Saved.')
       }
     })
   }
 
-  const addPerson = () => {
+  const addPerson = () => guard(() => {
     setDraftOpen(true)
     setSelected((s) => ({ ...s, people: NEW_PERSON }))
-    setRecordOpen(true); setFieldErrors({}); setSavedNote('')
+    setRecordOpen(true); setFieldErrors({}); setSavedNote(''); clean('record')
+  }, ['record'])
+  const cancelNewPerson = () => {
+    setDraftOpen(false); setSelected((s) => ({ ...s, people: undefined })); clean('record')
   }
 
-  const finishRecords = () => {
+  const finishRecords = () => guard(() => {
     if (activeId === 'travel') {
       if (!stay.arrival || !stay.departure || stayProblem) {
         setSectionError('Add your arrival and departure dates first. Flights can wait.')
@@ -255,7 +302,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       return
     }
     run(() => finishStep(activeId))
-  }
+  }, ['record'])
 
   /* setup, payment, welfare --------------------------------------- */
   const saveSetup = (body: SetupBody) => run(() => finishStep('setup', body))
@@ -267,6 +314,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     if (Object.keys(problems).length) { focusFirstError(panelRef.current); return false }
     await api(`/api/registration/delegations/${d.id}/invoice`, { method: 'PUT', body })
     await load()
+    clean('invoice')
     return true
   }
   const uploadProof = (file: File) => run(async () => {
@@ -295,7 +343,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
   const saveWelfare = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const note = String(new FormData(event.currentTarget).get('Anything else the welfare team should know') ?? '').trim()
+    const note = String(new FormData(event.currentTarget).get(welfareNoteLabel) ?? '').trim()
     run(() => finishStep('welfare', { welfareNote: note || null }))
   }
 
@@ -305,10 +353,20 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const outsideWindow = stay.arrival && stay.departure && !stayProblem
     ? Math.max(0, daysBetween(stay.arrival, programmeWindow.first)) + Math.max(0, daysBetween(programmeWindow.last, stay.departure))
     : 0
+  // Stay dates, and the note about extra nights when it is left, save on their own; the card says when they have.
+  const saveStay = (body: Record<string, unknown>) => {
+    setStayState('saving')
+    patchDelegation(body).then(load).then(() => setStayState('saved')).catch((e) => { setStayState('idle'); setSectionError(messageOf(e)) })
+  }
   const changeStay = (next: { arrival: string; departure: string }) => {
     setStay(next); setSectionError(null)
     const bad = next.arrival && next.departure && next.departure < next.arrival
-    if (!bad) patchDelegation({ declaredArrivalDate: next.arrival || null, declaredDepartureDate: next.departure || null }).then(load).catch((e) => setSectionError(messageOf(e)))
+    if (!bad) saveStay({ declaredArrivalDate: next.arrival || null, declaredDepartureDate: next.departure || null })
+  }
+  const saveStayNote = () => {
+    if (!dirty['stay-note']) return
+    clean('stay-note')
+    saveStay({ stayWindowNote: stayNote.trim() || null })
   }
 
   const copyReference = async () => {
@@ -347,8 +405,20 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
   const proofAttachment = payment?.proofAttachmentId ? data.attachments.find((a) => a.id === payment.proofAttachmentId) : undefined
   const canUpload = Boolean(payment && ['awaiting_proof', 'rejected'].includes(payment.status))
-  const money = (n: number) => `${data.fees.currency} ${n.toLocaleString('en-US')}`
   const receipt = payment?.status === 'approved' && payment.receiptNumber ? payment : undefined
+  // One PDF per invoice: a split has one for each payer, numbered IOL2027/23-1, -2 and so on.
+  const invoiceFiles = !payment ? [] : payment.invoiceSplits?.length
+    ? payment.invoiceSplits.map((s, i) => ({ href: `/api/registration/delegations/${d.id}/invoice?part=${i + 1}`, number: `${payment.invoiceNumber}-${i + 1}`, payer: s.recipientName, amount: Number(s.amount) }))
+    : [{ href: `/api/registration/delegations/${d.id}/invoice`, number: payment.invoiceNumber ?? '', payer: payment.invoiceRecipientName ?? d.countryTerritory, amount: Number(payment.amountDue) }]
+  const proofChip = payment?.status === 'approved' ? <Chip tone="ok">Approved</Chip>
+    : payment?.status === 'awaiting_review' ? <Chip tone="later">With Finance</Chip>
+    : payment?.status === 'rejected' ? <Chip tone="attention">Returned</Chip>
+    : <Chip tone="later">Not uploaded yet</Chip>
+  const singleRoomsChosen = [...d.singleRooms.teamLeaders, ...d.singleRooms.observers].filter(Boolean).length
+  const unsavedNames: Record<string, string> = {
+    setup: 'Team and observers', invoice: 'the invoice details', welfare: 'the note for the welfare team', 'stay-note': 'the note about extra nights',
+    record: currentRecord?.id === NEW_PERSON ? 'the new person' : currentRecord?.label ?? 'this record',
+  }
   const consentMember = activeId === 'people' ? data.members.find((m) => m.id === currentRecord?.id && m.needsGuardianConsent) : undefined
   const consent = consentMember ? consentFor(consentMember, data.attachments) : undefined
 
@@ -359,7 +429,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const flightsIn = data.travelRecords.filter((t) => t.flightServiceNumber && t.localDate).length
   const trackDetail: Record<SectionId, string> = {
     start: '',
-    setup: steps.has('setup') ? `${d.numberOfTeams} ${d.numberOfTeams === 1 ? 'team' : 'teams'}, ${d.numberOfObservers} ${d.numberOfObservers === 1 ? 'observer' : 'observers'}.` : 'How many teams and observers. These two numbers set your fees.',
+    setup: steps.has('setup')
+      ? `${d.numberOfTeams} ${d.numberOfTeams === 1 ? 'team' : 'teams'}, ${d.numberOfObservers} ${d.numberOfObservers === 1 ? 'observer' : 'observers'}, ${singleRoomsChosen || 'no'} single ${singleRoomsChosen === 1 ? 'room' : 'rooms'}.`
+      : 'How many teams and observers, and who would like a single room. This sets your fees.',
     payment: paymentStatus === 'approved' ? 'Approved by Finance. The e-receipt is in this step.'
       : paymentStatus === 'awaiting_review' ? 'Proof uploaded. Finance is matching it against the bank statement.'
       : paymentStatus === 'rejected' ? 'Finance returned the proof. Upload a new one.'
@@ -453,7 +525,74 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     </section>
   )
 
-  const goHome = () => { setHome(true); setNavOpen(false); setRecordOpen(false); setSectionError(null); setSavedNote('') }
+  const goHome = () => guard(() => { setHome(true); setNavOpen(false); setRecordOpen(false); setSectionError(null); setSavedNote(''); setInfoNote('') })
+  const leave = () => {
+    const next = leaving
+    leaveRef.current?.close()
+    if (!next) return
+    clean(...next.keys)
+    next.go()
+  }
+
+  const recordsCard = section.records && !locked && (
+    <div className={`reg-card reg-records${recordOpen ? ' is-open' : ''}`}>
+      <div className="reg-record-list">
+        <div className="reg-record-list-head">
+          <h4>{activeId === 'travel' ? 'Flights' : `${sectionRecords.filter((r) => r.id !== NEW_PERSON).length} ${section.records.plural}`}</h4>
+          {activeId === 'people' && !draftOpen && <button type="button" className="reg-btn-link" onClick={addPerson}><UserPlus size={16} aria-hidden="true" />Add person</button>}
+        </div>
+        {activeId === 'travel' && <p className="reg-hint">Add these once flights are booked. You can change them until the travel deadline.</p>}
+        <ul>
+          {sectionRecords.map((record) => (
+            <li key={record.id}>
+              <button type="button" className={`reg-record${record.id === currentRecord?.id ? ' is-current' : ''}`} aria-current={record.id === currentRecord?.id ? 'true' : undefined} onClick={() => chooseRecord(record.id)}>
+                <span className="reg-record-name"><strong>{record.label}</strong><small>{record.meta}</small></span>
+                {recordChip(record)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {currentRecord && (
+        <form className="reg-record-editor" onSubmit={saveRecord} noValidate key={currentRecord.id} data-dirty-key="record">
+          <button type="button" className="reg-btn-link reg-back-to-list" onClick={() => guard(() => { setRecordOpen(false); clean('record') }, ['record'])}><ArrowLeft size={16} aria-hidden="true" />All {section.records.plural}</button>
+          <div className="reg-editor-head">
+            <h4>{currentRecord.label}</h4>
+            {recordChip(currentRecord)}
+          </div>
+          {currentRecord.facts && <Facts compact items={currentRecord.facts} />}
+          {groupFields(currentRecord.fields).map((group) => group.legend ? (
+            <fieldset className="reg-fieldset" key={group.legend}>
+              <legend>{group.legend}</legend>
+              {group.note && <p className="reg-hint">{group.note}</p>}
+              <div className="reg-grid">{group.fields.map((f) => <FieldControl key={f.label} field={f} idPrefix={`${activeId}-${currentRecord.id}`} error={fieldErrors[f.label]} />)}</div>
+            </fieldset>
+          ) : (
+            <div className="reg-grid" key="fields">{group.fields.map((f) => <FieldControl key={f.label} field={f} idPrefix={`${activeId}-${currentRecord.id}`} error={fieldErrors[f.label]} />)}</div>
+          ))}
+          {consentMember && (
+            <div className="reg-field reg-field-wide reg-proof">
+              <span className="reg-label-text" id="consent-label">Guardian consent form</span>
+              <p className="reg-hint" id="consent-hint">Needed because {consentMember.displayName} is under {data.guardianConsent.ageThreshold} during the event. Upload the form signed by a parent or guardian: PDF, JPG or PNG, up to 10 MB.</p>
+              <label className={`reg-dropzone${consent ? ' is-filled' : ''}`}>
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={busy} aria-labelledby="consent-label" aria-describedby="consent-hint"
+                  onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadConsent(consentMember.id, file); e.target.value = '' }} />
+                {consent
+                  ? <><Check size={22} strokeWidth={2.6} aria-hidden="true" /><span><strong>{consent.originalFilename}</strong>Uploaded. Choose another file to replace it.</span></>
+                  : <><Upload size={22} aria-hidden="true" /><span><strong>{busy ? 'Uploading…' : 'Choose a file'}</strong>or drag it here</span></>}
+              </label>
+            </div>
+          )}
+          <div className="reg-editor-actions">
+            <button type="submit" className="reg-btn reg-btn-secondary" disabled={busy}>{busy ? 'Saving…' : `Save ${section.records.noun}`}</button>
+            {currentRecord.id === NEW_PERSON && <button type="button" className="reg-btn-link" onClick={cancelNewPerson}>Cancel</button>}
+            {dirty.record ? <UnsavedNote show /> : <span className="reg-saved" role="status">{savedNote && <><Check size={15} strokeWidth={3} aria-hidden="true" />{savedNote}</>}</span>}
+          </div>
+        </form>
+      )}
+    </div>
+  )
 
   return <>
     <PageHead eyebrow={eyebrow} title={d.countryTerritory} session={session}
@@ -480,7 +619,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     <div className="reg-shell wrap reg-workspace">
       {staff && (
         <div className="reg-staff-bar">
-          <button type="button" className="reg-btn-link" onClick={staff.onBack}><ArrowLeft size={16} aria-hidden="true" />Back to the back office</button>
+          <button type="button" className="reg-btn-link" onClick={() => guard(staff.onBack)}><ArrowLeft size={16} aria-hidden="true" />Back to the back office</button>
           <p><Info size={16} aria-hidden="true" />You are working on this registration as {staff.roleLabel}. Changes are saved straight away and recorded under your name.</p>
         </div>
       )}
@@ -525,151 +664,155 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
           </ul>
         </nav>
 
-        <section className="reg-panel" ref={panelRef} aria-labelledby="reg-panel-title" aria-busy={busy} key={activeId}>
+        {/* Each step is a heading, then its parts on cards of their own, then the step's own button. */}
+        <section className="reg-step" ref={panelRef} aria-labelledby="reg-panel-title" aria-busy={busy} key={activeId} onChange={trackChange}>
           <header className="reg-panel-head">
+            <p className="reg-step-kicker">{section.afterSubmission ? 'After you submit' : section.id === 'start' ? 'Start here' : `Step ${stepNumber(section)} of ${numbered.length}`}</p>
             <h3 id="reg-panel-title" ref={titleRef} tabIndex={-1}>{section.title}</h3>
             <p>{section.intro}</p>
           </header>
 
-          {infoNote && <p className="reg-aside"><Info size={18} aria-hidden="true" />{infoNote}</p>}
+          {infoNote && <p className="reg-aside reg-aside-ok reg-step-note" role="status"><Check size={18} strokeWidth={3} aria-hidden="true" />{infoNote}</p>}
 
           {locked && (
-            <div className="reg-locked">
-              <Lock size={22} aria-hidden="true" />
-              <div>
-                <p><strong>People opens once proof of payment is uploaded.</strong> This keeps registrations from being completed before fees are settled.</p>
-                <button type="button" className="reg-btn reg-btn-primary" onClick={() => open('payment')}>Go to Payment <ArrowRight size={18} aria-hidden="true" /></button>
-              </div>
-            </div>
+            <Card id="people-locked" title="Opens after the proof of payment" intro="People opens as soon as you upload the bank’s proof of transfer in Payment, so no registration is completed before its fees are settled.">
+              <button type="button" className="reg-btn reg-btn-primary" onClick={() => open('payment')}>Go to Payment <ArrowRight size={18} aria-hidden="true" /></button>
+            </Card>
           )}
 
           {activeId === 'start' && <>
-            <ol className="reg-journey">
-              <li><strong>Team and observers.</strong> Two numbers that set your fees.</li>
-              <li><strong>Payment.</strong> Tell us how to invoice you, transfer, then upload proof.</li>
-              <li><strong>Teams.</strong> Choose each team’s contest language.</li>
-              <li><strong>People.</strong> Opens after payment. Fill it in stages if you need to.</li>
-              <li><strong>Rooms and welfare.</strong> Check the summary built from your people.</li>
-              <li><strong>Travel.</strong> Stay dates now; flights once they are booked.</li>
-              <li><strong>Review and submit.</strong> You can still update people and travel afterwards.</li>
-            </ol>
-            <p className="reg-aside"><Info size={18} aria-hidden="true" />Everything you save is kept, so you can leave and come back at any time.</p>
+            <Card id="start-steps" title="How registration works" intro="Seven steps. Everything you save is kept, so you can stop at any point and come back later, on any device.">
+              <ol className="reg-journey">
+                <li><strong>Team and observers.</strong> How many are coming, and who would like a single room. This sets your fees.</li>
+                <li><strong>Payment.</strong> Your invoice details, the bank transfer, then the bank’s proof of transfer.</li>
+                <li><strong>Teams.</strong> Each team’s contest language.</li>
+                <li><strong>People.</strong> Opens after payment. Fill it in stages if you need to.</li>
+                <li><strong>Rooms and welfare.</strong> Check the summary built from your people, and add any requests.</li>
+                <li><strong>Travel.</strong> Stay dates now; flights once they are booked.</li>
+                <li><strong>Review and submit.</strong> You can still update people and travel afterwards.</li>
+              </ol>
+            </Card>
             <div className="reg-panel-actions">
               <Alert>{sectionError}</Alert>
               <button type="button" className="reg-btn reg-btn-primary" disabled={busy} onClick={() => run(() => finishStep('start'))}>Start with team and observers <ArrowRight size={18} aria-hidden="true" /></button>
             </div>
           </>}
 
-          {activeId === 'setup' && <TeamSetup key={`${d.numberOfTeams}-${d.numberOfObservers}`} data={data} paymentDone={paymentDone} busy={busy} error={sectionError} onSave={saveSetup} />}
+          {activeId === 'setup' && <TeamSetup key={`${d.numberOfTeams}-${d.numberOfObservers}`} data={data} paymentDone={paymentDone} busy={busy} error={sectionError} dirty={Boolean(dirty.setup)} onSave={saveSetup} />}
 
           {activeId === 'welfare' && (
-            <form onSubmit={saveWelfare} noValidate>
-              <Facts items={welfareFacts(data.members, data.guardianConsent, data.attachments)} />
-              <div className="reg-grid">
-                <FieldControl idPrefix="welfare" field={{ label: 'Anything else the welfare team should know', value: d.welfareNote ?? '', kind: 'textarea', optional: true }} />
+            <form onSubmit={saveWelfare} noValidate data-dirty-key="welfare">
+              <div className="reg-cards">
+                <Card id="welfare-summary" title="Summary from People" intro="Built from everyone’s records. To change something, edit that person in People.">
+                  <Facts items={welfareFacts(data)} />
+                </Card>
+                <Card id="welfare-requests" title="Requests" intro="For example: a contestant who should share with a particular teammate, or would rather not share with someone they do not know, needs a room of their own, or has access needs. Seen only by the welfare and accommodation teams.">
+                  <div className="reg-grid">
+                    <FieldControl idPrefix="welfare" field={{ label: welfareNoteLabel, value: d.welfareNote ?? '', kind: 'textarea', optional: true }} />
+                  </div>
+                </Card>
               </div>
               <div className="reg-panel-actions">
                 <Alert>{sectionError}</Alert>
-                <button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>This is correct, continue <ArrowRight size={18} aria-hidden="true" /></button>
+                <button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{busy ? 'Saving…' : 'This is correct, continue'} <ArrowRight size={18} aria-hidden="true" /></button>
+                <UnsavedNote show={Boolean(dirty.welfare)} />
               </div>
             </form>
           )}
 
           {activeId === 'payment' && (
-            <form ref={invoiceRef} onSubmit={savePayment} noValidate>
-              <div className="reg-pay-top">
-                <section className="reg-block" aria-labelledby="pay-amount">
-                  <h4 id="pay-amount">Amount to transfer</h4>
-                  <table className="reg-fee-table">
-                    <tbody>
-                      {data.fees.lines.map((line) => (
-                        <tr key={line.key}><th scope="row">{line.label}<small>{line.detail}</small></th><td>{line.amount === null ? (data.fees.observersPending ? 'Rate to be confirmed' : '—') : money(line.amount)}</td></tr>
-                      ))}
-                    </tbody>
-                    <tfoot><tr><th scope="row">Total</th><td>{money(data.fees.total)}</td></tr></tfoot>
-                  </table>
+            <form ref={invoiceRef} onSubmit={savePayment} noValidate data-dirty-key="invoice">
+              <div className="reg-cards">
+                <Card id="pay-amount" title="Amount to transfer" status={<Chip tone="later">{data.fees.tierLabel} rate</Chip>}>
+                  <FeeTable lines={data.fees.lines} total={data.fees.total} pending={data.fees.observersPending} />
                   <dl className="reg-ref">
-                    <div><dt>Fee tier</dt><dd>{data.fees.tierLabel}</dd></div>
                     <div><dt>Due date</dt><dd>{new Date(`${data.fees.dueDate}T12:00:00+07:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</dd></div>
                     {payment?.invoiceNumber && <div><dt>Invoice number</dt><dd>{payment.invoiceNumber}</dd></div>}
                     <div><dt>Payment reference</dt><dd>{payment ? <>
                       <span className="reg-code">{payment.paymentReference}</span>
                       <button type="button" className="reg-copy" onClick={copyReference}><Copy size={14} aria-hidden="true" />{copied ? 'Copied' : 'Copy'}</button>
-                    </> : <span className="reg-muted">Created when you save the invoice details</span>}</dd></div>
+                    </> : <span className="reg-muted">Given when you save the invoice details</span>}</dd></div>
                   </dl>
                   <span className="reg-visually-hidden" role="status">{copied ? 'Payment reference copied' : ''}</span>
-                </section>
+                </Card>
 
-                <section className="reg-block" aria-labelledby="pay-how">
-                  <h4 id="pay-how">How to pay</h4>
-                  <ol className="reg-how">
-                    <li>Fill in and save the invoice details below. Invoices can’t be split after you transfer.</li>
-                    <li>{payment
-                      ? <a className="reg-inline-btn" href={`/api/registration/delegations/${d.id}/invoice`} target="_blank" rel="noreferrer"><Download size={14} aria-hidden="true" />Download the invoice (PDF)</a>
-                      : 'Download the invoice (available once the details are saved).'}</li>
-                    <li>Transfer the <strong>full amount</strong> to the POSN Foundation account{data.bank ? ' below' : ' at SCB'}. Choose <strong>OUR</strong> for bank charges, and put the payment reference in the description.</li>
-                    <li>Upload the bank’s proof of transfer. People opens straight after.</li>
-                  </ol>
+                <Card id="pay-invoice" number={1} done={Boolean(payment) && !dirty.invoice} title="Invoice details" intro="Who the invoice is made out to. Invoices cannot be split after you transfer."
+                  status={dirty.invoice ? <Chip tone="attention">Unsaved changes</Chip> : payment ? <Chip tone="ok">Saved</Chip> : <Chip tone="later">Not saved yet</Chip>}>
+                  {paymentDone && <p className="reg-hint reg-card-lead">Locked while Finance checks your payment. To change them, email the organisers.</p>}
+                  <InvoiceDetails key={payment?.id ?? 'new'} data={data} payment={payment} disabled={paymentDone} errors={fieldErrors} />
+                  {!paymentDone && (
+                    <div className="reg-card-actions">
+                      <button type="button" className="reg-btn reg-btn-secondary" disabled={busy} onClick={() => run(async () => { if (await saveInvoice()) setSavedNote('Invoice details saved.') })}>{busy ? 'Saving…' : 'Save invoice details'}</button>
+                      {dirty.invoice ? <UnsavedNote show /> : <span className="reg-saved" role="status">{savedNote && <><Check size={15} strokeWidth={3} aria-hidden="true" />{savedNote}</>}</span>}
+                    </div>
+                  )}
+                </Card>
+
+                <Card id="pay-download" number={2} done={Boolean(payment)} title={invoiceFiles.length > 1 ? 'Download your invoices' : 'Download your invoice'}
+                  intro={invoiceFiles.length > 1 ? 'One PDF for each payer, to send to them.' : 'For your records, or for whoever pays.'}
+                  status={payment ? undefined : <Chip tone="later">After part 1</Chip>}>
+                  {payment ? <>
+                    <ul className="reg-files">
+                      {invoiceFiles.map((file) => (
+                        <li key={file.number}>
+                          <FileText size={20} aria-hidden="true" />
+                          <span><strong>Invoice {file.number}</strong>{file.payer} · {usd(file.amount)}</span>
+                          <a className="reg-btn reg-btn-secondary reg-btn-small" href={file.href} target="_blank" rel="noreferrer"><Download size={16} aria-hidden="true" />PDF<span className="reg-visually-hidden">, invoice {file.number}</span></a>
+                        </li>
+                      ))}
+                    </ul>
+                    {dirty.invoice && <p className="reg-hint reg-card-lead">These show the saved details. Save your changes in part 1 to update them.</p>}
+                  </> : <p className="reg-muted reg-card-empty">Save the invoice details first.</p>}
+                </Card>
+
+                <Card id="pay-transfer" number={3} done={paymentDone} title="Transfer the full amount" intro={`Send ${usd(data.fees.total)} from your bank to the account below by the due date.`}>
                   {data.bank
                     ? <dl className="reg-ref reg-bank">
                       <div><dt>Beneficiary</dt><dd>{data.bank.beneficiaryName}{data.bank.beneficiaryAddress && <small>{data.bank.beneficiaryAddress}</small>}</dd></div>
                       <div><dt>Bank</dt><dd>{data.bank.bankName}{data.bank.bankAddress && <small>{data.bank.bankAddress}</small>}</dd></div>
                       <div><dt>Account number</dt><dd><span className="reg-code">{data.bank.accountNumber}</span></dd></div>
                       <div><dt>SWIFT code</dt><dd><span className="reg-code">{data.bank.swiftCode}</span></dd></div>
+                      <div><dt>Transfer description</dt><dd>{payment ? <span className="reg-code">{payment.paymentReference}</span> : <span className="reg-muted">Your payment reference, given in part 1</span>}</dd></div>
                     </dl>
                     : <p className="reg-aside"><Info size={18} aria-hidden="true" />The account name, number and SWIFT code appear here, and on the invoice, once Finance confirms them.</p>}
-                </section>
+                  <h5 className="reg-card-subhead">Charges and exchange rates</h5>
+                  <ul className="reg-rules">
+                    <li><strong>Bank transfer only.</strong> There is no card or online payment.</li>
+                    <li><strong>All bank charges are paid by you.</strong> Your bank’s transfer fee, any intermediary (correspondent) bank fees and the receiving bank’s fee for an incoming transfer. Choose <strong>OUR</strong> as the charge option, so none of them is taken from the amount.</li>
+                    <li><strong>Currency conversion is paid by you.</strong> If your account is in another currency, the exchange rate and conversion fees are yours. Send enough for the full amount to arrive in US dollars.</li>
+                    <li><strong>The full amount must arrive.</strong> Partial payments are not accepted. If less arrives, Finance will ask you to send the difference before confirming your payment.</li>
+                  </ul>
+                </Card>
+
+                <Card id="pay-proof" number={4} done={paymentDone} title="Upload the proof of transfer" intro="People opens straight after." status={proofChip}>
+                  {payment?.status === 'rejected' && (
+                    <p className="reg-aside reg-aside-warn reg-card-lead"><CircleAlert size={18} aria-hidden="true" /><span><strong>Finance could not match your proof.</strong> {payment.reviewNote} Please upload a new one.</span></p>
+                  )}
+                  <div className={`reg-field reg-field-wide${fieldErrors.proof ? ' has-error' : ''}`}>
+                    <span className="reg-label-text" id="proof-label">Proof of transfer</span>
+                    <p className="reg-hint" id="proof-hint">{canUpload || paymentDone
+                      ? `The bank’s confirmation or a screenshot of the completed transfer. PDF, JPG or PNG, up to 10 MB.${invoiceFiles.length > 1 ? ' Paid in separate transfers? Put every confirmation in one PDF.' : ''}`
+                      : 'Save the invoice details first, then upload the proof after you transfer.'}</p>
+                    {fieldErrors.proof && <p className="reg-error" id="proof-error"><CircleAlert size={16} aria-hidden="true" />{fieldErrors.proof}</p>}
+                    <label className={`reg-dropzone${paymentDone ? ' is-filled' : ''}${fieldErrors.proof ? ' has-error' : ''}${!canUpload && !paymentDone ? ' is-disabled' : ''}`}>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={!canUpload || busy} aria-labelledby="proof-label" aria-describedby={`proof-hint${fieldErrors.proof ? ' proof-error' : ''}`}
+                        onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadProof(file); e.target.value = '' }} />
+                      {paymentDone
+                        ? <><Check size={22} strokeWidth={2.6} aria-hidden="true" /><span><strong>{proofAttachment?.originalFilename ?? 'Proof uploaded'}</strong>{payment?.status === 'approved' ? 'Approved by Finance.' : 'Uploaded. Finance will check it against the bank statement.'}</span></>
+                        : <><Upload size={22} aria-hidden="true" /><span><strong>{busy ? 'Uploading…' : 'Choose a file'}</strong>{canUpload ? 'or drag it here' : 'Available once the invoice details are saved'}</span></>}
+                    </label>
+                  </div>
+                  {receipt
+                    ? <p className="reg-aside reg-aside-ok"><Check size={18} strokeWidth={3} aria-hidden="true" />
+                      <span>Payment approved. <button type="button" className="reg-inline-btn" onClick={() => openReceipt({
+                        organisation: receipt.invoiceRecipientName ?? d.countryTerritory, country: d.countryTerritory, recipientAddress: receipt.invoiceRecipientAddress,
+                        reference: receipt.paymentReference, receiptNumber: receipt.receiptNumber!, amountPaid: Number(receipt.amountDue), currency: receipt.currency,
+                        tierLabel: receipt.feeTier === 'early_bird' ? 'Early bird' : 'Normal', approvedAt: receipt.reviewedAt,
+                      })}><Download size={14} aria-hidden="true" />Download the e-receipt</button></span>
+                    </p>
+                    : <p className="reg-hint reg-card-foot">Finance checks each proof against the bank statement. Once they approve it, your e-receipt is here.</p>}
+                </Card>
               </div>
-
-              <section className="reg-block reg-pay-rules" aria-labelledby="pay-rules">
-                <h4 id="pay-rules">Payment rules</h4>
-                <Facts items={[
-                  { label: 'How', value: 'Bank transfer only', help: 'There is no card or online payment. Transfer outside this website, then upload the proof here.' },
-                  { label: 'Amount', value: 'The full invoice amount', help: 'The organisers must receive the full amount. Partial payments are not accepted.' },
-                  { label: 'Bank charges', value: 'Paid by the sender', help: 'Your bank’s transfer fee, any intermediary (correspondent) bank fees and the receiving bank’s fee for an incoming transfer. Choose OUR as the charge option so they are not taken from the amount.' },
-                  { label: 'Exchange rate', value: 'Paid by the sender', help: 'Currency conversion fees and your bank’s exchange rate, if you pay from an account in another currency. Send enough that the full amount arrives in US dollars.' },
-                  { label: 'If less arrives', value: 'You pay the difference', help: 'If charges reduce what reaches the account, Finance will ask you to transfer the rest before the payment is confirmed.' },
-                ]} />
-              </section>
-
-              <InvoiceDetails key={payment?.id ?? 'new'} data={data} payment={payment} disabled={paymentDone} errors={fieldErrors} />
-              <div className="reg-invoice-save">
-                {!paymentDone && <button type="button" className="reg-btn reg-btn-secondary reg-save-invoice" disabled={busy} onClick={() => run(async () => { if (await saveInvoice()) setSavedNote('Invoice details saved.') })}>Save invoice details</button>}
-                <span className="reg-saved" role="status">{savedNote && <><Check size={15} strokeWidth={3} aria-hidden="true" />{savedNote}</>}</span>
-              </div>
-
-              {payment?.status === 'rejected' && (
-                <p className="reg-aside reg-aside-warn"><CircleAlert size={18} aria-hidden="true" /><span><strong>Finance could not match your proof.</strong> {payment.reviewNote} Please upload a new one.</span></p>
-              )}
-
-              <div className={`reg-field reg-field-wide reg-proof${fieldErrors.proof ? ' has-error' : ''}`}>
-                <span className="reg-label-text" id="proof-label">Proof of transfer</span>
-                <p className="reg-hint" id="proof-hint">{canUpload || paymentDone
-                  ? `The bank’s confirmation or a screenshot of the completed transfer. PDF, JPG or PNG, up to 10 MB.${(payment?.invoiceCount ?? 1) > 1 ? ' Paid in separate transfers? Put every confirmation in one PDF.' : ''}`
-                  : 'Save the invoice details first, then upload the proof after you transfer.'}</p>
-                {fieldErrors.proof && <p className="reg-error" id="proof-error"><CircleAlert size={16} aria-hidden="true" />{fieldErrors.proof}</p>}
-                <label className={`reg-dropzone${paymentDone ? ' is-filled' : ''}${fieldErrors.proof ? ' has-error' : ''}${!canUpload && !paymentDone ? ' is-disabled' : ''}`}>
-                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={!canUpload || busy} aria-labelledby="proof-label" aria-describedby={`proof-hint${fieldErrors.proof ? ' proof-error' : ''}`}
-                    onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadProof(file); e.target.value = '' }} />
-                  {paymentDone
-                    ? <><Check size={22} strokeWidth={2.6} aria-hidden="true" /><span><strong>{proofAttachment?.originalFilename ?? 'Proof uploaded'}</strong>{payment?.status === 'approved' ? 'Approved by Finance.' : 'Uploaded. Finance will check it against the bank statement.'}</span></>
-                    : <><Upload size={22} aria-hidden="true" /><span><strong>{busy ? 'Uploading…' : 'Choose a file'}</strong>{canUpload ? 'or drag it here' : 'Available once the invoice details are saved'}</span></>}
-                </label>
-              </div>
-
-              <Facts compact items={[
-                { label: 'Finance check', value: payment?.status === 'approved' ? 'Approved' : payment?.status === 'awaiting_review' ? 'Waiting for Finance' : payment?.status === 'rejected' ? 'Returned, upload a new proof' : 'Waiting for your proof' },
-                { label: 'E-receipt', value: receipt ? `Ready: ${receipt.receiptNumber}` : 'Available here once Finance approves the payment' },
-              ]} />
-              {receipt && (
-                <p className="reg-aside reg-aside-ok"><Check size={18} strokeWidth={3} aria-hidden="true" />
-                  <span>Payment approved. <button type="button" className="reg-inline-btn" onClick={() => openReceipt({
-                    organisation: receipt.invoiceRecipientName ?? d.countryTerritory, country: d.countryTerritory, recipientAddress: receipt.invoiceRecipientAddress,
-                    reference: receipt.paymentReference, receiptNumber: receipt.receiptNumber!, amountPaid: Number(receipt.amountDue), currency: receipt.currency,
-                    tierLabel: receipt.feeTier === 'early_bird' ? 'Early bird' : 'Normal', approvedAt: receipt.reviewedAt,
-                  })}><Download size={14} aria-hidden="true" />Download the e-receipt</button></span>
-                </p>
-              )}
 
               <div className="reg-panel-actions">
                 <Alert>{sectionError}</Alert>
@@ -679,9 +822,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
           )}
 
           {activeId === 'travel' && (
-            <fieldset className="reg-fieldset reg-stay">
-              <legend>Stay dates</legend>
-              <p className="reg-hint">The programme runs from {formatDate(programmeWindow.first)} to {formatDate(programmeWindow.last)} 2027. Dates are saved as you choose them.</p>
+            <Card id="travel-stay" title="Stay dates" intro={`The programme runs from ${formatDate(programmeWindow.first)} to ${formatDate(programmeWindow.last)} 2027. These set the hotel nights we reserve.`}
+              status={stayState === 'saving' ? <Chip tone="later">Saving…</Chip> : stayState === 'saved' ? <Chip tone="ok">Saved</Chip> : <Chip tone="later">Saved as you choose</Chip>}>
               <div className="reg-grid">
                 <div className="reg-field">
                   <label htmlFor="stay-arrival">Arrival date</label>
@@ -699,74 +841,16 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                 {nights !== null && !stayProblem && <><strong>{nights} {nights === 1 ? 'night' : 'nights'}</strong> at the official hotel{outsideWindow > 0 ? `, ${outsideWindow} outside the programme dates.` : '.'}</>}
               </p>
               {outsideWindow > 0 && (
-                <div className="reg-field reg-field-wide">
+                <div className="reg-field reg-field-wide reg-stay-why" data-dirty-key="stay-note">
                   <label htmlFor="stay-why">Why you need the extra nights <span className="reg-optional">(optional)</span></label>
-                  <p className="reg-hint" id="stay-why-hint">So the organisers can check hotel availability and any extra cost.</p>
-                  <textarea id="stay-why" className="reg-control" rows={3} defaultValue={d.stayWindowNote ?? ''} onChange={(e) => setStayNote(e.target.value)} aria-describedby="stay-why-hint" />
+                  <p className="reg-hint" id="stay-why-hint">So the organisers can check hotel availability and any extra cost. Saved when you leave the box.</p>
+                  <textarea id="stay-why" className="reg-control" rows={3} value={stayNote} onChange={(e) => setStayNote(e.target.value)} onBlur={saveStayNote} aria-describedby="stay-why-hint" />
                 </div>
               )}
-            </fieldset>
+            </Card>
           )}
 
-          {section.records && !locked && (
-            <div className={`reg-records${recordOpen ? ' is-open' : ''}`}>
-              <div className="reg-record-list">
-                <div className="reg-record-list-head">
-                  <h4>{activeId === 'travel' ? 'Flights' : `${sectionRecords.filter((r) => r.id !== NEW_PERSON).length} ${section.records.plural}`}</h4>
-                  {activeId === 'people' && !draftOpen && <button type="button" className="reg-btn-link" onClick={addPerson}><UserPlus size={16} aria-hidden="true" />Add person</button>}
-                </div>
-                {activeId === 'travel' && <p className="reg-hint">Add these once flights are booked. You can change them until the travel deadline.</p>}
-                <ul>
-                  {sectionRecords.map((record) => (
-                    <li key={record.id}>
-                      <button type="button" className={`reg-record${record.id === currentRecord?.id ? ' is-current' : ''}`} aria-current={record.id === currentRecord?.id ? 'true' : undefined} onClick={() => chooseRecord(record.id)}>
-                        <span className="reg-record-name"><strong>{record.label}</strong><small>{record.meta}</small></span>
-                        {recordChip(record)}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {currentRecord && (
-                <form className="reg-record-editor" onSubmit={saveRecord} noValidate key={currentRecord.id}>
-                  <button type="button" className="reg-btn-link reg-back-to-list" onClick={() => setRecordOpen(false)}><ArrowLeft size={16} aria-hidden="true" />All {section.records.plural}</button>
-                  <div className="reg-editor-head">
-                    <h4>{currentRecord.label}</h4>
-                    {recordChip(currentRecord)}
-                  </div>
-                  {currentRecord.facts && <Facts compact items={currentRecord.facts} />}
-                  {groupFields(currentRecord.fields).map((group) => group.legend ? (
-                    <fieldset className="reg-fieldset" key={group.legend}>
-                      <legend>{group.legend}</legend>
-                      {group.note && <p className="reg-hint">{group.note}</p>}
-                      <div className="reg-grid">{group.fields.map((f) => <FieldControl key={f.label} field={f} idPrefix={`${activeId}-${currentRecord.id}`} error={fieldErrors[f.label]} />)}</div>
-                    </fieldset>
-                  ) : (
-                    <div className="reg-grid" key="fields">{group.fields.map((f) => <FieldControl key={f.label} field={f} idPrefix={`${activeId}-${currentRecord.id}`} error={fieldErrors[f.label]} />)}</div>
-                  ))}
-                  {consentMember && (
-                    <div className="reg-field reg-field-wide reg-proof">
-                      <span className="reg-label-text" id="consent-label">Guardian consent form</span>
-                      <p className="reg-hint" id="consent-hint">Needed because {consentMember.displayName} is under {data.guardianConsent.ageThreshold} during the event. Upload the form signed by a parent or guardian: PDF, JPG or PNG, up to 10 MB.</p>
-                      <label className={`reg-dropzone${consent ? ' is-filled' : ''}`}>
-                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={busy} aria-labelledby="consent-label" aria-describedby="consent-hint"
-                          onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadConsent(consentMember.id, file); e.target.value = '' }} />
-                        {consent
-                          ? <><Check size={22} strokeWidth={2.6} aria-hidden="true" /><span><strong>{consent.originalFilename}</strong>Uploaded. Choose another file to replace it.</span></>
-                          : <><Upload size={22} aria-hidden="true" /><span><strong>{busy ? 'Uploading…' : 'Choose a file'}</strong>or drag it here</span></>}
-                      </label>
-                    </div>
-                  )}
-                  <div className="reg-editor-actions">
-                    <button type="submit" className="reg-btn reg-btn-secondary" disabled={busy}>{busy ? 'Saving…' : `Save ${section.records.noun}`}</button>
-                    {currentRecord.id === NEW_PERSON && <button type="button" className="reg-btn-link" onClick={() => { setDraftOpen(false); setSelected((s) => ({ ...s, people: undefined })) }}>Cancel</button>}
-                    <span className="reg-saved" role="status">{savedNote && <><Check size={15} strokeWidth={3} aria-hidden="true" />{savedNote}</>}</span>
-                  </div>
-                </form>
-              )}
-            </div>
-          )}
+          {recordsCard}
 
           {section.records && !locked && (
             <div className="reg-panel-actions">
@@ -775,50 +859,55 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
             </div>
           )}
 
-          {activeId === 'review' && (submitted ? (
-            <div className="reg-submitted">
-              <Check size={28} strokeWidth={2.6} aria-hidden="true" />
-              <div>
-                <p><strong>Registration submitted.</strong> A confirmation has been sent to {d.teamLeaderEmail}.</p>
-                <p>Finance will check your payment next. You can still update people and travel until the change deadline.</p>
-              </div>
-            </div>
-          ) : <>
-            {outstanding.length > 0 ? (
-              <section className="reg-block" aria-labelledby="review-left">
-                <h4 id="review-left">Please complete the following first</h4>
+          {activeId === 'review' && <>
+            {submitted ? (
+              <Card id="review-done" title="Registration submitted" status={<Chip tone="ok">Submitted</Chip>}
+                intro={<>A confirmation has been sent to {d.teamLeaderEmail}. Finance will check your payment next. You can still update people and travel until the change deadline.</>} />
+            ) : outstanding.length > 0 ? (
+              <Card id="review-left" title="Still to do" intro="Each item opens the step where it is done." status={<Chip tone="attention">{outstanding.length} {outstanding.length === 1 ? 'item' : 'items'}</Chip>}>
                 <ul className="reg-todo">
                   {outstanding.map((item) => <li key={item.text}><button type="button" className="reg-inline-btn" onClick={() => open(item.to)}>{item.text}</button></li>)}
                 </ul>
-              </section>
-            ) : <p className="reg-aside reg-aside-ok"><Check size={18} strokeWidth={3} aria-hidden="true" />Everything is ready to submit.</p>}
-          </>)}
-
-          {activeId === 'review' && <>
-            <h4 className="reg-subhead">Current status</h4>
-            <Facts items={[
-              { label: 'Registration', value: submitted ? `Submitted${d.submittedAt ? ` on ${new Date(d.submittedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}` : ''}` : 'Draft, not submitted yet' },
-              { label: 'Payment', value: paymentLabel[payment?.status ?? 'none'].replace(/^Payment: (.)/, (_, c: string) => c.toUpperCase()) },
-              { label: 'Changes after submitting', value: 'Allowed until the change deadline', help: 'The final lock date and the change-request channel are awaiting approval.' },
-              { label: 'Travel', value: d.declaredArrivalDate && d.declaredDepartureDate ? 'Stay dates added; flights can follow' : 'Stay dates still needed' },
-              { label: 'Messages from the organisers', value: 'None' },
-            ]} />
-            <h4 className="reg-subhead">After you submit</h4>
-            <Facts items={section.facts ?? []} />
+              </Card>
+            ) : (
+              <Card id="review-ready" title="Ready to submit" intro="Every step is done. Submit when you have checked it once more." status={<Chip tone="ok">Ready</Chip>} />
+            )}
+            <Card id="review-status" title="Where things stand">
+              <Facts items={[
+                { label: 'Registration', value: submitted ? `Submitted${d.submittedAt ? ` on ${new Date(d.submittedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}` : ''}` : 'Draft, not submitted yet' },
+                { label: 'Payment', value: paymentLabel[payment?.status ?? 'none'].replace(/^Payment: (.)/, (_, c: string) => c.toUpperCase()) },
+                { label: 'Changes after submitting', value: 'Allowed until the change deadline', help: 'The final lock date and the change-request channel are awaiting approval.' },
+                { label: 'Travel', value: d.declaredArrivalDate && d.declaredDepartureDate ? 'Stay dates added; flights can follow' : 'Stay dates still needed' },
+              ]} />
+            </Card>
+            <Card id="review-after" title="After you submit">
+              <Facts items={section.facts ?? []} />
+            </Card>
             {!submitted && (
               <div className="reg-panel-actions">
                 <Alert>{sectionError}</Alert>
-                <button type="button" className="reg-btn reg-btn-primary" disabled={busy} onClick={submit}>{busy ? 'Submitting…' : 'Submit registration'}</button>
+                <button type="button" className="reg-btn reg-btn-primary" disabled={busy || outstanding.length > 0} aria-describedby={outstanding.length ? 'review-left-title' : undefined} onClick={submit}>{busy ? 'Submitting…' : 'Submit registration'}</button>
+                {outstanding.length > 0 && <span className="reg-muted reg-actions-note">Finish the items under “Still to do” first.</span>}
               </div>
             )}
           </>}
 
-          {activeId === 'badges' && <>
-            <Facts items={section.facts ?? []} />
-            <p className="reg-aside"><Info size={18} aria-hidden="true" /><span>Staff use the <a href={portalPath('/check-in')}>badge scanner</a> during event week.</span></p>
-          </>}
+          {activeId === 'badges' && (
+            <Card id="badges-about" title="Your QR badges" intro={<>Staff use the <a href={portalPath('/check-in')}>badge scanner</a> during event week.</>}>
+              <Facts items={section.facts ?? []} />
+            </Card>
+          )}
         </section>
       </div>}
     </div>
+
+    <dialog ref={leaveRef} className="reg-dialog" aria-labelledby="leave-title" aria-describedby="leave-text" onClose={() => setLeaving(null)}>
+      <h2 id="leave-title">Leave without saving?</h2>
+      <p id="leave-text">Your changes to {(leaving?.keys ?? []).map((key) => unsavedNames[key] ?? key).join(' and ')} are not saved yet. If you leave now, they will be lost.</p>
+      <div className="reg-dialog-actions">
+        <button type="button" className="reg-btn reg-btn-primary" autoFocus onClick={() => leaveRef.current?.close()}>Keep editing</button>
+        <button type="button" className="reg-btn reg-btn-secondary" onClick={leave}>Leave without saving</button>
+      </div>
+    </dialog>
   </>
 }

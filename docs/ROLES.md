@@ -36,7 +36,7 @@ The source requirements list Guest, Team Leader and Admin, and later Super Admin
 | Invitation codes: create, send, revoke | | | ✅ | | | | | ✅ |
 | People status list (all countries) | | | ✅ with missing details | ✅ names and stage | ✅ names and stage | | | ✅ |
 | Open any country's registration and edit it | | | ✅ | | | | | ✅ |
-| Exports (CSV) | | | every file | summary, people and progress, countries, payments, invoices | summary, people and progress, travel, check-ins | summary, countries, rooming, food and health | summary | ✅ all |
+| Exports (CSV): every file, content editor and results staff too | | | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Activity log | | | ✅ | | | | | ✅ |
 | Fees (settings) | | | read | ✅ edit | | | | ✅ |
 | Guardian consent policy | | | ✅ edit | | | | | ✅ |
@@ -48,6 +48,8 @@ The source requirements list Guest, Team Leader and Admin, and later Super Admin
 | Reset own password | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 The API enforces this matrix on every request (`server/auth.js`). Hiding a button in the UI is never the protection.
+
+**Exports are the one exception to least privilege.** Since 30 Oct 2026 every staff role can download every CSV, including the full people file with passports and health notes, because the organisers want each team free to clean and chart its own data. Each download is recorded in the activity log, and the Exports page reminds staff that the files fall under Thailand’s PDPA. To narrow it again, give each entry in `exportsByKind` (`server/admin.js`) a list of roles and check it in the two export routes.
 
 ## Sessions
 

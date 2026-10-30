@@ -228,7 +228,6 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-ws-summary { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 12px 0 0; padding: 0; list-style: none; font-size: 14px; font-weight: 600; color: var(--cream); }
 .reg-ws-summary li { display: flex; align-items: center; gap: 10px; }
 .reg-ws-summary li + li::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--reg-on-dark-muted); }
-.reg-pay-rules { margin-top: 32px; }
 .reg-meter { height: 6px; border-radius: 999px; background: var(--reg-on-dark-track); overflow: hidden; }
 .reg-meter span { display: block; height: 100%; background: var(--reg-accent); transform-origin: left; transition: transform 420ms var(--reg-ease); }
 
@@ -261,7 +260,6 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-panel-head :is(h2, h3) { margin: 0; font-size: clamp(26px, 2.6vw, 32px); letter-spacing: -.035em; line-height: 1.15; }
 .reg-panel-head p { margin: 8px 0 0; max-width: 64ch; font-size: 17px; line-height: 1.55; color: var(--reg-muted); }
 .reg-panel h4 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.01em; }
-.reg-subhead { margin-top: 36px !important; margin-bottom: 4px !important; }
 .reg-panel-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px; margin-top: 36px; padding-top: 24px; border-top: 1px solid var(--reg-border); }
 .reg-section-error { flex-basis: 100%; margin: 0; font-weight: 600; }
 
@@ -270,14 +268,8 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-journey li::before { content: counter(step); position: absolute; left: 0; top: -2px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--reg-tint-strong); color: var(--ink); font-size: 13px; font-weight: 800; }
 .reg-journey strong { color: var(--ink); }
 
-.reg-locked { display: flex; gap: 16px; padding: 24px; border-radius: var(--reg-radius); background: var(--reg-tint); }
-.reg-locked > svg { flex: none; margin-top: 2px; color: var(--reg-muted); }
-.reg-locked p { margin: 0 0 18px; font-size: 16px; line-height: 1.55; color: var(--reg-muted); }
-.reg-locked strong { color: var(--ink); }
 
-/* ---------- Payment ---------- */
-.reg-pay-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; }
-.reg-block h4 { margin-bottom: 14px; }
+/* ---------- Payment: the fee table, references and the bank account ---------- */
 .reg-fee-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .reg-fee-table th, .reg-fee-table td { padding: 12px 0; border-bottom: 1px solid var(--reg-border); text-align: left; vertical-align: top; }
 .reg-fee-table th { font-size: 15px; font-weight: 700; }
@@ -296,9 +288,6 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-code { padding: 3px 9px; border-radius: 6px; background: var(--reg-tint-strong); font-variant-numeric: tabular-nums; letter-spacing: .03em; }
 .reg-copy { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 12px; border: 1px solid var(--reg-border); border-radius: 999px; background: var(--reg-field-bg); color: var(--ink); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .reg-copy:hover { border-color: var(--reg-input-border); }
-.reg-how { margin: 0; padding: 0; list-style: none; counter-reset: how; display: grid; gap: 14px; }
-.reg-how li { position: relative; padding-left: 38px; font-size: 15px; line-height: 1.55; counter-increment: how; }
-.reg-how li::before { content: counter(how); position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: var(--cream); font-size: 12px; font-weight: 800; }
 .reg-dropzone { position: relative; display: flex; align-items: center; gap: 14px; margin-top: 10px; padding: 22px; border: 1.5px dashed var(--reg-input-border); border-radius: var(--reg-radius); background: var(--reg-field-bg); cursor: pointer; transition: border-color var(--reg-fast) ease, background-color var(--reg-fast) ease; }
 .reg-dropzone:hover { border-color: var(--ink); }
 .reg-dropzone:focus-within { outline: 3px solid var(--reg-focus); outline-offset: 3px; }
@@ -311,7 +300,6 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-dropzone.is-disabled { border-color: var(--reg-border); background: var(--reg-tint); cursor: not-allowed; }
 .reg-dropzone.is-disabled input { cursor: not-allowed; }
 .reg-dropzone.is-disabled strong { color: var(--reg-muted); }
-.reg-save-invoice { margin: 24px 16px 0 0; }
 
 /* ---------- Records (teams, people, trips) ---------- */
 .reg-records { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 32px; align-items: start; }
@@ -333,19 +321,12 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-back-to-list { display: none; }
 
 /* ---------- Travel ---------- */
-.reg-stay { margin: 0 0 34px; padding: 0; border-top: 0; }
-.reg-stay > .reg-grid { margin-top: 0; padding-top: 18px; }
 .reg-nights { min-height: 1.5em; margin: 16px 0 0; font-size: 16px; color: var(--reg-muted); }
 .reg-nights strong { color: var(--ink); font-variant-numeric: tabular-nums; }
-.reg-stay > .reg-field { margin-top: 18px; }
 
 /* ---------- Review ---------- */
 .reg-todo { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 10px; font-size: 16px; }
 .reg-todo li::marker { color: var(--reg-attn-text); }
-.reg-submitted { display: flex; gap: 16px; padding: 24px; border-radius: var(--reg-radius); background: var(--reg-ok-bg); }
-.reg-submitted > svg { flex: none; color: var(--reg-ok-text); }
-.reg-submitted p { margin: 0; font-size: 16px; line-height: 1.55; }
-.reg-submitted p + p { margin-top: 6px; color: var(--reg-muted); }
 
 /* ---------- Team Leader overview: the next step, then the whole track ---------- */
 .reg-home { display: grid; gap: 28px; animation: reg-enter var(--reg-med) var(--reg-ease); }
@@ -545,7 +526,6 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 /* ---------- Narrow screens ---------- */
 @media (max-width: 1080px) {
   .reg-dash.has-side { grid-template-columns: 1fr; }
-  .reg-pay-top { grid-template-columns: 1fr; gap: 32px; }
   .reg-records { grid-template-columns: 1fr; gap: 20px; }
   .reg-record-editor { padding-left: 0; border-left: 0; padding-top: 24px; border-top: 1px solid var(--reg-border); }
 }
@@ -615,7 +595,6 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
   .reg-staff-form { padding: 16px; }
   .reg-staff-bar { padding: 10px 12px; }
   .reg-pay-actions .reg-btn { flex: 1 1 auto; }
-  .reg-save-invoice { width: 100%; margin-right: 0; }
 }
 
 /* ---------- Check-in scanner ---------- */
@@ -774,8 +753,81 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-email-status { min-width: 16rem; }
 
 /* Payment: an invoice split between payers. Each part is set apart, and the running total turns green once it matches. */
-.reg-invoice-part { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--reg-border); }
-.reg-invoice-part h5 { margin: 0 0 4px; font-size: 16px; }
+.reg-invoice-part { min-width: 0; margin: 24px 0 0; padding: 22px 0 0; border: 0; border-top: 1px solid var(--reg-border); }
+.reg-invoice-part > legend { float: left; width: 100%; margin: 0; padding: 0; font-size: 16px; font-weight: 800; }
+.reg-invoice-part > legend + * { clear: both; padding-top: 14px; }
 .reg-invoice-sum { margin: 18px 0 0; padding: 12px 14px; border-radius: var(--reg-radius); background: var(--reg-tint); font-size: 15px; color: var(--reg-attn-text); }
 .reg-invoice-sum.is-even { color: var(--reg-ok-text); }
-.reg-invoice-save { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
+/* ---------- Team Leader steps: a heading, then each part of the step on a card of its own ---------- */
+/* Long steps (Payment) used to run their parts together on one surface; separate cards, with titles a size above
+   the field labels and numbers where the order matters, keep "Amount to transfer" and "Invoice details" apart. */
+.reg-step { min-width: 0; scroll-margin-top: var(--reg-header-offset); animation: reg-enter var(--reg-med) var(--reg-ease); }
+.reg-step > .reg-panel-head { margin: 6px 0 24px; }
+.reg-step-kicker { margin: 0 0 8px !important; font-size: 13px !important; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--reg-plum-text) !important; }
+.reg-step h4 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.01em; }
+.reg-step-note { margin: 0 0 16px; }
+.reg-cards { display: grid; gap: 16px; }
+.reg-step > .reg-card + .reg-card, .reg-step > .reg-card + .reg-cards, .reg-step > .reg-cards + .reg-card { margin-top: 16px; }
+.reg-card { min-width: 0; margin: 0; padding: clamp(20px, 2.6vw, 32px); border: 1px solid var(--reg-border); border-radius: var(--reg-radius-lg); background: var(--reg-surface); }
+.reg-card-head { display: flex; align-items: flex-start; gap: 14px 16px; margin-bottom: 22px; }
+.reg-card-head:last-child { margin-bottom: 0; }
+.reg-card-title { flex: 1; min-width: 0; }
+.reg-card-title h4 { font-size: 21px; line-height: 1.25; letter-spacing: -.02em; }
+.reg-card-title p { margin: 6px 0 0; max-width: 64ch; font-size: 15px; line-height: 1.55; color: var(--reg-muted); }
+.reg-card-title p a { color: var(--plum); font-weight: 700; }
+.reg-card-number { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: var(--cream); font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.reg-card-number.is-done { background: var(--reg-ok-text); color: var(--reg-surface); }
+.reg-card-status { flex: none; margin-top: 3px; }
+.reg-card-subhead { margin: 28px 0 12px; font-size: 16px; font-weight: 800; }
+.reg-card-lead { margin: 0 0 18px !important; }
+.reg-card-foot { margin: 16px 0 0; }
+.reg-card-empty { margin: 0; font-size: 15px; }
+.reg-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 26px; }
+.reg-card > .reg-facts { margin: 0; }
+.reg-card > .reg-grid + .reg-grid, .reg-card > .reg-grid + .reg-invoice-part { margin-top: 24px; }
+.reg-card > .reg-ref { margin-top: 18px; }
+.reg-card-head + .reg-bank { margin-top: 0; padding-top: 0; border-top: 0; }
+.reg-card .reg-nights { margin-top: 16px; }
+.reg-stay-why { margin-top: 18px; }
+.reg-step .reg-journey { margin-top: 2px; }
+/* A step's own button sits under its cards, on the page rather than on a card. */
+.reg-step .reg-panel-actions { margin-top: 24px; padding-top: 0; border-top: 0; }
+.reg-actions-note { font-size: 14px; }
+
+/* The invoice files on Payment: one row per PDF. */
+.reg-files { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.reg-files li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--reg-border); border-radius: var(--reg-radius); background: var(--reg-field-bg); }
+.reg-files li > svg { color: var(--plum); }
+.reg-files li > span { display: grid; gap: 2px; font-size: 14px; color: var(--reg-muted); overflow-wrap: anywhere; }
+.reg-files strong { font-size: 16px; color: var(--ink); }
+.reg-btn-small { min-height: 40px; padding: 0 16px; font-size: 14px; }
+/* Payment rules: a bold rule, then what it means. */
+.reg-rules { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.reg-rules li { position: relative; padding-left: 20px; font-size: 15px; line-height: 1.55; color: var(--reg-muted); }
+.reg-rules li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 7px; height: 7px; border-radius: 50%; background: var(--orange); }
+.reg-rules strong { color: var(--ink); }
+
+/* Unsaved changes, beside a form's Save button. */
+.reg-unsaved { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--reg-attn-text); }
+.reg-unsaved > span { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); }
+/* Asked before leaving a form with unsaved changes. */
+.reg-dialog { width: min(calc(100vw - 32px), 480px); max-width: none; padding: 28px; border: 0; border-radius: var(--reg-radius-lg); background: var(--reg-surface); color: var(--ink); box-shadow: 0 30px 80px -20px rgba(29, 9, 41, .55); font-family: 'Manrope', 'Noto Sans Thai', sans-serif; }
+.reg-dialog::backdrop { background: rgba(22, 12, 27, .55); }
+.reg-dialog h2 { margin: 0; font-size: 22px; line-height: 1.25; letter-spacing: -.02em; }
+.reg-dialog p { margin: 10px 0 0; font-size: 16px; line-height: 1.55; color: var(--reg-muted); }
+.reg-dialog-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.reg-dialog :focus-visible { outline: 3px solid var(--reg-focus); outline-offset: 3px; }
+
+@media (max-width: 640px) {
+  .reg-card { padding: 20px 16px; border-radius: var(--reg-radius); }
+  .reg-card-head { flex-wrap: wrap; gap: 10px 12px; margin-bottom: 18px; }
+  .reg-card-title { flex-basis: 220px; }
+  .reg-card-title h4 { font-size: 19px; }
+  .reg-card-number { width: 30px; height: 30px; font-size: 14px; }
+  .reg-card-head:has(.reg-card-number) .reg-card-status { padding-left: 42px; }
+  .reg-card-status { margin-top: 0; }
+  .reg-files li { grid-template-columns: auto minmax(0, 1fr); }
+  .reg-files li > .reg-btn { grid-column: 1 / -1; }
+  .reg-dialog { padding: 22px 18px; }
+  .reg-dialog-actions .reg-btn { flex: 1 1 100%; }
+}

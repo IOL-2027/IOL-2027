@@ -224,7 +224,9 @@ export function registerAdminRoutes(app, { signedIn }) {
          m.medical_accessibility_notes, m.emergency_contact, m.room_type_preference
        FROM members m JOIN delegations d ON d.id = m.delegation_id ORDER BY d.country_territory, m.display_name`,
     )
-    res.json({ people: camelizeRows(result.rows.map((m) => filterMember(m, req.user.role))) })
+    // The Team Leaders' room and welfare requests (Rooms and welfare), one per country.
+    const requests = await query(`SELECT country_territory, welfare_note FROM delegations WHERE coalesce(trim(welfare_note), '') <> '' ORDER BY country_territory`)
+    res.json({ people: camelizeRows(result.rows.map((m) => filterMember(m, req.user.role))), requests: camelizeRows(requests.rows) })
   }))
 
   /* Invitation codes ----------------------------------------------- */
@@ -328,17 +330,16 @@ export function registerAdminRoutes(app, { signedIn }) {
 
   // One CSV per job, each with one row per thing (person, country, invoice, trip, scan) and plain values, so it can be
   // filtered, cleaned or charted as it is: dates as YYYY-MM-DD, times in Bangkok time, yes/no, codes rather than prose.
-  // A role gets the files its work needs and never more than it can already see in the back office (docs/ROLES.md).
+  // Every staff role can download every file (the organisers' call, 30 Oct 2026); each download is in the activity log.
   const memberOrder = `CASE m.role WHEN 'team_leader' THEN 0 WHEN 'contestant' THEN 1 ELSE 2 END`
   const singleRoom = (row) => (row.role === 'contestant' ? '' : row.room_type_preference === 'single' ? 'yes' : row.room_type_preference ? 'no' : '')
   const singleRoomTotal = (row) => singleRoomCount(row.single_rooms)
-  const peopleBase = `SELECT m.*, d.country_territory, d.fee_category, d.declared_arrival_date, d.declared_departure_date, d.contestant_room_type, t.name AS team_name,
+  const peopleBase = `SELECT m.*, d.country_territory, d.fee_category, d.declared_arrival_date, d.declared_departure_date, d.welfare_note, t.name AS team_name,
       t.contest_language AS team_contest_language
     FROM members m JOIN delegations d ON d.id = m.delegation_id LEFT JOIN teams t ON t.id = m.team_id`
 
   const exportsByKind = {
     people: {
-      roles: ['registration_admin'],
       columns: [['country_territory', 'Country'], ['team_name', 'Team'], ['role', 'Role'], ['display_name', 'Display name'], ['badge_name', 'Badge name'],
         ['official_name', 'Official name'], ['passport_name', 'Passport name'], ['passport_number', 'Passport number'], ['passport_nationality', 'Nationality'],
         ['date_of_birth', 'Date of birth'], ['gender_for_room_allocation', 'Gender (rooming)'], ['exam_language', 'Exam language'], ['tshirt_size', 'T-shirt'],
@@ -349,23 +350,21 @@ export function registerAdminRoutes(app, { signedIn }) {
     },
     // Names and progress only: what Finance and the check-in desk see in People.
     people_status: {
-      roles: ['registration_admin', 'finance_admin', 'checkin_staff'],
       columns: [['country_territory', 'Country'], ['team_name', 'Team'], ['role', 'Role'], ['display_name', 'Display name'], ['badge_name', 'Badge name'],
         ['stage', 'Status'], ['badge_status', 'Badge'], ['checked_in_at', 'First checked in at']],
       rows: peopleRows,
     },
     delegations: {
-      roles: ['registration_admin', 'finance_admin', 'welfare_staff'],
       columns: [['country_territory', 'Country'], ['accredited_organisation', 'Organisation'], ['fee_category', 'Fee rate'], ['primary_team_leader_name', 'Team Leader'],
         ['team_leader_email', 'Team Leader email'], ['mobile_whatsapp', 'Team Leader phone'], ['number_of_teams', 'Teams'], ['number_of_observers', 'Observers'],
         ['single_room_total', 'Single rooms'], ['people', 'People entered'], ['registration_status', 'Registration'], ['payment_status', 'Payment'], ['travel_status', 'Travel'],
-        ['declared_arrival_date', 'Arrival'], ['declared_departure_date', 'Departure'], ['submitted_at', 'Submitted at']],
+        ['declared_arrival_date', 'Arrival'], ['declared_departure_date', 'Departure'], ['stay_window_note', 'Why extra nights'], ['welfare_note', 'Room and welfare requests'],
+        ['submitted_at', 'Submitted at']],
       rows: async () => (await query(`SELECT d.*, (SELECT count(*)::int FROM members m WHERE m.delegation_id = d.id) AS people FROM delegations d ORDER BY d.country_territory`))
         .rows.map((row) => ({ ...row, single_room_total: singleRoomTotal(row) })),
     },
     // Numbers only, no names or contacts: for committee members charting progress.
     summary: {
-      roles: ['registration_admin', 'finance_admin', 'welfare_staff', 'checkin_staff', 'viewer', 'content_editor', 'results_staff'],
       columns: [['country_territory', 'Country'], ['fee_category', 'Fee rate'], ['number_of_teams', 'Teams'], ['number_of_observers', 'Observers declared'],
         ['single_room_total', 'Single rooms'], ['contestants', 'Contestants entered'], ['team_leaders', 'Team Leaders entered'], ['observers', 'Observers entered'],
         ['registration_status', 'Registration'], ['payment_status', 'Payment'], ['travel_status', 'Travel'], ['amount_due', 'Amount due (USD)'],
@@ -382,7 +381,6 @@ export function registerAdminRoutes(app, { signedIn }) {
       )).rows.map((row) => ({ ...row, single_room_total: singleRoomTotal(row) })),
     },
     payments: {
-      roles: ['finance_admin', 'registration_admin'],
       columns: [['country_territory', 'Country'], ['fee_category', 'Fee rate'], ['invoice_number', 'Invoice number'], ['payment_reference', 'Payment reference'], ['receipt_number', 'Receipt number'],
         ['status', 'Status'], ['amount_due', 'Amount'], ['currency', 'Currency'], ['fee_tier', 'Fee tier'], ['invoice_count', 'Invoices'], ['invoice_recipient_name', 'Invoice recipient'],
         ['invoice_recipient_tin', 'Recipient TIN'], ['invoice_recipient_address', 'Invoice address'], ['review_note', 'Review note'], ['reviewed_by_name', 'Reviewed by'],
@@ -394,7 +392,6 @@ export function registerAdminRoutes(app, { signedIn }) {
     },
     // One row per invoice: a split payment has one row for each payer and amount.
     invoices: {
-      roles: ['finance_admin', 'registration_admin'],
       columns: [['country_territory', 'Country'], ['invoice', 'Invoice number'], ['part', 'Part'], ['payer', 'Payer'], ['payer_tin', 'Payer TIN'], ['payer_address', 'Payer address'],
         ['amount', 'Amount'], ['currency', 'Currency'], ['payment_reference', 'Payment reference'], ['status', 'Payment status'], ['fee_tier', 'Fee tier'], ['due_date', 'Due date']],
       rows: async () => {
@@ -412,7 +409,6 @@ export function registerAdminRoutes(app, { signedIn }) {
       },
     },
     travel: {
-      roles: ['registration_admin', 'checkin_staff'],
       columns: [['country_territory', 'Country'], ['direction', 'Direction'], ['local_date', 'Date'], ['local_time', 'Time'], ['travel_point', 'Arrival or departure point'],
         ['flight_service_number', 'Flight or service'], ['terminal', 'Terminal'], ['people_count', 'Number of people'], ['people', 'People']],
       rows: async () => (await query(
@@ -424,7 +420,6 @@ export function registerAdminRoutes(app, { signedIn }) {
       )).rows,
     },
     checkins: {
-      roles: ['registration_admin', 'checkin_staff'],
       columns: [['scanned_at', 'Scanned at'], ['checkpoint', 'Checkpoint'], ['result', 'Result'], ['display_name', 'Person'], ['role', 'Role'], ['country_territory', 'Country or assignment'], ['scanned_by', 'Scanned by']],
       // Delegation members and event staff (staff, guides, volunteers, guests) alike.
       rows: async () => (await query(
@@ -435,43 +430,38 @@ export function registerAdminRoutes(app, { signedIn }) {
       )).rows,
     },
     welfare: {
-      roles: ['welfare_staff', 'registration_admin'],
       columns: [['country_territory', 'Country'], ['display_name', 'Person'], ['role', 'Role'], ['team_name', 'Team'], ['food_allergy_notes', 'Food and allergies'],
         ['medical_accessibility_notes', 'Medical or accessibility'], ['emergency_contact', 'Emergency contact']],
       rows: async () => (await query(`${peopleBase} ORDER BY d.country_territory, ${memberOrder}, m.display_name`)).rows,
     },
     // Who sleeps where: for the accommodation and welfare teams planning rooms.
     rooming: {
-      roles: ['welfare_staff', 'registration_admin'],
       columns: [['country_territory', 'Country'], ['display_name', 'Person'], ['role', 'Role'], ['team_name', 'Team'], ['gender_for_room_allocation', 'Gender (rooming)'],
-        ['single_room', 'Single room'], ['contestant_room_type', 'Contestant room preference'], ['under_18', 'Under 18 at the event'],
+        ['single_room', 'Single room'], ['under_18', 'Under 18 at the event'], ['welfare_note', 'Room and welfare requests (country)'],
         ['declared_arrival_date', 'First night'], ['declared_departure_date', 'Leaves on']],
       rows: async () => {
         const { guardianConsent } = await loadSettings(requireDb())
         return (await query(`${peopleBase} ORDER BY d.country_territory, ${memberOrder}, m.gender_for_room_allocation, m.display_name`)).rows.map((row) => ({
-          ...row, single_room: singleRoom(row), contestant_room_type: row.role === 'contestant' ? row.contestant_room_type : '',
+          ...row, single_room: singleRoom(row),
           under_18: row.date_of_birth ? (ageOn(row.date_of_birth, guardianConsent.referenceDate) < 18 ? 'yes' : 'no') : '',
         }))
       },
     },
     // Contestants and their working languages, for the Problem Committee and the results team.
     contestants: {
-      roles: ['registration_admin', 'results_staff'],
       columns: [['country_territory', 'Country'], ['team_name', 'Team'], ['display_name', 'Display name'], ['official_name', 'Official name'],
         ['exam_language', 'Individual contest language'], ['team_contest_language', 'Team contest language']],
       rows: async () => (await query(`${peopleBase} WHERE m.role = 'contestant' ORDER BY d.country_territory, t.name NULLS LAST, m.display_name`)).rows,
     },
   }
 
-  app.get('/api/admin/exports', ...signedIn, asyncHandler(async (req, res) => {
-    const allowed = Object.entries(exportsByKind).filter(([, e]) => req.user.role === 'super_admin' || e.roles.includes(req.user.role)).map(([kind]) => kind)
-    res.json({ kinds: allowed })
-  }))
+  app.get('/api/admin/exports', ...signedIn, requireRole(...STAFF_ROLES), (_req, res) => {
+    res.json({ kinds: Object.keys(exportsByKind) })
+  })
 
-  app.get('/api/admin/exports/:kind', ...signedIn, asyncHandler(async (req, res) => {
+  app.get('/api/admin/exports/:kind', ...signedIn, requireRole(...STAFF_ROLES), asyncHandler(async (req, res) => {
     const spec = exportsByKind[req.params.kind]
     if (!spec) throw new HttpError(404, 'Unknown export.')
-    if (!(req.user.role === 'super_admin' || spec.roles.includes(req.user.role))) throw new HttpError(403, 'Your role does not allow this.')
     const rows = await spec.rows()
     await insertAudit(requireDb(), { actorAccountId: req.user.id, eventType: 'export_downloaded', entityType: 'export', details: { kind: req.params.kind, rows: rows.length } })
     sendCsv(res, req.params.kind, spec.columns, rows)
