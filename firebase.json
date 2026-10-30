@@ -4,26 +4,40 @@
       "target": "prod",
       "public": "dist",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-      "rewrites": [{ "source": "**", "destination": "/index.html" }]
+      "rewrites": [
+        { "source": "/portal", "destination": "/portal/index.html" },
+        { "source": "/portal/**", "destination": "/portal/index.html" },
+        { "source": "**", "destination": "/index.html" }
+      ],
+      "headers": [
+        {
+          "source": "/portal",
+          "headers": [
+            { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+            { "key": "Content-Security-Policy", "value": "frame-ancestors 'none'" },
+            { "key": "X-Frame-Options", "value": "DENY" },
+            { "key": "Permissions-Policy", "value": "camera=(self), microphone=(), geolocation=()" }
+          ]
+        },
+        {
+          "source": "/portal/**",
+          "headers": [
+            { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+            { "key": "Content-Security-Policy", "value": "frame-ancestors 'none'" },
+            { "key": "X-Frame-Options", "value": "DENY" },
+            { "key": "Permissions-Policy", "value": "camera=(self), microphone=(), geolocation=()" }
+          ]
+        }
+      ]
     },
     {
       "target": "dev",
       "public": "dist",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-      "rewrites": [{ "source": "**", "destination": "/index.html" }],
-      "headers": [
-        {
-          "source": "**",
-          "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
-        }
-      ]
-    },
-    {
-      "target": "portal",
-      "public": "dist-portal",
-      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
       "rewrites": [
         { "source": "/api/**", "run": { "serviceId": "iol2027-api", "region": "asia-southeast1" } },
+        { "source": "/portal", "destination": "/portal/index.html" },
+        { "source": "/portal/**", "destination": "/portal/index.html" },
         { "source": "**", "destination": "/index.html" }
       ],
       "headers": [
@@ -31,13 +45,35 @@
           "source": "**",
           "headers": [
             { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+            { "key": "X-Content-Type-Options", "value": "nosniff" },
+            { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+          ]
+        },
+        {
+          "source": "/portal",
+          "headers": [
             { "key": "Content-Security-Policy", "value": "frame-ancestors 'none'" },
             { "key": "X-Frame-Options", "value": "DENY" },
-            { "key": "X-Content-Type-Options", "value": "nosniff" },
-            { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+            { "key": "Permissions-Policy", "value": "camera=(self), microphone=(), geolocation=()" }
+          ]
+        },
+        {
+          "source": "/portal/**",
+          "headers": [
+            { "key": "Content-Security-Policy", "value": "frame-ancestors 'none'" },
+            { "key": "X-Frame-Options", "value": "DENY" },
             { "key": "Permissions-Policy", "value": "camera=(self), microphone=(), geolocation=()" }
           ]
         }
+      ]
+    },
+    {
+      "target": "portal",
+      "public": "dist",
+      "ignore": ["**"],
+      "redirects": [
+        { "source": "/", "destination": "https://iol2027-dev.web.app/portal/", "type": 302 },
+        { "source": "/:path*", "destination": "https://iol2027-dev.web.app/portal/:path", "type": 302 }
       ]
     }
   ]

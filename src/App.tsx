@@ -7,7 +7,9 @@ import { placeholderPagesShown, portalUrl, registrationOpen } from './launch'
 import { olympiads, socialLinks, workingLanguages } from './aboutData'
 import { GrowthChart, HostMap } from './AboutVisuals'
 
-type NavItem = { label: string; href: string; external?: boolean; children?: { label: string; href: string }[] }
+// overview names the parent page as the first link in its dropdown: many people only hover a menu heading and never
+// click it, so the heading's own page has to be in the list too.
+type NavItem = { label: string; href: string; external?: boolean; overview?: string; children?: { label: string; href: string }[] }
 
 // Sections that are still placeholders; hidden on the public site until launch (src/launch.ts). The Gallery has real
 // photos of the venues since 29 Oct 2026, so it is shown everywhere.
@@ -15,20 +17,20 @@ const placeholderSections = ['/sponsors', '/people']
 
 const navigation: NavItem[] = [
   { label: 'Home', href: '/' },
-  { label: 'About', href: '/about', children: [
+  { label: 'About', href: '/about', overview: 'About the IOL', children: [
     { label: 'Host: Thailand', href: '/about/thailand' },
     { label: 'Useful Thai', href: '/about/thai-language' },
     { label: 'Important dates', href: '/about/important-dates' },
   ] },
   { label: 'Hosts', href: '/hosts' },
   { label: 'Sponsors', href: '/sponsors' },
-  { label: 'Registration', href: '/registration', children: [
+  { label: 'Registration', href: '/registration', overview: 'Registration overview', children: [
     { label: 'How to register', href: '/registration/how-to-register' },
     { label: 'Fees & deadlines', href: '/registration/fees-deadlines' },
     { label: 'Visa & invitation letters', href: '/registration/visas' },
     ...(registrationOpen ? [{ label: 'Registration portal', href: portalUrl }] : []),
   ] },
-  { label: 'Event guide', href: '/event-guide', children: [
+  { label: 'Event guide', href: '/event-guide', overview: 'Event guide overview', children: [
     { label: 'Schedule & venues', href: '/programme' },
     { label: 'Accommodation', href: '/event-guide/accommodation' },
     { label: 'Transportation', href: '/event-guide/transportation' },
@@ -36,7 +38,7 @@ const navigation: NavItem[] = [
   ] },
   { label: 'Results', href: 'https://ioling.org/results/by_year/', external: true },
   { label: 'Gallery', href: '/gallery' },
-  { label: 'People', href: '/people', children: [
+  { label: 'People', href: '/people', overview: 'People overview', children: [
     { label: 'Committee', href: '/people/committee' },
     { label: 'Jury', href: '/people/jury' },
     { label: 'Problem Committee', href: '/people/problem-committee' },
@@ -94,7 +96,7 @@ function Header() {
     <header className="topbar">
       <a className="wordmark" href="/" aria-label="IOL 2027 home"><img src="/assets/iol-mark-light.png" alt="" /><span>IOL 2027</span></a>
       <nav className="desktop-nav" aria-label="Main navigation">
-        {navigation.map((item) => item.children ? <div className="nav-dropdown" key={item.href}><NavLink item={item} className="nav-parent" /><ChevronRight size={13} /><div className="nav-menu">{item.children.map((child) => <a key={child.href} href={child.href}>{child.label}</a>)}</div></div> : <NavLink key={item.href} item={item} />)}
+        {navigation.map((item) => item.children ? <div className="nav-dropdown" key={item.href}><NavLink item={item} className="nav-parent" /><ChevronRight size={13} /><div className="nav-menu">{item.overview && <a href={item.href}>{item.overview}</a>}{item.children.map((child) => <a key={child.href} href={child.href}>{child.label}</a>)}</div></div> : <NavLink key={item.href} item={item} />)}
       </nav>
       <button className="menu-button" onClick={() => setOpen(!open)} aria-label="Toggle menu" aria-expanded={open} aria-controls="mobile-navigation">{open ? <X /> : <Menu />}</button>
     </header>
@@ -429,15 +431,9 @@ const hostDetails: HostDetail[] = [
   },
 ]
 
-// Thailand's results at the IOL, from ioling.org/results/THA. Host cities come from the About page's olympiad list.
-type IolAward = { kind: 'gold' | 'silver' | 'bronze' | 'mention'; label: string }
-const thailandAtIol: { year: number; awards: IolAward[] }[] = [
-  { year: 2022, awards: [{ kind: 'bronze', label: 'Bronze medal' }, { kind: 'mention', label: 'Honourable mention' }] },
-  { year: 2023, awards: [{ kind: 'silver', label: 'Silver medal' }, { kind: 'mention', label: 'Honourable mention' }, { kind: 'mention', label: 'Team contest: honourable mention' }] },
-  { year: 2024, awards: [{ kind: 'gold', label: 'Gold medal' }, { kind: 'bronze', label: 'Bronze medal' }, { kind: 'mention', label: 'Team contest: honourable mention' }] },
-  { year: 2025, awards: [{ kind: 'silver', label: 'Silver medal' }, { kind: 'bronze', label: 'Bronze medal' }, { kind: 'bronze', label: 'Team contest: bronze trophy' }] },
-  { year: 2026, awards: [{ kind: 'mention', label: '2 honourable mentions' }] },
-]
+// The olympiads Thailand has taken part in (ioling.org/results/THA). Only the years: the professor asked for no medals
+// or awards here (30 Oct 2026). Host cities come from the About page's olympiad list.
+const thailandAtIol = [2022, 2023, 2024, 2025, 2026]
 const iolHost = (year: number) => olympiads.find((item) => item.year === year)
 
 function HostProfile({ host }: { host: HostDetail }) {
@@ -475,11 +471,9 @@ function Hosts() {
     <section className="thai-iol"><div className="wrap">
       <header className="thai-iol-head"><div><p className="eyebrow">Thailand at the IOL</p><h2 className="mixed-heading">Five olympiads, <em>then hosting in&nbsp;2027.</em></h2></div><p>Thailand sent its first team to the IOL in 2022. The team is chosen through the Thailand Linguistics Olympiad, held every year by POSN with the Department of Linguistics at Chulalongkorn University: a national contest, then a training camp, then the team for the IOL.</p></header>
       <ol className="thai-iol-years">
-        {thailandAtIol.map(({ year, awards }) => <li key={year}><strong>{year}</strong><small>{iolHost(year)?.city}, {iolHost(year)?.country}</small>{year === 2022 && <p>Thailand’s first IOL</p>}
-          <ul>{awards.map((award) => <li key={award.label} className={`thai-iol-${award.kind}`}>{award.label}</li>)}</ul></li>)}
+        {thailandAtIol.map((year) => <li key={year}><strong>{year}</strong><small>{iolHost(year)?.city}, {iolHost(year)?.country}</small>{year === 2022 && <p>Thailand’s first IOL</p>}</li>)}
         <li className="thai-iol-host"><strong>2027</strong><small>Bangkok, Thailand</small><p>Thailand hosts the IOL, the first held in Southeast Asia.</p></li>
       </ol>
-      <p className="thai-iol-note">Five olympiads so far: 20 contestants, 6 medals, a team bronze trophy and 2 best-solution prizes. <a href="https://ioling.org/results/THA" target="_blank" rel="noreferrer">Thailand’s results on ioling.org <ExternalLink size={13} /></a></p>
     </div></section>
     <SectionLinks links={[{ href: '/programme', label: 'Schedule & venues', detail: 'What happens on each day, and where.' }, { href: '/about/thailand', label: 'Host: Thailand', detail: 'Bangkok, and the days teams see Thailand.' }, { href: '/contact', label: 'Contact', detail: 'Questions for the organising team.' }]} />
   </>
@@ -544,7 +538,8 @@ function ScrollCue({ target, label }: { target: string; label: string }) {
 }
 
 function Registration() {
-  const portalHost = portalUrl.replace(/^https?:\/\//, '')
+  // The portal is part of this site, so its address is this site's plus /portal.
+  const portalHost = `${window.location.host}${portalUrl}`
   const stages = [
     'Team and observer numbers, which set the fees',
     'Invoice details, bank transfer and proof of payment',

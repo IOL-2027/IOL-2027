@@ -13,13 +13,12 @@ jobs:
       - uses: actions/checkout@v4
       # Until launch the public site shows no link to the registration portal (registration opens 18 January 2027)
       # and hides the placeholder pages (People, Sponsors) (src/launch.ts). Delete VITE_REGISTRATION_OPEN or
-      # VITE_SHOW_PLACEHOLDER_PAGES when that part goes live. The portal itself deploys from development until launch.
+      # VITE_SHOW_PLACEHOLDER_PAGES when that part goes live. Until then /portal only says when registration opens;
+      # the working portal is on the development site, and the public site has no API behind it yet.
       - run: npm ci && npm run build
         env:
           VITE_REGISTRATION_OPEN: 'false'
           VITE_SHOW_PLACEHOLDER_PAGES: 'false'
-          VITE_PUBLIC_SITE_URL: https://iol2027.web.app
-          VITE_PORTAL_URL: https://iol2027-portal.web.app
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}

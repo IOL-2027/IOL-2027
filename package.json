@@ -13,10 +13,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "db:migrate": "node server/migrate.js",
     "db:seed-test": "node server/seed-test.js",
-    "test:api": "node server/test/api-e2e.mjs",
-    "dev:portal": "vite --config vite.portal.config.ts --host 0.0.0.0",
-    "build:portal": "tsc -b && vite build --config vite.portal.config.ts",
-    "preview:portal": "vite preview --config vite.portal.config.ts --host 0.0.0.0"
+    "test:api": "node server/test/api-e2e.mjs"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.22.0",

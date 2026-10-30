@@ -18,7 +18,7 @@ import {
   checkPasswordRules, createSession, destroySession, filterMember, hashPassword, loginBlocked, recordLogin,
   requireAuth, requireRequestHeader, requireRole, requireVerified, sessionMiddleware, verifyPassword,
 } from './auth.js'
-import { calculateFees, loadSettings, needsGuardianConsent } from './fees.js'
+import { delegationFees, loadSettings, maxObservers, needsGuardianConsent } from './fees.js'
 import {
   asyncHandler, buildUpdate, camelizeRow, camelizeRows, hashToken, insertAudit, isEmail, missingMemberDetails,
   exposeDevCodes, optionalNumber, optionalString, pool, query, requireDb, requiredString, portalUrl, withTransaction,
@@ -276,9 +276,9 @@ app.post('/api/registration/team-leader-account', asyncHandler(async (req, res) 
     )).rows[0]
     const delegation = (await client.query(
       `INSERT INTO delegations (account_id, invite_code_id, country_territory, accredited_organisation,
-         primary_team_leader_name, team_leader_email, registration_contact_email, number_of_teams, number_of_contestants, number_of_observers)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 4, 0) RETURNING *`,
-      [account.id, invite.id, invite.country_territory, invite.accredited_organisation, fullName, email, invite.contact_email],
+         primary_team_leader_name, team_leader_email, registration_contact_email, number_of_teams, number_of_contestants, number_of_observers, fee_category)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 4, 0, $8) RETURNING *`,
+      [account.id, invite.id, invite.country_territory, invite.accredited_organisation, fullName, email, invite.contact_email, invite.fee_category],
     )).rows[0]
     await client.query(
       `INSERT INTO members (delegation_id, role, display_name, badge_name, official_name, email)
@@ -374,10 +374,16 @@ app.get('/api/registration/delegations/:delegationId', ...signedIn, delegationAc
     query(`SELECT id, member_id, kind, original_filename, mime_type, size_bytes, created_at FROM attachments WHERE delegation_id = $1 ORDER BY created_at DESC`, [id]),
     query(`SELECT bc.member_id, bc.status, bc.issued_at FROM badge_credentials bc JOIN members m ON m.id = bc.member_id WHERE m.delegation_id = $1`, [id]),
   ])
+  // Once an invoice exists, at its fee tier, so the Payment step and the invoice agree.
+  const fees = delegationFees(settings.fees, delegation, payments.rows[0]?.fee_tier)
   res.json({
     delegation: camelizeRow(delegation),
-    // Once an invoice exists, at its fee tier, so the Payment step and the invoice agree.
-    fees: calculateFees(settings.fees, { numberOfTeams: delegation.number_of_teams, numberOfObservers: delegation.number_of_observers }, new Date(), payments.rows[0]?.fee_tier),
+    fees,
+    // teamFees are the first and second team's fees at this rate and tier, so Team and observers can show the total as it changes.
+    feeRules: {
+      maxObserversPerTeam: settings.fees.maxObserversPerTeam, singleRoomFee: settings.fees.singleRoomFee, observerFee: settings.fees.observerFee, currency: settings.fees.currency,
+      teamFees: settings.fees.teamFees[fees.tier][fees.category] ?? settings.fees.teamFees[fees.tier].accredited,
+    },
     guardianConsent: settings.guardianConsent,
     bank: settings.invoice.bank,
     teams: camelizeRows(teams.rows),
@@ -391,16 +397,29 @@ app.get('/api/registration/delegations/:delegationId', ...signedIn, delegationAc
 
 app.patch('/api/registration/delegations/:delegationId', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
   const body = { ...req.body }
+  const current = (await query('SELECT number_of_teams, number_of_observers, fee_category, single_rooms FROM delegations WHERE id = $1', [req.params.delegationId])).rows[0]
+  if (!current) throw new HttpError(404, 'Delegation not found.')
+  const { fees } = await loadSettings(requireDb())
   if ('numberOfTeams' in body) {
     const teams = Number(body.numberOfTeams)
     if (![1, 2].includes(teams)) throw new HttpError(400, 'A country can register one or two teams.')
+    if (teams === 2 && current.fee_category === 'non_accredited') throw new HttpError(400, 'A country or territory that is not accredited can register one team.')
     body.numberOfTeams = teams
     body.numberOfContestants = teams * 4
   }
+  const teams = body.numberOfTeams ?? current.number_of_teams
   if ('numberOfObservers' in body) {
     const observers = Number(body.numberOfObservers)
-    if (!Number.isInteger(observers) || observers < 0 || observers > 20) throw new HttpError(400, 'Number of observers must be a whole number from 0 to 20.')
+    const most = maxObservers(fees, teams)
+    if (!Number.isInteger(observers) || observers < 0 || observers > most) throw new HttpError(400, `Up to ${fees.maxObserversPerTeam} observers per team: ${most} for ${teams === 1 ? 'one team' : 'two teams'}.`)
     body.numberOfObservers = observers
+  }
+  // One yes or no per Team Leader (one per team) and per observer; kept the same length as those numbers.
+  if ('singleRooms' in body || 'numberOfTeams' in body || 'numberOfObservers' in body) {
+    const given = body.singleRooms ?? current.single_rooms ?? {}
+    if (typeof given !== 'object') throw new HttpError(400, 'Single rooms must list each Team Leader and observer.')
+    const fit = (list, length) => Array.from({ length }, (_, i) => Boolean(Array.isArray(list) ? list[i] : false))
+    body.singleRooms = { teamLeaders: fit(given.teamLeaders, teams), observers: fit(given.observers, body.numberOfObservers ?? current.number_of_observers) }
   }
   if ('completedSteps' in body) {
     const allowed = ['start', 'setup', 'teams', 'people', 'welfare', 'travel']
@@ -422,6 +441,7 @@ app.patch('/api/registration/delegations/:delegationId', ...signedIn, delegation
     welfareNote: 'welfare_note',
     contestantRoomType: 'contestant_room_type',
     completedSteps: 'completed_steps',
+    singleRooms: 'single_rooms',
   }
   const delegation = await withTransaction(async (client) => {
     const { sets, values } = buildUpdate(body, fieldMap)
@@ -429,28 +449,65 @@ app.patch('/api/registration/delegations/:delegationId', ...signedIn, delegation
     const result = await client.query(`UPDATE delegations SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values)
     if (!result.rowCount) throw new HttpError(404, 'Delegation not found.')
     if ('numberOfTeams' in body) await ensureTeams(client, result.rows[0])
+    // An invoice not paid yet follows the new numbers, as it does when Finance changes the fees, and the answers
+    // reach the Team Leaders' and observers' records in People.
+    if ('singleRooms' in body) {
+      await syncSingleRooms(client, result.rows[0].id)
+      const open = (await client.query(`SELECT id, fee_tier FROM payments WHERE delegation_id = $1 AND status IN ('awaiting_proof', 'rejected')`, [result.rows[0].id])).rows
+      for (const p of open) await client.query('UPDATE payments SET amount_due = $1, updated_at = now() WHERE id = $2', [delegationFees(fees, result.rows[0], p.fee_tier).total, p.id])
+    }
     await insertAudit(client, { actorAccountId: req.user.id, delegationId: req.params.delegationId, eventType: 'delegation_updated', entityType: 'delegation', entityId: req.params.delegationId, details: { fields: Object.keys(req.body) } })
     return result.rows[0]
   })
   res.json({ delegation: camelizeRow(delegation) })
 }))
 
+const MAX_INVOICES = 5
+const cents = (amount) => Math.round(Number(amount) * 100)
+
+/**
+ * The invoices a Team Leader asked for: one, or several with a payer and an amount each, which together must make
+ * the total exactly. Returns [{ recipientName, recipientAddress, recipientTin, amount }].
+ */
+function cleanInvoices(body, total) {
+  const one = (item, where) => {
+    const tin = optionalString(item.recipientTin)
+    if (tin && tin.length > 40) throw new HttpError(400, `${where}Tax identification number must be at most 40 characters.`)
+    return { recipientName: requiredString(item.recipientName, `${where}Invoice recipient name`), recipientAddress: optionalString(item.recipientAddress), recipientTin: tin }
+  }
+  const list = Array.isArray(body.invoices) && body.invoices.length > 1 ? body.invoices : null
+  if (!list) return [{ ...one(body, ''), amount: total }]
+  if (list.length > MAX_INVOICES) throw new HttpError(400, `The fees can be split into at most ${MAX_INVOICES} invoices.`)
+  const invoices = list.map((item, i) => {
+    const where = `Invoice ${i + 1}: `
+    const amount = Number(item.amount)
+    // Whole cents only: 1200 or 1200.50, not 1200.505.
+    if (!Number.isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - cents(amount)) > 1e-6) throw new HttpError(400, `${where}Enter an amount in US dollars, such as 1200 or 1200.50.`)
+    return { ...one(item, where), amount: cents(amount) / 100 }
+  })
+  const sum = invoices.reduce((s, item) => s + cents(item.amount), 0)
+  if (sum !== cents(total)) {
+    const gap = (cents(total) - sum) / 100
+    throw new HttpError(400, `The invoice amounts add up to USD ${(sum / 100).toLocaleString('en-US')}, not the total of USD ${total.toLocaleString('en-US')}. ${gap > 0 ? `Add USD ${gap.toLocaleString('en-US')}` : `Take off USD ${(-gap).toLocaleString('en-US')}`}.`)
+  }
+  return invoices
+}
+
 app.put('/api/registration/delegations/:delegationId/invoice', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
-  const invoiceCount = optionalNumber(req.body.invoiceCount) ?? 1
-  if (!Number.isInteger(invoiceCount) || invoiceCount < 1 || invoiceCount > 10) throw new HttpError(400, 'Number of invoices must be from 1 to 10.')
   const settings = await loadSettings(requireDb())
   const payment = await withTransaction(async (client) => {
     const delegation = (await client.query('SELECT * FROM delegations WHERE id = $1 FOR UPDATE', [req.params.delegationId])).rows[0]
-    const fees = calculateFees(settings.fees, { numberOfTeams: delegation.number_of_teams, numberOfObservers: delegation.number_of_observers })
-    const tin = optionalString(req.body.recipientTin)
-    if (tin && tin.length > 40) throw new HttpError(400, 'Tax identification number must be at most 40 characters.')
-    const values = [requiredString(req.body.recipientName, 'Invoice recipient name'), optionalString(req.body.recipientAddress), invoiceCount, optionalString(req.body.splitNote), fees.total, fees.tier, tin]
+    const fees = delegationFees(settings.fees, delegation)
+    const invoices = cleanInvoices(req.body, fees.total)
+    const [first] = invoices
+    // The first invoice's payer is also kept in the payer columns, which a single invoice uses on its own.
+    const values = [first.recipientName, first.recipientAddress, invoices.length, invoices.length > 1 ? JSON.stringify(invoices) : null, fees.total, fees.tier, first.recipientTin]
     const open = (await openPaymentQuery(client, delegation.id)).rows[0]
     if (open?.status === 'awaiting_review') throw new HttpError(409, 'Your proof is being reviewed. Contact the organisers to change invoice details.')
     let row
     if (open) {
       row = (await client.query(
-        `UPDATE payments SET invoice_recipient_name = $1, invoice_recipient_address = $2, invoice_count = $3, invoice_split_note = $4,
+        `UPDATE payments SET invoice_recipient_name = $1, invoice_recipient_address = $2, invoice_count = $3, invoice_splits = $4, invoice_split_note = NULL,
            amount_due = $5, fee_tier = $6, invoice_recipient_tin = $7, updated_at = now() WHERE id = $8 RETURNING *`,
         [...values, open.id],
       )).rows[0]
@@ -458,7 +515,7 @@ app.put('/api/registration/delegations/:delegationId/invoice', ...signedIn, dele
       const short = delegation.country_territory.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase()
       const reference = `${short}-IOL2027-${crypto.randomBytes(2).toString('hex').toUpperCase()}`
       row = (await client.query(
-        `INSERT INTO payments (delegation_id, invoice_recipient_name, invoice_recipient_address, invoice_count, invoice_split_note, amount_due, fee_tier, invoice_recipient_tin,
+        `INSERT INTO payments (delegation_id, invoice_recipient_name, invoice_recipient_address, invoice_count, invoice_splits, amount_due, fee_tier, invoice_recipient_tin,
            currency, payment_reference, status, invoice_number)
          VALUES ($8, $1, $2, $3, $4, $5, $6, $7, 'USD', $9, 'awaiting_proof', 'IOL2027/' || nextval('invoice_number_seq')) RETURNING *`,
         [...values, delegation.id, reference],
@@ -470,13 +527,18 @@ app.put('/api/registration/delegations/:delegationId/invoice', ...signedIn, dele
   res.json({ payment: camelizeRow(payment) })
 }))
 
-// The invoice as a PDF: the same document the "registration submitted" email attaches.
+// The invoice as a PDF: the same document the "registration submitted" email attaches. A split invoice is one file per
+// payer: ?part=2 is the second (IOL2027/23-2).
 app.get('/api/registration/delegations/:delegationId/invoice', ...signedIn, delegationAccess('read'), asyncHandler(async (req, res) => {
   const d = (await query('SELECT * FROM delegations WHERE id = $1', [req.params.delegationId])).rows[0]
   if (!d) throw new HttpError(404, 'Delegation not found.')
   const payment = (await query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC LIMIT 1', [d.id])).rows[0]
   if (!payment) throw new HttpError(409, 'Save the invoice details first.')
-  res.set('Content-Type', 'application/pdf').set('Content-Disposition', `inline; filename="${invoiceFilename(d, payment)}"`).send(await delegationInvoice(d, payment))
+  if (await splitsOutOfStep(d, payment)) throw new HttpError(409, 'The total has changed since the invoices were split. Update the invoice amounts in Payment, then download them again.')
+  const parts = payment.invoice_splits?.length ?? 0
+  const part = req.query.part === undefined ? null : Number(req.query.part)
+  if (part !== null && !(parts && Number.isInteger(part) && part >= 1 && part <= parts)) throw new HttpError(404, parts ? `There are ${parts} invoices: choose one from 1 to ${parts}.` : 'This invoice is not split.')
+  res.set('Content-Type', 'application/pdf').set('Content-Disposition', `inline; filename="${invoiceFilename(d, payment, part)}"`).send(await delegationInvoice(d, payment, part))
 }))
 
 app.post('/api/registration/delegations/:delegationId/teams', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
@@ -527,6 +589,36 @@ async function requirePeopleOpen(req, delegationId) {
   if (!paid.rowCount) throw new HttpError(409, 'People opens once proof of payment is uploaded.')
 }
 
+/** The account's own Team Leader: the first Team Leader record, made with the account. */
+async function primaryLeaderId(delegationId) {
+  return (await query(`SELECT id FROM members WHERE delegation_id = $1 AND role = 'team_leader' ORDER BY created_at LIMIT 1`, [delegationId])).rows[0]?.id
+}
+
+/** Each team has one Team Leader, included in its fee: with two teams, one more person may be a Team Leader. */
+async function checkLeaderPlace(delegationId, memberId = null) {
+  const d = (await query('SELECT number_of_teams FROM delegations WHERE id = $1', [delegationId])).rows[0]
+  const others = (await query(`SELECT count(*)::int AS n FROM members WHERE delegation_id = $1 AND role = 'team_leader' AND id IS DISTINCT FROM $2`, [delegationId, memberId])).rows[0].n
+  if (others >= d.number_of_teams) throw new HttpError(400, d.number_of_teams === 1 ? 'One team has one Team Leader. Register this person as an observer.' : 'Each team already has its Team Leader. Register this person as an observer.')
+}
+
+/**
+ * Single rooms are chosen once, in Team and observers: one yes or no per Team Leader and per observer. Each person's
+ * record follows in order (the first Team Leader gets the first answer, the first observer the first observer answer),
+ * so People shows the answer rather than asking again.
+ */
+async function syncSingleRooms(db, delegationId) {
+  const d = (await db.query('SELECT single_rooms FROM delegations WHERE id = $1', [delegationId])).rows[0]
+  if (!d) return
+  const answers = { team_leader: d.single_rooms?.teamLeaders ?? [], observer: d.single_rooms?.observers ?? [] }
+  const people = (await db.query(`SELECT id, role FROM members WHERE delegation_id = $1 AND role IN ('team_leader', 'observer') ORDER BY created_at`, [delegationId])).rows
+  const seen = { team_leader: 0, observer: 0 }
+  for (const person of people) {
+    const answer = answers[person.role][seen[person.role]++]
+    const value = answer === undefined ? null : answer ? 'single' : 'shared'
+    await db.query('UPDATE members SET room_type_preference = $1, updated_at = now() WHERE id = $2 AND room_type_preference IS DISTINCT FROM $1', [value, person.id])
+  }
+}
+
 async function checkTeamBelongs(teamId, delegationId) {
   if (!teamId) return
   const ok = await query('SELECT 1 FROM teams WHERE id = $1 AND delegation_id = $2', [teamId, delegationId])
@@ -536,7 +628,8 @@ async function checkTeamBelongs(teamId, delegationId) {
 app.post('/api/registration/delegations/:delegationId/members', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
   await requirePeopleOpen(req, req.params.delegationId)
   const body = { ...req.body, role: normalizeRole(req.body.role || 'contestant') }
-  if (body.role === 'team_leader') throw new HttpError(400, 'The Team Leader record is created with the account.')
+  delete body.roomTypePreference // set from Team and observers (syncSingleRooms)
+  if (body.role === 'team_leader') await checkLeaderPlace(req.params.delegationId)
   await checkTeamBelongs(body.teamId, req.params.delegationId)
   requiredString(body.displayName, 'Display name')
   const entries = Object.entries(memberFields).filter(([key]) => key in body)
@@ -546,26 +639,34 @@ app.post('/api/registration/delegations/:delegationId/members', ...signedIn, del
     `INSERT INTO members (${columns.join(', ')}) VALUES (${columns.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
     values,
   )
+  await syncSingleRooms(requireDb(), req.params.delegationId)
   await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.params.delegationId, eventType: 'member_added', entityType: 'member', entityId: result.rows[0].id })
-  res.status(201).json({ member: camelizeRow(result.rows[0]) })
+  res.status(201).json({ member: camelizeRow((await query('SELECT * FROM members WHERE id = $1', [result.rows[0].id])).rows[0]) })
 }))
 
 app.patch('/api/registration/members/:memberId', ...signedIn, childAccess('members', 'memberId'), asyncHandler(async (req, res) => {
   await requirePeopleOpen(req, req.delegationId)
   const body = { ...req.body }
-  if (body.role) body.role = normalizeRole(body.role)
+  delete body.roomTypePreference // set from Team and observers (syncSingleRooms)
+  if (body.role) {
+    body.role = normalizeRole(body.role)
+    const primary = await primaryLeaderId(req.delegationId)
+    if (req.params.memberId === primary && body.role !== 'team_leader') throw new HttpError(400, 'The account’s own Team Leader stays the Team Leader.')
+    if (body.role === 'team_leader' && req.params.memberId !== primary) await checkLeaderPlace(req.delegationId, req.params.memberId)
+  }
   await checkTeamBelongs(body.teamId, req.delegationId)
   const { sets, values } = buildUpdate(body, memberFields)
   values.push(req.params.memberId)
-  const result = await query(`UPDATE members SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values)
+  await query(`UPDATE members SET ${sets.join(', ')} WHERE id = $${values.length}`, values)
+  if (body.role) await syncSingleRooms(requireDb(), req.delegationId)
   await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'member_updated', entityType: 'member', entityId: req.params.memberId, details: { fields: Object.keys(req.body) } })
-  res.json({ member: camelizeRow(result.rows[0]) })
+  res.json({ member: camelizeRow((await query('SELECT * FROM members WHERE id = $1', [req.params.memberId])).rows[0]) })
 }))
 
 app.delete('/api/registration/members/:memberId', ...signedIn, childAccess('members', 'memberId'), asyncHandler(async (req, res) => {
-  const member = (await query('SELECT role FROM members WHERE id = $1', [req.params.memberId])).rows[0]
-  if (member.role === 'team_leader') throw new HttpError(400, 'The Team Leader record cannot be removed.')
+  if (req.params.memberId === await primaryLeaderId(req.delegationId)) throw new HttpError(400, 'The account’s own Team Leader cannot be removed.')
   await query('DELETE FROM members WHERE id = $1', [req.params.memberId])
+  await syncSingleRooms(requireDb(), req.delegationId)
   await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'member_removed', entityType: 'member', entityId: req.params.memberId })
   res.status(204).end()
 }))
@@ -628,6 +729,13 @@ app.patch('/api/registration/travel/:travelRecordId', ...signedIn, childAccess('
   })
   await sendBadgesIfSettled(req.delegationId).catch((e) => console.error(e.message))
   res.json({ travelRecord: camelizeRow(travel) })
+}))
+
+// A trip added by mistake, or a flight that was cancelled.
+app.delete('/api/registration/travel/:travelRecordId', ...signedIn, childAccess('travel', 'travelRecordId'), asyncHandler(async (req, res) => {
+  await query('DELETE FROM travel_records WHERE id = $1', [req.params.travelRecordId])
+  await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'travel_removed', entityType: 'travel_record', entityId: req.params.travelRecordId })
+  res.status(204).end()
 }))
 
 app.post('/api/registration/delegations/:delegationId/payment-proof', ...signedIn, delegationAccess('write'), upload.single('proof'), asyncHandler(async (req, res) => {
@@ -704,6 +812,11 @@ async function missingForSubmission(delegationId) {
     if (needsGuardianConsent(member, guardianConsent) && !member.has_consent) gaps.push('guardian consent form')
     if (gaps.length) missing.push(`${member.display_name}: ${gaps.join(', ')}`)
   }
+  // People must match what the fees were worked out from (Team and observers).
+  const observers = members.rows.filter((m) => m.role === 'observer').length
+  if (observers !== d.number_of_observers) missing.push(`Observers: ${d.number_of_observers} in Team and observers, ${observers} in People`)
+  const payment = (await query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC LIMIT 1', [delegationId])).rows[0]
+  if (await splitsOutOfStep(d, payment)) missing.push('Invoice amounts: update them in Payment, the total has changed')
   return { delegation: d, missing }
 }
 
@@ -731,26 +844,38 @@ async function notifySubmitted(d) {
     query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC LIMIT 1', [d.id]).then((r) => r.rows[0] ?? null),
     missingTravel(d.id),
   ])
-  const invoice = await delegationInvoice(d, payment)
+  // A split invoice is attached as one PDF per payer, as each payer pays their own.
+  const parts = payment?.invoice_splits?.length ? payment.invoice_splits.map((_, i) => i + 1) : [null]
+  const attachments = await Promise.all(parts.map(async (part) => ({ filename: invoiceFilename(d, payment, part), content: await delegationInvoice(d, payment, part), contentType: 'application/pdf' })))
   const { subject, html } = buildRegistrationSubmittedEmail({
     countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, numberOfTeams: d.number_of_teams, numberOfObservers: d.number_of_observers,
     paymentConfirmed: payment?.status === 'approved', travelComplete: !travelGaps.length, travelUrl: `${portalUrl}/?step=travel`,
   })
   // Kept and tried again if sending fails, so the badges below do not wait on it.
-  await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, attachments: [{ filename: invoiceFilename(d, payment), content: invoice, contentType: 'application/pdf' }], purpose: 'registration_submitted', delegationId: d.id, retry: true })
+  await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, attachments, purpose: 'registration_submitted', delegationId: d.id, retry: true })
   await sendBadgesIfSettled(d.id)
 }
 
-/** The delegation's invoice PDF, priced at the fee tier the invoice was issued at, so its total and due date hold. */
-async function delegationInvoice(d, payment) {
+/**
+ * The delegation's invoice PDF, priced at the fee tier the invoice was issued at, so its total and due date hold.
+ * `part` (from 1) is one payer's invoice of a split; without it, every invoice.
+ */
+async function delegationInvoice(d, payment, part = null) {
   const settings = await loadSettings(requireDb())
-  const fees = calculateFees(settings.fees, { numberOfTeams: d.number_of_teams, numberOfObservers: d.number_of_observers }, new Date(), payment?.fee_tier)
-  return invoicePdf({ delegation: d, payment, fees, invoice: settings.invoice })
+  return invoicePdf({ delegation: d, payment, fees: delegationFees(settings.fees, d, payment?.fee_tier), invoice: settings.invoice, part })
 }
 
-function invoiceFilename(d, payment) {
+/** True when an unpaid invoice was split for a total that has since changed (more observers, a single room). */
+async function splitsOutOfStep(d, payment) {
+  if (!payment?.invoice_splits || !['awaiting_proof', 'rejected'].includes(payment.status)) return false
+  const { fees } = await loadSettings(requireDb())
+  const total = delegationFees(fees, d, payment.fee_tier).total
+  return payment.invoice_splits.reduce((sum, item) => sum + cents(item.amount), 0) !== cents(total)
+}
+
+function invoiceFilename(d, payment, part = null) {
   const number = payment?.invoice_number?.split('/')[1]
-  return `IOL2027-invoice-${number ? `${number}-` : ''}${d.country_territory.replace(/[^\w-]+/g, '-').replace(/^-|-$/g, '')}.pdf`
+  return `IOL2027-invoice-${number ? `${number}-${part ? `${part}-` : ''}` : ''}${d.country_territory.replace(/[^\w-]+/g, '-').replace(/^-|-$/g, '')}.pdf`
 }
 
 /* ------------------------------------------------------------------ */
@@ -783,22 +908,11 @@ app.post('/api/registration/members/:memberId/badge', ...signedIn, requireRole('
   res.status(201).json({ badge: camelizeRow(credential), member: camelizeRow(member), qrDataUrl })
 }))
 
-/** Whose badge it is, as the scanner and the badge page show it: name, role, and country (or assignment, for staff). */
+/** Whose badge it is, as the scanner shows it: name, role, and country (or assignment, for staff). */
 const badgeHolder = (c) => ({
   kind: c.staff_id ? 'staff' : 'member', displayName: c.display_name, badgeName: c.badge_name, officialName: c.official_name,
   role: c.role, place: c.place, team: c.team_name,
 })
-
-// The badge page (/b) shows whose badge was scanned and its recent check-ins before anything is recorded.
-app.post('/api/registration/check-in/lookup', ...signedIn, requireRole('checkin_staff', 'registration_admin'), asyncHandler(async (req, res) => {
-  const credential = await findBadge(requiredString(req.body.payload, 'Badge code'))
-  const scans = await query(
-    `SELECT ce.checkpoint, ce.result, ce.scanned_at, a.full_name AS scanned_by FROM check_in_events ce LEFT JOIN accounts a ON a.id = ce.scanned_by_account_id
-     WHERE ce.member_id = $1 OR ce.staff_id = $2 ORDER BY ce.scanned_at DESC LIMIT 5`,
-    [credential.member_id, credential.staff_id],
-  )
-  res.json({ holder: badgeHolder(credential), active: credential.status === 'active', scans: camelizeRows(scans.rows) })
-}))
 
 app.post('/api/registration/check-in/scan', ...signedIn, requireRole('checkin_staff', 'registration_admin'), asyncHandler(async (req, res) => {
   const checkpoint = requiredString(req.body.checkpoint, 'Checkpoint')

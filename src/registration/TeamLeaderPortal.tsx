@@ -2,7 +2,7 @@
 // workspace or the staff back office. Either door signs in any account; the role decides what opens.
 import { useCallback, useEffect, useState, type ComponentType, type ReactNode } from 'react'
 import { ArrowRight, ArrowUpRight, CalendarDays, ClipboardList, Clock, LifeBuoy, MailQuestion, QrCode, Route, ShieldCheck } from 'lucide-react'
-import { publicSiteUrl } from '../launch'
+import { portalPath } from '../launch'
 import { api, ApiError, type User } from './api'
 import { Entry, VerifyEmail } from './AuthForms'
 import StaffHome from './StaffHome'
@@ -40,13 +40,13 @@ const guides: Record<Door, GuideItem[]> = {
     {
       icon: Route, title: 'New to the portal?',
       body: 'See every step, from the invitation code to the QR badges. You can stop at any point and pick up where you left off.',
-      links: [{ href: `${publicSiteUrl}/registration/how-to-register`, label: 'How to register', external: true }],
+      links: [{ href: '/registration/how-to-register', label: 'How to register', external: true }],
     },
     {
       icon: ClipboardList, title: 'Have these ready',
       list: ['The invitation code from the organisers’ email', 'An email address your team can rely on', 'How many teams (up to two) and observers'],
       body: 'Payment, passport details and flights come later.',
-      links: [{ href: `${publicSiteUrl}/registration/fees-deadlines`, label: 'Fees and deadlines', external: true }],
+      links: [{ href: '/registration/fees-deadlines', label: 'Fees and deadlines', external: true }],
     },
     {
       icon: MailQuestion, title: 'No invitation code?',
@@ -55,7 +55,7 @@ const guides: Record<Door, GuideItem[]> = {
   ],
   staff: [
     { icon: ShieldCheck, title: 'Each role has its own tools', body: 'Registration, Finance, Welfare, Check-in and Viewer accounts each open what they need, and nothing else. Ask a super admin if you need more.' },
-    { icon: QrCode, title: 'Scanning badges?', body: 'Check-in staff scan badges at the arrival desk and at event checkpoints.', links: [{ href: '/check-in', label: 'Open the badge scanner' }] },
+    { icon: QrCode, title: 'Scanning badges?', body: 'Check-in staff scan badges at the arrival desk and at event checkpoints.', links: [{ href: portalPath('/check-in'), label: 'Open the badge scanner' }] },
     { icon: LifeBuoy, title: 'Something not working?', body: <>Write to the registration team at <a href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a>, with a screenshot if you can.</> },
   ],
 }
@@ -177,7 +177,7 @@ export default function TeamLeaderPortal({ door = 'team' }: { door?: Door }) {
             <div className="reg-account reg-entry"><div className="reg-account-card">
               <h2>Registration opens on 18 January 2027</h2>
               <p className="reg-lede">Team Leader accounts are created with the invitation code each country receives by email. Until then, you can read how registration works.</p>
-              <div className="reg-account-actions"><a className="reg-btn reg-btn-primary" href={`${publicSiteUrl}/registration`}>How registration works <ArrowRight size={18} aria-hidden="true" /></a></div>
+              <div className="reg-account-actions"><a className="reg-btn reg-btn-primary" href="/registration">How registration works <ArrowRight size={18} aria-hidden="true" /></a></div>
               {state.message && <p className="reg-hint">{state.message}</p>}
             </div></div>
           )}

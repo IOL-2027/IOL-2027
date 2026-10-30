@@ -30,7 +30,7 @@
 - Firebase Hosting serves `dist/` and rewrites unknown paths to `index.html`.
 - GitHub Actions workflow can build and deploy Hosting from the `main` branch.
 
-The public website is static and has no API behind it. The registration portal is a separate app and Firebase site (https://iol2027-portal.web.app), deployed from `development` until launch. It routes `/api/**` to the registration API on Cloud Run, so Team Leaders there sign in, save to the database and upload proofs, and organisers use the role-based back office at `/staff` and the badge scanner at `/check-in`. Live results, news admin and the badge scanner are not built yet.
+The registration portal is part of the website, under `/portal` (its own Firebase site until 30 Oct 2026, when the organisers asked to keep one address). It is a separate app in the same build (`portal/index.html`), so the public pages do not load it. On the development site `/api/**` goes to the registration API on Cloud Run, so Team Leaders sign in at `/portal`, save to the database and upload proofs, and organisers use the role-based back office at `/portal/staff` and the badge scanner at `/portal/check-in`. The public site has no API behind it until launch, and its `/portal` only says when registration opens. Live results, news admin and the badge scanner are not built yet.
 
 ### Current route strategy
 
