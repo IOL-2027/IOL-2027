@@ -9,7 +9,8 @@ import { FeeTable, InvoiceDetails, TeamSetup, UnsavedNote, invoiceProblems, read
 import { openReceipt } from './invoice'
 import { Alert, Card, Chip, Facts, FieldControl, PageHead, daysBetween, focusFirstError, formatDate, messageOf, unsavedWork } from './ui'
 
-// "attention": saved, but something in it is missing since (a person's details, the stay dates).
+// "attention": saved, but something in it is missing since (a person's details, the stay dates), or a proof of payment
+// Finance returned.
 type StepStatus = 'done' | 'attention' | 'todo' | 'locked' | 'info' | 'waiting' | 'after'
 const statusLabel: Record<StepStatus, string> = {
   done: 'Done', attention: 'Something to finish', todo: 'To do', locked: 'Opens after payment', info: 'Read first', waiting: 'After the steps above', after: 'After you submit',
@@ -196,6 +197,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const statusOf = (s: Section): StepStatus => {
     // People, and Rooms and welfare (built from People), open once the proof of payment is uploaded.
     if ((s.id === 'people' || s.id === 'welfare') && !paymentDone) return 'locked'
+    if (s.id === 'payment' && payment?.status === 'rejected') return 'attention'
     if (isDone(s.id)) return todo[s.id]?.length ? 'attention' : 'done'
     if (s.id === 'start') return 'info'
     if (s.id === 'submit') return ready ? 'todo' : 'waiting'
@@ -207,6 +209,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const locked = status === 'locked'
   // Payment is done on the Team Leader's side once the proof is in; the label says where Finance is with it.
   const stepLabel = (s: Section, st = statusOf(s)) => (s.id === 'payment' && st === 'done' ? (payment?.status === 'approved' ? 'Confirmed' : 'With Finance')
+    : s.id === 'payment' && st === 'attention' ? 'Proof returned'
     : s.id === 'submit' ? (submitted ? 'Submitted' : ready ? 'Ready to submit' : statusLabel.waiting)
     : st === 'attention' ? `${todo[s.id]!.length} ${todo[s.id]!.length === 1 ? 'thing' : 'things'} to finish` : statusLabel[st])
   // A step that can be worked on and still needs something: not saved yet, or saved and missing something since.
