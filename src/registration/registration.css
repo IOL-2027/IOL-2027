@@ -250,6 +250,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .is-current .reg-rail-text span { font-weight: 800; }
 .reg-rail-text small { font-size: 13px; color: var(--reg-muted); }
 .reg-rail-item.is-done small { color: var(--reg-ok-text); font-weight: 700; }
+.reg-rail-item.is-attention small { color: var(--reg-attn-text); font-weight: 700; }
 .reg-rail-group { margin: 22px 0 6px 12px; font-size: 13px; font-weight: 700; color: var(--reg-muted); }
 
 .reg-mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--reg-input-border); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--reg-muted); background: var(--reg-field-bg); }
@@ -258,6 +259,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-mark.is-done svg { width: 14px; height: 14px; fill: none; stroke: var(--reg-surface); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 16; stroke-dashoffset: 0; animation: reg-draw 320ms var(--reg-ease) both; }
 .reg-mark.is-locked, .reg-mark.is-after { border-style: dashed; color: var(--reg-muted); background: transparent; }
 .reg-mark.is-waiting { opacity: .7; }
+.reg-mark.is-attention, .is-attention .reg-track-mark { border-color: var(--reg-attn-text); background: var(--reg-attn-bg); color: var(--reg-attn-text); }
 
 .reg-panel { min-width: 0; padding: clamp(24px, 3.2vw, 44px); border: 1px solid var(--reg-border); border-radius: var(--reg-radius-lg); background: var(--reg-surface); scroll-margin-top: var(--reg-header-offset); animation: reg-enter var(--reg-med) var(--reg-ease); }
 .reg-panel-head { margin-bottom: 28px; }
@@ -364,7 +366,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .is-after .reg-track-title strong { color: var(--reg-muted); }
 .reg-track-label { font-size: 13px; font-weight: 700; color: var(--reg-muted); white-space: nowrap; }
 .is-done .reg-track-label { color: var(--reg-ok-text); }
-.is-next .reg-track-label { color: var(--reg-attn-text); }
+.is-next .reg-track-label, .is-attention .reg-track-label { color: var(--reg-attn-text); }
 .reg-track-detail { margin: 4px 0 0; max-width: 60ch; font-size: 15px; line-height: 1.5; color: var(--reg-muted); }
 /* What a step still needs, under its line on the overview. */
 .reg-track-todo { display: grid; gap: 2px; margin: 8px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.45; color: var(--reg-attn-text); list-style: disc; }

@@ -9,9 +9,10 @@ import { FeeTable, InvoiceDetails, TeamSetup, UnsavedNote, invoiceProblems, read
 import { openReceipt } from './invoice'
 import { Alert, Card, Chip, Facts, FieldControl, PageHead, daysBetween, focusFirstError, formatDate, messageOf, unsavedWork } from './ui'
 
-type StepStatus = 'done' | 'todo' | 'locked' | 'info' | 'waiting' | 'after'
+// "attention": saved, but something in it is missing since (a person's details, the stay dates).
+type StepStatus = 'done' | 'attention' | 'todo' | 'locked' | 'info' | 'waiting' | 'after'
 const statusLabel: Record<StepStatus, string> = {
-  done: 'Done', todo: 'To do', locked: 'Opens after payment', info: 'Read first', waiting: 'After the steps above', after: 'After you submit',
+  done: 'Done', attention: 'Something to finish', todo: 'To do', locked: 'Opens after payment', info: 'Read first', waiting: 'After the steps above', after: 'After you submit',
 }
 const paymentLabel: Record<string, string> = {
   none: 'Payment: invoice details not saved yet', awaiting_proof: 'Payment: waiting for proof', awaiting_review: 'Payment: waiting for Finance',
@@ -195,7 +196,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const statusOf = (s: Section): StepStatus => {
     // People, and Rooms and welfare (built from People), open once the proof of payment is uploaded.
     if ((s.id === 'people' || s.id === 'welfare') && !paymentDone) return 'locked'
-    if (isDone(s.id)) return 'done'
+    if (isDone(s.id)) return todo[s.id]?.length ? 'attention' : 'done'
     if (s.id === 'start') return 'info'
     if (s.id === 'submit') return ready ? 'todo' : 'waiting'
     if (s.afterSubmission) return submitted ? 'todo' : 'after'
@@ -206,12 +207,13 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const locked = status === 'locked'
   // Payment is done on the Team Leader's side once the proof is in; the label says where Finance is with it.
   const stepLabel = (s: Section, st = statusOf(s)) => (s.id === 'payment' && st === 'done' ? (payment?.status === 'approved' ? 'Confirmed' : 'With Finance')
-    : s.id === 'submit' ? (submitted ? 'Submitted' : ready ? 'Ready to submit' : statusLabel.waiting) : statusLabel[st])
+    : s.id === 'submit' ? (submitted ? 'Submitted' : ready ? 'Ready to submit' : statusLabel.waiting)
+    : st === 'attention' ? `${todo[s.id]!.length} ${todo[s.id]!.length === 1 ? 'thing' : 'things'} to finish` : statusLabel[st])
   // A step that can be worked on and still needs something: not saved yet, or saved and missing something since.
   const needsWork = (s: Section) => s.required && statusOf(s) !== 'locked' && (!isDone(s.id) || Boolean(todo[s.id]?.length))
   const firstOpenStep = ready || submitted ? undefined : main.find(needsWork)
   const stepNumber = (s: Section) => numbered.indexOf(s) + 1
-  const stepsDone = numbered.filter((s) => isDone(s.id)).length
+  const stepsDone = numbered.filter((s) => statusOf(s) === 'done').length
   // Steps can be done in any order, so after one comes the next one along that still needs something, and once there is
   // none, Submit, which shows anything left from earlier.
   const nextOf = (id: SectionId) => main.slice(main.findIndex((s) => s.id === id) + 1).find(needsWork)?.id ?? 'submit'
