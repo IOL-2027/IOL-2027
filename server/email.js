@@ -179,7 +179,7 @@ export function buildProofReturnedEmail({ countryTerritory, fullName, paymentRef
       ['Delegation', countryTerritory],
       ['Payment reference', paymentReference],
     ])}
-    ${p('Upload a new proof in the Payment step. Everything else you have entered is kept.')}
+    ${p('Upload a new proof in the Payment step. Everything else you have entered is kept, and you can carry on with the other steps meanwhile.')}
     ${button('Upload a new proof', paymentUrl)}
     ${p(`If you have questions about your payment, reply to this email with your payment reference.`, SMALL)}
   `
