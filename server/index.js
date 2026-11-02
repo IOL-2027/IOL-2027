@@ -606,10 +606,13 @@ const memberFields = {
   mobileWhatsapp: 'mobile_whatsapp',
 }
 
-/** People can only be added or edited once proof of payment is uploaded (Team Leader flow), except by admins. */
+/**
+ * People can only be added or edited once proof of payment is uploaded (Team Leader flow), except by admins. It stays
+ * open if Finance returns the proof ("rejected" only follows an upload); submitting still needs a proof not returned.
+ */
 async function requirePeopleOpen(req, delegationId) {
   if (DELEGATION_ADMINS.includes(req.user.role)) return
-  const paid = await query(`SELECT 1 FROM payments WHERE delegation_id = $1 AND status IN ('awaiting_review', 'approved') LIMIT 1`, [delegationId])
+  const paid = await query(`SELECT 1 FROM payments WHERE delegation_id = $1 AND status IN ('awaiting_review', 'approved', 'rejected') LIMIT 1`, [delegationId])
   if (!paid.rowCount) throw new HttpError(409, 'People opens once proof of payment is uploaded.')
 }
 
