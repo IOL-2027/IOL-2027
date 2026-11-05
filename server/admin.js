@@ -2,7 +2,7 @@
 // organiser settings and staff accounts. Who may call what is listed in docs/ROLES.md.
 import crypto from 'node:crypto'
 import { HttpError, ROLES, filterMember, hashPassword, requireRole } from './auth.js'
-import { buildInviteEmail, buildPaymentConfirmedEmail, retryEmail, sendEmail } from './email.js'
+import { buildInviteEmail, buildPaymentConfirmedEmail, buildProofReturnedEmail, retryEmail, sendEmail } from './email.js'
 import { backProblem } from './badge-pdf.js'
 import { sendBadgesIfSettled } from './badges.js'
 import {
@@ -201,6 +201,13 @@ export function registerAdminRoutes(app, { signedIn }) {
       await insertAudit(client, { actorAccountId: req.user.id, delegationId: payment.delegation_id, eventType: 'payment_rejected', entityType: 'payment', entityId: payment.id, details: { note } })
       return payment
     })
+    // The Team Leader hears straight away, with Finance's reason, rather than finding out on their next visit.
+    const d = (await query('SELECT country_territory, team_leader_email, primary_team_leader_name FROM delegations WHERE id = $1', [rejected.delegation_id])).rows[0]
+    const { subject, html } = buildProofReturnedEmail({
+      countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, paymentReference: rejected.payment_reference, note, paymentUrl: `${portalUrl}/?step=payment`,
+    })
+    await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_proof_returned', delegationId: rejected.delegation_id, retry: true })
+      .catch((e) => console.error(e.message))
     res.json({ payment: camelizeRow(rejected) })
   }))
 

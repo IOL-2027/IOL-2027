@@ -59,8 +59,11 @@ export type Delegation = {
   paymentStatus: string; declaredArrivalDate: string | null; declaredDepartureDate: string | null
   stayWindowNote: string | null; welfareNote: string | null; contestantRoomType: string | null; completedSteps: string[]; submittedAt: string | null
   feeCategory: FeeCategory
-  /** Yes or no for each Team Leader (one per team) and each observer, chosen in Team and observers. */
-  singleRooms: { teamLeaders: boolean[]; observers: boolean[] }
+  /**
+   * Chosen in Team and observers: yes or no to a single room for each Team Leader (one per team) and each observer,
+   * and the team each observer comes with (0 for the first, 1 for the second).
+   */
+  singleRooms: { teamLeaders: boolean[]; observers: boolean[]; observerTeams?: number[] }
 }
 export type Attachment = { id: string; memberId: string | null; kind: string; originalFilename: string; mimeType: string; createdAt: string }
 export type GuardianConsentPolicy = { required: boolean; ageThreshold: number; referenceDate: string }
