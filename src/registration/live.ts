@@ -21,7 +21,7 @@ const memberFieldDefs: MemberFieldDef[] = [
   { key: 'passportName', label: 'Passport name', value: '', help: 'Exactly as printed in the passport.' },
   { key: 'passportNumber', label: 'Passport number', value: '' },
   { key: 'passportNationality', label: 'Passport nationality', value: '' },
-  { key: 'dateOfBirth', label: 'Date of birth', value: '', kind: 'date', help: 'Confirms contestant eligibility and whether a guardian consent is needed.' },
+  { key: 'dateOfBirth', label: 'Date of birth', value: '', kind: 'date', help: 'Confirms contestant eligibility.' },
   { key: 'examLanguage', label: 'Individual contest language', value: '', kind: 'select', other: true, roles: ['contestant'], help: 'The language of their individual contest paper.' },
   { key: 'genderForRoomAllocation', label: 'Gender for room allocation', value: '', kind: 'select', help: 'Used only for rooming and safeguarding.' },
   { key: 'tshirtSize', label: 'T-shirt size', value: '', kind: 'select', help: shirtHelp },

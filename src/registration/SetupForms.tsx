@@ -2,7 +2,7 @@
 // (teams, the observer each team may bring, and who needs a single room, which set the fees) and the invoice details
 // on Payment (one invoice, or several with a payer and an amount each that must add up to the total).
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
-import { ArrowRight, CircleAlert, Info, Plus } from 'lucide-react'
+import { ArrowRight, CircleAlert, Info, Lock, Plus } from 'lucide-react'
 import type { DelegationData, Payment } from './api'
 import { selectOptions } from './portalData'
 import { Alert, Card, Chip, Facts } from './ui'
@@ -77,9 +77,12 @@ export function teamNames(data: DelegationData, count: number) {
 export type SetupBody = { numberOfTeams: number; numberOfObservers: number; observerTeams: number[]; singleRooms: { teamLeaders: boolean[]; observers: boolean[] } }
 type Observer = { key: number; team: number; room: string }
 
-/** Team and observers: how many teams, the observer each team brings, who wants a single room, and what that costs. */
-export function TeamSetup({ data, paymentDone, busy, error, dirty, onTouched, onSave }: {
-  data: DelegationData; paymentDone: boolean; busy: boolean; error: ReactNode; dirty: boolean; onTouched: () => void; onSave: (body: SetupBody) => void
+/**
+ * Team and observers: how many teams, the observer each team brings, who wants a single room, and what that costs.
+ * Locked (shown, not changed) once the proof of payment is uploaded, because it sets the amount paid.
+ */
+export function TeamSetup({ data, locked, busy, error, dirty, onTouched, onSave, onContinue }: {
+  data: DelegationData; locked: boolean; busy: boolean; error: ReactNode; dirty: boolean; onTouched: () => void; onSave: (body: SetupBody) => void; onContinue: () => void
 }) {
   const d = data.delegation
   const rules = data.feeRules
@@ -136,12 +139,13 @@ export function TeamSetup({ data, paymentDone, busy, error, dirty, onTouched, on
   const total = lines.reduce((sum, line) => sum + (line.amount ?? 0), 0)
   // An unpaid invoice follows this step when it is saved: say so before its amount changes under whoever pays it.
   const invoice = data.payments[0]
-  const invoiceChanges = Boolean(invoice && !paymentDone && cents(total) !== cents(Number(invoice.amountDue)))
+  const invoiceChanges = Boolean(invoice && !locked && cents(total) !== cents(Number(invoice.amountDue)))
   // Observers already named in People must still be covered by the fees.
   const named = data.members.filter((m) => m.role === 'observer').length
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (locked) { onContinue(); return }
     const missing = Object.fromEntries(rooms.filter((r) => !r.value).map((r) => [r.id, 'Choose yes or no.']))
     setErrors(missing)
     if (Object.keys(missing).length) { document.getElementById(Object.keys(missing)[0])?.focus(); return }
@@ -154,6 +158,11 @@ export function TeamSetup({ data, paymentDone, busy, error, dirty, onTouched, on
   return (
     <form onSubmit={submit} noValidate data-dirty-key="setup">
       <div className="reg-cards">
+        {locked && (
+          <p className="reg-aside reg-aside-lock"><Lock size={18} aria-hidden="true" />
+            <span>Locked, because your proof of payment is uploaded and these choices set the amount you paid. To change anything here, email the organisers at <a href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a>.</span>
+          </p>
+        )}
         <Card id="setup-delegation" title="Your delegation" intro="From your invitation code and your account. If anything looks wrong, email the organisers.">
           <Facts items={[
             { label: 'Team Leader', value: d.primaryTeamLeaderName, help: d.teamLeaderEmail },
@@ -165,7 +174,7 @@ export function TeamSetup({ data, paymentDone, busy, error, dirty, onTouched, on
         <Card id="setup-numbers" title="Teams and observers"
           intro={`Each team is four contestants and a Team Leader, whose place is in the team fee.${perTeam ? ` A team may also bring ${perTeam === 1 ? 'an observer' : `up to ${perTeam} observers`}, for example a parent or someone from your national olympiad.` : ''} You name everyone later, in People.`}>
           <div className="reg-grid">
-            <LiveSelect id="setup-number-of-teams" label="Number of teams" value={String(teams)} options={oneTeamOnly ? ['1'] : ['1', '2']} onChange={(v) => setTeams(Number(v))}
+            <LiveSelect id="setup-number-of-teams" label="Number of teams" value={String(teams)} options={oneTeamOnly ? ['1'] : ['1', '2']} onChange={(v) => setTeams(Number(v))} disabled={locked}
               help={oneTeamOnly ? 'A country or territory that is not accredited registers one team.' : 'One or two. A second team costs more than the first.'} />
           </div>
           <ul className="reg-team-boxes" aria-label="Your teams">
@@ -183,14 +192,16 @@ export function TeamSetup({ data, paymentDone, busy, error, dirty, onTouched, on
                       {mine.map((o) => (
                         <li key={o.key}>
                           <span><strong>{observerName(o, false)}</strong><small>{observerFee} · named later, in People</small></span>
-                          <button type="button" id={`setup-observer-${o.key}-remove`} className="reg-btn-link reg-btn-remove" onClick={() => removeObserver(o)}>
-                            Remove<span className="reg-visually-hidden"> the {observerName(o, false).toLowerCase()} of {names[t]}</span>
-                          </button>
+                          {!locked && (
+                            <button type="button" id={`setup-observer-${o.key}-remove`} className="reg-btn-link reg-btn-remove" onClick={() => removeObserver(o)}>
+                              Remove<span className="reg-visually-hidden"> the {observerName(o, false).toLowerCase()} of {names[t]}</span>
+                            </button>
+                          )}
                         </li>
                       ))}
                     </ul>
                   )}
-                  {mine.length < perTeam && (
+                  {mine.length < perTeam && !locked && (
                     <button type="button" id={`setup-add-observer-${t}`} className="reg-btn-link reg-add-link" onClick={() => addObserver(t)}>
                       <Plus size={16} aria-hidden="true" />Add observer<span className="reg-visually-hidden"> to {names[t]}</span>
                     </button>
@@ -201,7 +212,9 @@ export function TeamSetup({ data, paymentDone, busy, error, dirty, onTouched, on
           </ul>
           {named > shown.length && (
             <p className="reg-aside reg-aside-warn reg-card-foot"><Info size={18} aria-hidden="true" />
-              <span>People already names {named} {named === 1 ? 'observer' : 'observers'}, more than you have here. Add an observer back, or remove the extra {named - shown.length === 1 ? 'one' : 'ones'} in People, so your fees cover everyone who comes.</span>
+              <span>{locked
+                ? <>People names {named} {named === 1 ? 'observer' : 'observers'}, more than you paid for. Remove the extra {named - shown.length === 1 ? 'one' : 'ones'} in People, or email the organisers to add an observer.</>
+                : <>People already names {named} {named === 1 ? 'observer' : 'observers'}, more than you have here. Add an observer back, or remove the extra {named - shown.length === 1 ? 'one' : 'ones'} in People, so your fees cover everyone who comes.</>}</span>
             </p>
           )}
           <span className="reg-visually-hidden" role="status">{announce}</span>
@@ -209,24 +222,23 @@ export function TeamSetup({ data, paymentDone, busy, error, dirty, onTouched, on
 
         <Card id="setup-rooms" title="Single rooms" intro={`Team Leaders and observers share twin rooms. Anyone who would rather have a room to themselves can ask for a single room, at ${usd(rules.singleRoomFee)} more. Contestants share with a teammate of the same gender.`}>
           <div className="reg-grid">
-            {rooms.map((r) => <LiveSelect key={r.id} id={r.id} label={r.label} value={r.value} options={singleAnswers} placeholder="Choose…" error={errors[r.id]} onChange={r.set} />)}
+            {rooms.map((r) => <LiveSelect key={r.id} id={r.id} label={r.label} value={r.value} options={singleAnswers} placeholder="Choose…" error={errors[r.id]} onChange={r.set} disabled={locked} />)}
           </div>
         </Card>
 
-        <Card id="setup-fees" title="Your fees" intro="Updates as you choose. Saving this step sets the amount on your invoice." status={<Chip tone="later">{data.fees.tierLabel} rate</Chip>}>
+        <Card id="setup-fees" title="Your fees" intro={locked ? 'The amount on your invoice, for what you chose above.' : 'Updates as you choose. Saving this step sets the amount on your invoice.'} status={<Chip tone="later">{data.fees.tierLabel} rate</Chip>}>
           <FeeTable lines={lines} total={total} pending={shown.length > 0 && rules.observerFee === null} />
           {invoiceChanges && invoice && (
             <p className="reg-aside reg-aside-warn"><Info size={18} aria-hidden="true" />
               <span>Your invoice {invoice.invoiceNumber} is for {usd(Number(invoice.amountDue))}. Saving changes it to {usd(total)}{invoice.invoiceSplits?.length ? ', and you will need to share the new total between your payers again in Payment' : ''}. Then download the new PDF in Payment for whoever pays.</span>
             </p>
           )}
-          {paymentDone && <p className="reg-aside"><Info size={18} aria-hidden="true" />You have already paid. If a change here alters the total, Finance will contact you about the difference.</p>}
         </Card>
       </div>
       <div className="reg-panel-actions">
         <Alert>{error}</Alert>
-        <button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save and continue'} <ArrowRight size={18} aria-hidden="true" /></button>
-        <UnsavedNote show={dirty} />
+        <button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{locked ? 'Continue' : busy ? 'Saving…' : 'Save and continue'} <ArrowRight size={18} aria-hidden="true" /></button>
+        <UnsavedNote show={dirty && !locked} />
       </div>
     </form>
   )

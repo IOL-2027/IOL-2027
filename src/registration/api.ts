@@ -65,7 +65,8 @@ export type Delegation = {
    */
   singleRooms: { teamLeaders: boolean[]; observers: boolean[]; observerTeams?: number[] }
 }
-export type Attachment = { id: string; memberId: string | null; kind: string; originalFilename: string; mimeType: string; createdAt: string }
+/** A file uploaded to the delegation. A proof of payment's files carry their payment (paymentId). */
+export type Attachment = { id: string; memberId: string | null; paymentId?: string | null; kind: string; originalFilename: string; mimeType: string; createdAt: string }
 export type GuardianConsentPolicy = { required: boolean; ageThreshold: number; referenceDate: string }
 /** Team fees per tier and category: [first team, second team], or [team] for a country that is not accredited. */
 export type FeeSettings = {

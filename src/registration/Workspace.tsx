@@ -74,6 +74,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const [navOpen, setNavOpen] = useState(false)
   const [copied, setCopied] = useState('')
   const [draftTrip, setDraftTrip] = useState<'arrival' | 'departure' | null>(null)
+  // "Add another" pressed before the first flight that way is saved: that first one opens, with a word on what to do.
+  const [firstTripHint, setFirstTripHint] = useState<'arrival' | 'departure' | null>(null)
   // Forms with changes that are not saved yet, by their data-dirty-key: setup, invoice, welfare, record (the person,
   // team or trip being edited) and stay-note. Leaving one of them asks first, and so does closing the tab.
   const [dirty, setDirty] = useState<Record<string, true>>({})
@@ -145,9 +147,10 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     const steps = new Set(d.completedSteps)
     const payment = data.payments[0]
     const paymentDone = Boolean(payment && ['awaiting_review', 'approved'].includes(payment.status))
-    // People opens once a proof of payment is uploaded, and stays open if Finance returns it: submitting still needs
-    // a proof Finance has not returned.
-    const peopleOpen = paymentDone || payment?.status === 'rejected'
+    // Once a proof of payment is in (with Finance, confirmed, or returned to be completed), People opens, and Team and
+    // observers and the invoice details lock, because they set the amount paid. Submitting still needs a proof
+    // Finance has not returned.
+    const proofIn = paymentDone || payment?.status === 'rejected'
     const submitted = d.registrationStatus !== 'draft'
     const draftMember = { role: 'contestant' as const, teamId: data.teams[0]?.id ?? null }
     // The account's own Team Leader comes first; with two teams, one more person may lead the second team.
@@ -167,7 +170,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
         return [...trips.map((t, i) => tripRecord(dir, t, data.members, several ? i + 1 : undefined)), ...(adding ? [tripRecord(dir, undefined, data.members, several ? trips.length + 1 : undefined)] : [])]
       }),
     }
-    return { d, steps, payment, paymentDone, peopleOpen, submitted, records }
+    return { d, steps, payment, paymentDone, proofIn, submitted, records }
   }, [data, draftOpen, draftTrip])
 
   const eyebrow = staff ? `Back office · ${staff.roleLabel}` : 'Team Leader portal'
@@ -180,7 +183,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     </>
   }
 
-  const { d, steps, payment, paymentDone, peopleOpen, submitted, records } = derived
+  const { d, steps, payment, paymentDone, proofIn, submitted, records } = derived
   const isDone = (id: SectionId) => (id === 'payment' ? paymentDone : id === 'submit' ? submitted : steps.has(id))
   const doneCount = required.filter((s) => isDone(s.id)).length
   const allRequiredDone = doneCount === required.length
@@ -194,12 +197,18 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     (records[id] ?? []).filter((r) => r.status === 'attention' && r.id !== NEW_PERSON).forEach((r) => needs(id, `${r.label}: ${r.issue?.toLowerCase()}`))
   }
   const namedObservers = data.members.filter((m) => m.role === 'observer').length
-  if (namedObservers !== d.numberOfObservers) needs(namedObservers > d.numberOfObservers ? 'setup' : 'people', `Observers: ${d.numberOfObservers} in Team and observers, ${namedObservers} in People`)
+  if (namedObservers !== d.numberOfObservers) {
+    // Once Team and observers is locked, an extra observer is removed in People (or added by the organisers).
+    const extra = namedObservers > d.numberOfObservers
+    needs(extra && !proofIn ? 'setup' : 'people', extra && proofIn
+      ? `Observers: ${d.numberOfObservers} paid for, ${namedObservers} in People. Remove the extra in People, or email the organisers to add one`
+      : `Observers: ${d.numberOfObservers} in Team and observers, ${namedObservers} in People`)
+  }
   const ready = !submitted && allRequiredDone && !Object.values(todo).some((items) => items?.length)
 
   const statusOf = (s: Section): StepStatus => {
     // People, and Rooms and welfare (built from People), open once the proof of payment is uploaded.
-    if ((s.id === 'people' || s.id === 'welfare') && !peopleOpen) return 'locked'
+    if ((s.id === 'people' || s.id === 'welfare') && !proofIn) return 'locked'
     if (s.id === 'payment' && payment?.status === 'rejected') return 'attention'
     if (isDone(s.id)) return todo[s.id]?.length ? 'attention' : 'done'
     if (s.id === 'start') return 'info'
@@ -346,7 +355,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     setDraftOpen(false); setSelected((s) => ({ ...s, people: undefined })); clean('record')
   }
   const addTrip = (direction: 'arrival' | 'departure') => guard(() => {
-    setDraftTrip(direction)
+    const first = !data!.travelRecords.some((t) => t.direction === direction)
+    setFirstTripHint(first ? direction : null)
+    if (!first) setDraftTrip(direction)
     setSelected((s) => ({ ...s, travel: `new-${direction}` }))
     setRecordOpen(true); setFieldErrors({}); setSavedNote(''); clean('record')
   }, ['record'])
@@ -398,13 +409,19 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     clean('invoice')
     return true
   }
-  const uploadProof = (file: File) => run(async () => {
+  // The proof is one or more files; each upload adds to it and sends it to Finance again.
+  const uploadProof = (files: File[]) => run(async () => {
     const form = new FormData()
-    form.append('proof', file)
+    files.forEach((file) => form.append('proof', file))
     await api(`/api/registration/delegations/${d.id}/payment-proof`, { method: 'POST', form })
     await load()
     setFieldErrors({})
-    setSavedNote('Proof uploaded.')
+    setSavedNote(files.length > 1 ? `${files.length} files uploaded.` : 'File uploaded.')
+  })
+  const removeProofFile = (id: string) => run(async () => {
+    await api(`/api/registration/attachments/${id}/proof`, { method: 'DELETE' })
+    await load()
+    setSavedNote('File removed.')
   })
   const uploadConsent = (memberId: string, file: File) => run(async () => {
     const form = new FormData()
@@ -417,8 +434,10 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     event.preventDefault()
     if (paymentDone) { go(nextOf('payment')); return }
     run(async () => {
-      if ((!payment || dirty.invoice) && !(await saveInvoice())) return
-      moveOn('Payment stays on your list until you upload the bank’s proof of transfer. Come back to it after you transfer.')
+      if ((!payment || dirty.invoice) && !proofIn && !(await saveInvoice())) return
+      moveOn(payment?.status === 'rejected'
+        ? 'Payment stays on your list until you add the files Finance asked for.'
+        : 'Payment stays on your list until you upload the bank’s proof of transfer. Come back to it after you transfer.')
     })
   }
 
@@ -476,11 +495,15 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     return rest.length ? [...groups, { legend: 'Other', note: undefined, fields: rest }] : groups
   }
 
-  const proofAttachment = payment?.proofAttachmentId ? data.attachments.find((a) => a.id === payment.proofAttachmentId) : undefined
-  // A proof can be replaced until Finance has approved it (a wrong file, or a better scan).
+  // The files of the proof, oldest first. Files can be added, and removed (one must stay), until Finance confirms it.
+  const proofFiles = !payment ? [] : data.attachments
+    .filter((a) => a.kind === 'payment_proof' && (a.paymentId ? a.paymentId === payment.id : a.id === payment.proofAttachmentId))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
   const canUpload = Boolean(payment && ['awaiting_proof', 'rejected', 'awaiting_review'].includes(payment.status))
+  const canRemoveProof = Boolean(payment && ['rejected', 'awaiting_review'].includes(payment.status)) && proofFiles.length > 1
   const receipt = payment?.status === 'approved' && payment.receiptNumber ? payment : undefined
-  const proofDay = proofAttachment ? dayOf(proofAttachment.createdAt) : null
+  const lastProof = proofFiles[proofFiles.length - 1]
+  const proofDay = lastProof ? dayOf(lastProof.createdAt) : null
   const reviewDay = payment?.reviewedAt ? dayOf(payment.reviewedAt) : null
   // One PDF per invoice: a split has one for each payer, numbered IOL2027/23-1, -2 and so on.
   const invoiceFiles = !payment ? [] : payment.invoiceSplits?.length
@@ -494,10 +517,10 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const payProgress: { title: string; intro: string; stages: PayStage[] } | null = !payment || !['awaiting_review', 'approved', 'rejected'].includes(payment.status) ? null : {
     title: payment.status === 'approved' ? 'Payment confirmed' : payment.status === 'rejected' ? 'Finance returned your proof' : 'Finance is checking your payment',
     intro: payment.status === 'approved' ? 'Thank you. There is nothing more to do in this step.'
-      : payment.status === 'rejected' ? 'Upload a new proof in part 4 below. Everything else you have entered is kept, and the other steps stay open.'
+      : payment.status === 'rejected' ? 'Add the missing or corrected files in part 4 below, and remove any that were wrong. Everything else you have entered is kept, and the other steps stay open.'
       : 'You do not need to wait for it: carry on with the other steps. We email you as soon as the payment is confirmed.',
     stages: [
-      { key: 'uploaded', state: 'done', title: 'Proof uploaded', detail: <>{proofDay ? `On ${proofDay}` : 'Uploaded'}{proofAttachment && <>: {proofAttachment.originalFilename}</>}</> },
+      { key: 'uploaded', state: 'done', title: 'Proof uploaded', detail: <>{proofDay ? `On ${proofDay}` : 'Uploaded'}{proofFiles.length === 1 ? <>: {proofFiles[0].originalFilename}</> : proofFiles.length > 1 ? `: ${proofFiles.length} files` : ''}</> },
       payment.status === 'approved' ? { key: 'check', state: 'done', title: 'Finance checked it against the bank statement', detail: `Matched${reviewDay ? ` on ${reviewDay}` : ''}.` }
         : payment.status === 'rejected' ? { key: 'check', state: 'problem', title: 'Finance could not match it', detail: <>Returned{reviewDay ? ` on ${reviewDay}` : ''}{payment.reviewNote ? <>, with this note: “{payment.reviewNote}”</> : '.'}</> }
         : { key: 'check', state: 'current', title: 'Finance checks it against the bank statement', detail: 'Usually within 5 business days. A transfer from abroad can take a few days to reach the account.' },
@@ -539,9 +562,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       : paymentStatus === 'rejected' ? 'Finance returned the proof. Upload a new one.'
       : payment ? 'Invoice details saved. Transfer, then upload the bank’s proof.' : 'Invoice details, the bank transfer, then the proof of transfer.',
     teams: steps.has('teams') ? data.teams.map((t) => `${t.name}: ${t.contestLanguage ?? 'no language yet'}`).join(' · ') : 'Choose each team’s contest language.',
-    people: !peopleOpen ? 'Opens once the proof of payment is uploaded.'
+    people: !proofIn ? 'Opens once the proof of payment is uploaded.'
       : `${peopleCount} ${peopleCount === 1 ? 'person' : 'people'} entered${peopleToFinish ? `, ${peopleToFinish} still to finish` : ''}.`,
-    welfare: !peopleOpen ? 'Opens with People, once the proof of payment is uploaded.' : steps.has('welfare') ? 'Summary checked.' : 'Check the summary built from everyone’s details, and add any room requests.',
+    welfare: !proofIn ? 'Opens with People, once the proof of payment is uploaded.' : steps.has('welfare') ? 'Summary checked.' : 'Check the summary built from everyone’s details, and add any room requests.',
     travel: d.declaredArrivalDate && d.declaredDepartureDate
       ? `Staying ${formatDate(d.declaredArrivalDate)} to ${formatDate(d.declaredDepartureDate)}. ${flightsIn ? `${flightsIn} ${flightsIn === 1 ? 'flight' : 'flights'} added${flightsMissing ? ', but not everyone is on one yet' : ''}` : 'Flights once they are booked'}.`
       : 'Stay dates now; flights once they are booked.',
@@ -661,7 +684,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
           <h3>{activeId === 'travel' ? 'Flights' : `${sectionRecords.filter((r) => r.id !== NEW_PERSON).length} ${section.records.plural}`}</h3>
           {activeId === 'people' && !draftOpen && <button type="button" className="reg-btn-link" onClick={addPerson}><UserPlus size={16} aria-hidden="true" />Add person</button>}
         </div>
-        {activeId === 'travel' && <p className="reg-hint">Add these once flights are booked. If people travel on different flights, add a trip for each.</p>}
+        {activeId === 'travel' && <p className="reg-hint">Add each flight once it is booked. People on different flights? Add an arrival or departure for each flight, and tick who is on it.</p>}
         <ul>
           {sectionRecords.map((record) => (
             <li key={record.id}>
@@ -674,8 +697,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
         </ul>
         {activeId === 'travel' && !draftTrip && (
           <div className="reg-record-adds">
-            {(['arrival', 'departure'] as const).filter((dir) => data.travelRecords.some((t) => t.direction === dir)).map((dir) => (
-              <button key={dir} type="button" className="reg-btn-link" onClick={() => addTrip(dir)}><Plus size={16} aria-hidden="true" />Add another {dir}</button>
+            {(['arrival', 'departure'] as const).map((dir) => (
+              <button key={dir} type="button" className="reg-btn-link reg-add-link" onClick={() => addTrip(dir)}><Plus size={16} aria-hidden="true" />Add another {dir}</button>
             ))}
           </div>
         )}
@@ -692,6 +715,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
             <h3>{currentRecord.label}</h3>
             {recordChip(currentRecord)}
           </div>
+          {activeId === 'travel' && firstTripHint && currentRecord.id === `new-${firstTripHint}` && !data.travelRecords.some((t) => t.direction === firstTripHint) && (
+            <p className="reg-aside" role="status"><Info size={18} aria-hidden="true" /><span>Fill in this first {firstTripHint} and tick who is on it, then save it. After that, “Add another {firstTripHint}” adds the next flight, for anyone on a different one.</span></p>
+          )}
           {currentRecord.missing && currentRecord.missing.length > 0 && (
             <p className="reg-aside reg-aside-warn reg-still"><CircleAlert size={18} aria-hidden="true" /><span><strong>Still needed:</strong> {currentRecord.missing.map((label) => label.toLowerCase()).join(', ')}.</span></p>
           )}
@@ -849,7 +875,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
           {activeId === 'submit' && overview}
 
-          {activeId === 'setup' && <TeamSetup key={`${d.numberOfTeams}-${d.numberOfObservers}`} data={data} paymentDone={paymentDone} busy={busy} error={sectionError} dirty={Boolean(dirty.setup)} onTouched={() => markDirty('setup')} onSave={saveSetup} />}
+          {activeId === 'setup' && <TeamSetup key={`${d.numberOfTeams}-${d.numberOfObservers}`} data={data} locked={proofIn} busy={busy} error={sectionError} dirty={Boolean(dirty.setup)} onTouched={() => markDirty('setup')} onSave={saveSetup} onContinue={() => go(nextOf('setup'))} />}
 
           {activeId === 'welfare' && !locked && (
             <form onSubmit={saveWelfare} noValidate data-dirty-key="welfare">
@@ -911,9 +937,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
                 <Card id="pay-invoice" number={1} done={Boolean(payment) && !dirty.invoice} title="Invoice details" intro="Who the invoice is made out to. Invoices cannot be split after you transfer."
                   status={dirty.invoice ? <Chip tone="attention">Unsaved changes</Chip> : payment ? <Chip tone="ok">Saved</Chip> : <Chip tone="later">Not saved yet</Chip>}>
-                  {paymentDone && <p className="reg-hint reg-card-lead">Locked while Finance checks your payment. To change them, email the organisers.</p>}
-                  <InvoiceDetails key={payment?.id ?? 'new'} data={data} payment={payment} disabled={paymentDone} errors={fieldErrors} onTouched={() => markDirty('invoice')} />
-                  {!paymentDone && (
+                  {proofIn && <p className="reg-hint reg-card-lead"><Lock size={14} aria-hidden="true" /> Locked, because your proof of payment is uploaded. To change the invoice details, email the organisers.</p>}
+                  <InvoiceDetails key={payment?.id ?? 'new'} data={data} payment={payment} disabled={proofIn} errors={fieldErrors} onTouched={() => markDirty('invoice')} />
+                  {!proofIn && (
                     <div className="reg-card-actions">
                       <button type="button" className="reg-btn reg-btn-secondary" disabled={busy} onClick={() => run(async () => { if (await saveInvoice()) setSavedNote('Invoice details saved.') })}>{busy ? 'Saving…' : 'Save invoice details'}</button>
                       {dirty.invoice ? <UnsavedNote show /> : <span className="reg-saved" role="status">{savedNote && <><Check size={15} strokeWidth={3} aria-hidden="true" />{savedNote}</>}</span>}
@@ -959,21 +985,40 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                   </ul>
                 </Card>
 
-                <Card id="pay-proof" number={4} done={paymentDone} title="Upload the proof of transfer" intro="People opens as soon as it is uploaded." status={proofChip}>
-                  <div className={`reg-field reg-field-wide${fieldErrors.proof ? ' has-error' : ''}`}>
-                    <span className="reg-label-text" id="proof-label">Proof of transfer</span>
-                    <p className="reg-hint" id="proof-hint">{canUpload || paymentDone
-                      ? `${payment?.status === 'rejected' ? 'Finance returned the last one (the reason is at the top of this page), so upload a new one: ' : ''}The bank’s confirmation or a screenshot of the completed transfer. PDF, JPG or PNG, up to 10 MB.${invoiceFiles.length > 1 ? ' Paid in separate transfers? Put every confirmation in one PDF.' : ''}`
-                      : 'Save the invoice details first, then upload the proof after you transfer.'}</p>
-                    {fieldErrors.proof && <p className="reg-error" id="proof-error"><CircleAlert size={16} aria-hidden="true" />{fieldErrors.proof}</p>}
-                    <label className={`reg-dropzone${paymentDone ? ' is-filled' : ''}${fieldErrors.proof ? ' has-error' : ''}${!canUpload && !paymentDone ? ' is-disabled' : ''}`}>
-                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={!canUpload || busy} aria-labelledby="proof-label" aria-describedby={`proof-hint${fieldErrors.proof ? ' proof-error' : ''}`}
-                        onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadProof(file); e.target.value = '' }} />
-                      {paymentDone
-                        ? <><Check size={22} strokeWidth={2.6} aria-hidden="true" /><span><strong>{busy ? 'Uploading…' : proofAttachment?.originalFilename ?? 'Proof uploaded'}</strong>{payment?.status === 'approved' ? 'Approved by Finance.' : 'Uploaded. Wrong file? Choose another to replace it until Finance has checked it.'}</span></>
-                        : <><Upload size={22} aria-hidden="true" /><span><strong>{busy ? 'Uploading…' : 'Choose a file'}</strong>{canUpload ? <span className="reg-drag-hint">or drag it here</span> : 'Available once the invoice details are saved'}</span></>}
-                    </label>
-                  </div>
+                <Card id="pay-proof" number={4} done={paymentDone} title="Upload the proof of transfer"
+                  intro="People opens as soon as it is uploaded. Team and observers and the invoice details then lock, because they set the amount you pay." status={proofChip}>
+                  {proofFiles.length > 0 && (
+                    <ul className="reg-files reg-proof-files" aria-label="Your proof of transfer">
+                      {proofFiles.map((file) => (
+                        <li key={file.id}>
+                          <FileText size={20} aria-hidden="true" />
+                          <span><strong>{file.originalFilename}</strong>Uploaded {dayOf(file.createdAt)}{payment?.status === 'approved' ? ' · confirmed by Finance' : ''}</span>
+                          {canRemoveProof && (
+                            <button type="button" className="reg-btn-link reg-btn-remove" disabled={busy} onClick={() => removeProofFile(file.id)}>
+                              Remove<span className="reg-visually-hidden"> {file.originalFilename}</span>
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {canUpload && (
+                    <div className={`reg-field reg-field-wide${fieldErrors.proof ? ' has-error' : ''}`}>
+                      <span className="reg-label-text" id="proof-label">{proofFiles.length ? 'Add more files' : 'Proof of transfer'}</span>
+                      <p className="reg-hint" id="proof-hint">{payment?.status === 'rejected'
+                        ? 'Finance returned your proof (the reason is at the top of this page). Add the missing or corrected files; adding a file sends the proof to Finance again. '
+                        : proofFiles.length ? 'A file missing, such as the confirmation of a second transfer? Add it here. ' : 'The bank’s confirmation or a screenshot of the completed transfer. '}
+                        You can choose several files at once, one for each transfer for example: PDF, JPG, PNG, WEBP or HEIC, up to 10 MB each.</p>
+                      {fieldErrors.proof && <p className="reg-error" id="proof-error"><CircleAlert size={16} aria-hidden="true" />{fieldErrors.proof}</p>}
+                      <label className={`reg-dropzone${fieldErrors.proof ? ' has-error' : ''}`}>
+                        <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif" disabled={busy}
+                          aria-labelledby="proof-label" aria-describedby={`proof-hint${fieldErrors.proof ? ' proof-error' : ''}`}
+                          onChange={(e) => { const files = [...(e.target.files ?? [])]; if (files.length) uploadProof(files); e.target.value = '' }} />
+                        <Upload size={22} aria-hidden="true" /><span><strong>{busy ? 'Uploading…' : proofFiles.length ? 'Choose more files' : 'Choose files'}</strong><span className="reg-drag-hint">or drag them here</span></span>
+                      </label>
+                    </div>
+                  )}
+                  {!payment && <p className="reg-muted reg-card-empty">Save the invoice details first, then upload the proof after you transfer.</p>}
                   {!payProgress && <p className="reg-hint reg-card-foot">After you upload it, Finance checks it against the bank statement, usually within 5 business days. We email you once the payment is confirmed, and your e-receipt appears on this page.</p>}
                 </Card>
               </div>
