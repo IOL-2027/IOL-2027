@@ -807,7 +807,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-step .reg-card-subhead { margin: 28px 0 12px; font-size: 16px; font-weight: 800; }
 .reg-card-lead { margin: 0 0 18px !important; }
 .reg-card-lead svg { vertical-align: -2px; }
-.reg-proof-files { margin-bottom: 20px; }
+.reg-files.reg-proof-files { margin-bottom: 24px; }
 .reg-proof-files .reg-btn-remove { min-height: 40px; padding: 0 4px; font-size: 14px; }
 .reg-card-foot { margin: 16px 0 0; }
 .reg-card-empty { margin: 0; font-size: 15px; }
