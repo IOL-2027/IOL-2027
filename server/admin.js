@@ -153,7 +153,10 @@ export function registerAdminRoutes(app, { signedIn }) {
     const status = optionalString(req.query.status)
     const result = await query(
       `SELECT p.*, d.country_territory, d.primary_team_leader_name, d.team_leader_email, d.number_of_teams, d.number_of_observers, d.fee_category, d.single_rooms,
-         a.original_filename AS proof_filename, a.mime_type AS proof_mime_type, r.full_name AS reviewed_by_name
+         a.original_filename AS proof_filename, a.mime_type AS proof_mime_type, r.full_name AS reviewed_by_name,
+         -- Every file of the proof, oldest first (a proof can be several files).
+         COALESCE((SELECT json_agg(json_build_object('id', f.id, 'filename', f.original_filename, 'mimeType', f.mime_type, 'createdAt', f.created_at) ORDER BY f.created_at)
+           FROM attachments f WHERE f.payment_id = p.id), '[]') AS proof_files
        FROM payments p JOIN delegations d ON d.id = p.delegation_id
        LEFT JOIN attachments a ON a.id = p.proof_attachment_id LEFT JOIN accounts r ON r.id = p.reviewed_by_account_id
        WHERE ($1::text IS NULL OR p.status = $1) ORDER BY p.updated_at DESC LIMIT 300`,

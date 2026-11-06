@@ -162,6 +162,7 @@ export function buildProofReceivedEmail({ countryTerritory, fullName, paymentRef
     ])}
     ${notice('<strong>You do not need to wait.</strong> People is open now, so you can add everyone’s details while Finance checks the payment.')}
     ${peopleUrl ? button('Continue your registration', peopleUrl) : ''}
+    ${p('Team and observers and the invoice details are now locked, because they set the amount you paid. To change them, reply to this email.', SMALL)}
     ${p(`If you have questions about your payment, reply to this email with your payment reference.`, SMALL)}
   `
   return { subject, html: layout(preview, body) }
@@ -179,7 +180,7 @@ export function buildProofReturnedEmail({ countryTerritory, fullName, paymentRef
       ['Delegation', countryTerritory],
       ['Payment reference', paymentReference],
     ])}
-    ${p('Upload a new proof in the Payment step. Everything else you have entered is kept, and you can carry on with the other steps meanwhile.')}
+    ${p('Add the missing or corrected files in the Payment step, and remove any that were wrong. Everything else you have entered is kept, and you can carry on with the other steps meanwhile.')}
     ${button('Upload a new proof', paymentUrl)}
     ${p(`If you have questions about your payment, reply to this email with your payment reference.`, SMALL)}
   `
@@ -196,7 +197,7 @@ export function buildFinanceAlertEmail({ countryTerritory, paymentReference, amo
       ['Delegation', countryTerritory],
       ['Payment reference', paymentReference],
       ['Amount declared', amountDue ? `${Number(amountDue).toLocaleString()} ${currency || 'USD'}` : 'Not specified'],
-      ['File uploaded', proofFilename || '—'],
+      ['Files uploaded', proofFilename || '—'],
       ['Delegation ID', delegationId],
     ])}
     ${notice(`Use the admin dashboard to confirm or reject this payment. Confirming will automatically send a confirmation email to the Team Leader.`, C.orange)}
