@@ -17,6 +17,10 @@
   --reg-attn-text: #8f4413;
   --reg-attn-bg: rgba(237, 163, 99, .2);
   --reg-error: #a3352b;
+  /* Destructive choices (leave without saving, remove): a deep red, as text rather than a filled button. */
+  --reg-danger: #962a24;
+  --reg-danger-hover: #7a1f1a;
+  --reg-danger-tint: rgba(150, 42, 36, .08);
   --reg-tint: rgba(22, 12, 27, .045);
   --reg-tint-strong: rgba(22, 12, 27, .08);
   --reg-on-dark-muted: rgba(243, 238, 228, .72);
@@ -124,6 +128,8 @@
 .reg-btn-primary:hover { background: var(--reg-accent-hover); }
 .reg-btn-secondary { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
 .reg-btn-secondary:hover { background: var(--reg-tint-strong); }
+.reg-btn-danger { padding: 0 18px; background: none; color: var(--reg-danger); }
+.reg-btn-danger:hover { background: var(--reg-danger-tint); color: var(--reg-danger-hover); }
 .reg-btn-quiet { background: var(--reg-on-dark-tint); color: var(--cream); }
 .reg-btn-quiet:hover { background: var(--reg-on-dark-tint-strong); }
 .reg-btn-link, .reg-inline-btn { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: var(--plum); font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
@@ -178,6 +184,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-aside a { color: var(--plum); font-weight: 700; }
 .reg-aside-ok { background: var(--reg-ok-bg); color: var(--reg-ok-text); font-weight: 700; }
 .reg-aside-warn { background: var(--reg-attn-bg); color: var(--reg-attn-text); }
+.reg-cards > .reg-aside-lock { margin: 0; }
 .reg-aside-warn strong { color: var(--ink); }
 .reg-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
 .reg-chip.is-ok { background: var(--reg-ok-bg); color: var(--reg-ok-text); }
@@ -232,8 +239,6 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-meter span { display: block; height: 100%; background: var(--reg-accent); transform-origin: left; transition: transform 420ms var(--reg-ease); }
 
 .reg-ws-body { display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: 28px; align-items: start; }
-.reg-rail-home { margin-bottom: 12px; }
-.reg-mark.is-home { border-color: transparent; background: var(--reg-tint-strong); color: var(--ink); }
 
 .reg-rail { position: sticky; top: var(--reg-header-offset); }
 .reg-rail-toggle { display: none; }
@@ -246,6 +251,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .is-current .reg-rail-text span { font-weight: 800; }
 .reg-rail-text small { font-size: 13px; color: var(--reg-muted); }
 .reg-rail-item.is-done small { color: var(--reg-ok-text); font-weight: 700; }
+.reg-rail-item.is-attention small { color: var(--reg-attn-text); font-weight: 700; }
 .reg-rail-group { margin: 22px 0 6px 12px; font-size: 13px; font-weight: 700; color: var(--reg-muted); }
 
 .reg-mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--reg-input-border); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--reg-muted); background: var(--reg-field-bg); }
@@ -254,6 +260,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-mark.is-done svg { width: 14px; height: 14px; fill: none; stroke: var(--reg-surface); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 16; stroke-dashoffset: 0; animation: reg-draw 320ms var(--reg-ease) both; }
 .reg-mark.is-locked, .reg-mark.is-after { border-style: dashed; color: var(--reg-muted); background: transparent; }
 .reg-mark.is-waiting { opacity: .7; }
+.reg-mark.is-attention, .is-attention .reg-track-mark { border-color: var(--reg-attn-text); background: var(--reg-attn-bg); color: var(--reg-attn-text); }
 
 .reg-panel { min-width: 0; padding: clamp(24px, 3.2vw, 44px); border: 1px solid var(--reg-border); border-radius: var(--reg-radius-lg); background: var(--reg-surface); scroll-margin-top: var(--reg-header-offset); animation: reg-enter var(--reg-med) var(--reg-ease); }
 .reg-panel-head { margin-bottom: 28px; }
@@ -329,7 +336,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-todo li::marker { color: var(--reg-attn-text); }
 
 /* ---------- Team Leader overview: the next step, then the whole track ---------- */
-.reg-home { display: grid; gap: 28px; animation: reg-enter var(--reg-med) var(--reg-ease); }
+.reg-home { display: grid; gap: 24px; }
 .reg-home-next { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 22px 48px; padding: clamp(24px, 3.4vw, 40px); border: 1px solid var(--reg-border); border-left: 6px solid var(--orange); border-radius: var(--reg-radius-lg); background: var(--reg-surface); }
 .reg-home-next.is-warn { border-left-color: var(--red); }
 .reg-home-next.is-done { border-left-color: var(--reg-ok-text); }
@@ -337,13 +344,13 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-home-kicker { margin: 0 0 8px; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--reg-attn-text); }
 .is-warn .reg-home-kicker { color: var(--reg-error); }
 .is-done .reg-home-kicker { color: var(--reg-ok-text); }
-.reg-home-next h2 { margin: 0; font-size: clamp(26px, 2.8vw, 36px); line-height: 1.1; letter-spacing: -.035em; }
-.reg-home-next h2:focus { outline: none; }
-.reg-home-next p:not(.reg-home-kicker) { margin: 10px 0 0; max-width: 62ch; font-size: 16px; line-height: 1.55; color: var(--reg-muted); }
+.reg-step .reg-home-next h3 { margin: 0; font-size: clamp(24px, 2.4vw, 30px); font-weight: 700; line-height: 1.15; letter-spacing: -.03em; }
+.reg-home-next p:not(.reg-home-kicker, .reg-error) { margin: 10px 0 0; max-width: 62ch; font-size: 16px; line-height: 1.55; color: var(--reg-muted); }
+.reg-home-next .reg-section-error { margin: 14px 0 0; }
 .reg-track { padding: 6px clamp(24px, 3.4vw, 40px); border: 1px solid var(--reg-border); border-radius: var(--reg-radius-lg); background: var(--reg-surface); }
 .reg-track-phase { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 16px 48px; padding: 32px 0; border-top: 1px solid var(--reg-border); }
 .reg-track-phase:first-child { border-top: 0; }
-.reg-track-phase h3 { margin: 4px 0 0; font-size: 20px; letter-spacing: -.02em; }
+.reg-step .reg-track-phase h3 { margin: 4px 0 0; font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
 .reg-track ol { margin: 0; padding: 0; list-style: none; }
 .reg-track li { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 16px; padding-bottom: 24px; }
 .reg-track li:last-child { padding-bottom: 0; }
@@ -360,8 +367,12 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .is-after .reg-track-title strong { color: var(--reg-muted); }
 .reg-track-label { font-size: 13px; font-weight: 700; color: var(--reg-muted); white-space: nowrap; }
 .is-done .reg-track-label { color: var(--reg-ok-text); }
-.is-next .reg-track-label { color: var(--reg-attn-text); }
+.is-next .reg-track-label, .is-attention .reg-track-label { color: var(--reg-attn-text); }
 .reg-track-detail { margin: 4px 0 0; max-width: 60ch; font-size: 15px; line-height: 1.5; color: var(--reg-muted); }
+/* What a step still needs, under its line on the overview. */
+.reg-track-todo { display: grid; gap: 2px; margin: 8px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.45; color: var(--reg-attn-text); list-style: disc; }
+.reg-track .reg-track-todo li { display: list-item; padding: 0; }
+.reg-track .reg-track-todo li::before { content: none; }
 .reg-home-foot { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 40px; padding: 4px 4px 0; }
 .reg-home-foot dl { display: flex; flex-wrap: wrap; gap: 14px 44px; margin: 0; }
 .reg-home-foot dt { font-size: 13px; color: var(--reg-muted); }
@@ -449,6 +460,13 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-pay-note strong { color: var(--ink); }
 .reg-pay-files { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
 .reg-pay-files .reg-muted { font-size: 14px; }
+/* Every file of a proof of payment, each with its preview. */
+.reg-pay-proof { grid-column: 1 / -1; display: grid; gap: 6px; font-size: 14px; }
+.reg-pay-proof ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.reg-pay-proof li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; padding: 6px 0; border-top: 1px solid var(--reg-border); }
+.reg-pay-proof li > span { display: grid; flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+.reg-pay-proof li small { color: var(--reg-muted); }
+.reg-pay-proof .reg-proof-preview, .reg-pay-proof li > p { flex: 1 1 100%; margin: 4px 0 8px; }
 .reg-proof-preview { grid-column: 1 / -1; border: 1px solid var(--reg-border); border-radius: var(--reg-radius); background: var(--reg-tint); overflow: hidden; }
 .reg-proof-preview iframe { display: block; width: 100%; height: 560px; border: 0; background: var(--reg-field-bg); }
 .reg-proof-preview img { display: block; max-width: 100%; max-height: 640px; margin: 0 auto; }
@@ -535,7 +553,6 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
   .reg-landing { grid-template-columns: 1fr; }
   .reg-guide { padding-top: 44px; }
   .reg-track-phase { grid-template-columns: 1fr; gap: 16px; }
-  .reg-rail:not(.is-open) .reg-rail-home { display: none; }
   .reg-ws-body { grid-template-columns: 1fr; gap: 16px; }
   .reg-rail { position: static; padding: 6px; border: 1px solid var(--reg-border); border-radius: var(--reg-radius-lg); background: var(--reg-surface); }
   .reg-rail-toggle { display: grid; gap: 2px; width: 100%; padding: 12px 44px 12px 14px; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; position: relative; }
@@ -752,10 +769,19 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-pager .reg-btn:disabled { opacity: .45; cursor: default; }
 .reg-email-status { min-width: 16rem; }
 
-/* Payment: an invoice split between payers. Each part is set apart, and the running total turns green once it matches. */
-.reg-invoice-part { min-width: 0; margin: 24px 0 0; padding: 22px 0 0; border: 0; border-top: 1px solid var(--reg-border); }
-.reg-invoice-part > legend { float: left; width: 100%; margin: 0; padding: 0; font-size: 16px; font-weight: 800; }
-.reg-invoice-part > legend + * { clear: both; padding-top: 14px; }
+/* Payment: the invoice details. One invoice is a plain set of fields; split between payers, each invoice is a box of
+   its own, numbered, with its amount and Remove in a header strip, and the running total turns green once it matches. */
+.reg-invoices { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; }
+.reg-invoice-part { min-width: 0; }
+.reg-invoices.is-split .reg-invoice-part { overflow: hidden; border: 1px solid var(--reg-border); border-radius: var(--reg-radius); background: var(--reg-field-bg); }
+.reg-invoices.is-split .reg-invoice-part > .reg-grid { padding: 20px; }
+.reg-invoice-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 56px; padding: 6px 12px 6px 16px; border-bottom: 1px solid var(--reg-border); background: var(--reg-tint); }
+.reg-invoice-number { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 1.5px solid var(--ink); border-radius: 50%; font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.reg-step .reg-invoice-head h4 { font-size: 17px; }
+.reg-invoice-amount { font-size: 15px; font-weight: 700; color: var(--reg-muted); font-variant-numeric: tabular-nums; }
+.reg-invoice-head .reg-btn-remove { min-height: 40px; padding: 0 4px; font-size: 14px; }
+.reg-invoice-add { margin-top: 12px; }
+.reg-invoice-add .reg-hint { margin: 0; }
 .reg-invoice-sum { margin: 18px 0 0; padding: 12px 14px; border-radius: var(--reg-radius); background: var(--reg-tint); font-size: 15px; color: var(--reg-attn-text); }
 .reg-invoice-sum.is-even { color: var(--reg-ok-text); }
 /* ---------- Team Leader steps: a heading, then each part of the step on a card of its own ---------- */
@@ -780,11 +806,14 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-card-status { flex: none; margin-top: 3px; }
 .reg-step .reg-card-subhead { margin: 28px 0 12px; font-size: 16px; font-weight: 800; }
 .reg-card-lead { margin: 0 0 18px !important; }
+.reg-card-lead svg { vertical-align: -2px; }
+.reg-files.reg-proof-files { margin-bottom: 24px; }
+.reg-proof-files .reg-btn-remove { min-height: 40px; padding: 0 4px; font-size: 14px; }
 .reg-card-foot { margin: 16px 0 0; }
 .reg-card-empty { margin: 0; font-size: 15px; }
 .reg-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 26px; }
 .reg-card > .reg-facts { margin: 0; }
-.reg-card > .reg-grid + .reg-grid, .reg-card > .reg-grid + .reg-invoice-part { margin-top: 24px; }
+.reg-card > .reg-grid + .reg-grid { margin-top: 24px; }
 .reg-card > .reg-ref { margin-top: 18px; }
 /* The bank account: each label beside its value, both from the left, so they read as pairs. */
 .reg-card .reg-bank { display: grid; grid-template-columns: minmax(130px, 190px) minmax(0, 1fr); gap: 14px 24px; }
@@ -821,13 +850,43 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-off-trip { margin-top: 10px; }
 /* The record editor: what is still needed, and removing the record (pushed to the far end, in the error colour). */
 .reg-still { margin: 12px 0 0; }
-.reg-btn-remove { margin-left: auto; color: var(--reg-error); }
-.reg-btn-remove:hover { color: var(--ink); }
+.reg-btn-remove { margin-left: auto; color: var(--reg-danger); }
+.reg-btn-remove:hover { color: var(--reg-danger-hover); }
+/* "Add observer", "Add another invoice": a plus, then the words. */
+.reg-add-link { text-underline-offset: 4px; }
+
+/* Team and observers: a box per team, side by side, each with its fee, its observer and "Add observer". */
+.reg-team-boxes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 24px 0 0; padding: 0; list-style: none; }
+.reg-team-box { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; padding: 18px 20px 8px; border: 1px solid var(--reg-border); border-radius: var(--reg-radius); background: var(--reg-field-bg); }
+.reg-team-box-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 16px; width: 100%; }
+.reg-team-box-head > span { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.reg-team-box-who { margin: 4px 0 0; font-size: 14px; line-height: 1.45; color: var(--reg-muted); }
+.reg-team-box-observers { width: 100%; margin: 14px 0 0; padding: 0; list-style: none; }
+.reg-team-box-observers li { display: flex; align-items: center; gap: 4px 16px; padding-top: 8px; border-top: 1px solid var(--reg-border); }
+.reg-team-box-observers li > span { display: grid; gap: 1px; }
+.reg-team-box-observers strong { font-size: 15px; }
+.reg-team-box-observers small { font-size: 13px; color: var(--reg-muted); }
+.reg-team-box > .reg-add-link { margin-top: 6px; }
+.reg-team-box-observers + .reg-add-link { margin-top: 0; }
+
+/* Payment, once the proof is in: uploaded, Finance's check, confirmed, down a line like the overview. */
+.reg-progress { margin: 0; padding: 0; list-style: none; }
+.reg-progress li { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 14px; padding-bottom: 20px; }
+.reg-progress li:last-child { padding-bottom: 0; }
+.reg-progress li:not(:last-child)::before { content: ""; position: absolute; left: 13px; top: 34px; bottom: 4px; width: 2px; border-radius: 2px; background: var(--reg-border); }
+.reg-progress li.is-done:not(:last-child)::before { background: var(--reg-ok-text); opacity: .45; }
+.reg-progress-mark { display: grid; place-items: center; width: 28px; height: 28px; border: 1.5px solid var(--reg-input-border); border-radius: 50%; background: var(--reg-field-bg); color: var(--reg-muted); }
+.reg-progress .is-done > .reg-progress-mark { border-color: var(--reg-ok-text); background: var(--reg-ok-text); color: var(--reg-surface); }
+.reg-progress .is-current > .reg-progress-mark { border-color: var(--ink); box-shadow: 0 0 0 4px rgba(237, 163, 99, .4); }
+.reg-progress .is-current > .reg-progress-mark::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); }
+.reg-progress .is-problem > .reg-progress-mark { border-color: var(--reg-danger); background: var(--reg-danger); color: var(--reg-surface); }
+.reg-progress .is-later > .reg-progress-mark { border-style: dashed; background: transparent; }
+.reg-progress strong { display: block; margin-top: 3px; font-size: 16px; line-height: 1.35; }
+.reg-progress .is-later strong { color: var(--reg-muted); }
+.reg-progress p { margin: 3px 0 0; font-size: 15px; line-height: 1.5; color: var(--reg-muted); overflow-wrap: anywhere; }
+.reg-progress .reg-btn { margin-top: 12px; }
 .reg-inline { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .reg-other-label { display: block; margin-top: 12px; font-size: 14px; font-weight: 700; }
-/* Still to do on Review: each step, with what is missing under it. */
-.reg-todo > li > ul { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 2px; font-size: 15px; color: var(--reg-muted); list-style: disc; }
-.reg-todo > li > ul li::marker { color: var(--reg-border); }
 /* Dragging a file only works with a mouse. */
 @media (hover: none) { .reg-drag-hint { display: none; } }
 
@@ -839,7 +898,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-dialog::backdrop { background: rgba(22, 12, 27, .55); }
 .reg-dialog h2 { margin: 0; font-size: 22px; line-height: 1.25; letter-spacing: -.02em; }
 .reg-dialog p { margin: 10px 0 0; font-size: 16px; line-height: 1.55; color: var(--reg-muted); }
-.reg-dialog-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.reg-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 24px; }
 .reg-dialog :focus-visible { outline: 3px solid var(--reg-focus); outline-offset: 3px; }
 
 /* Below 900px the step menu's button already says which step this is, and a list of records opens each one on a
@@ -869,4 +928,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
   .reg-card .reg-bank dd { margin-bottom: 12px; }
   .reg-dialog { padding: 22px 18px; }
   .reg-dialog-actions .reg-btn { flex: 1 1 100%; }
+  .reg-team-boxes { grid-template-columns: 1fr; }
+  .reg-team-box { padding: 16px 16px 6px; }
+  .reg-invoices.is-split .reg-invoice-part > .reg-grid { padding: 16px; }
 }

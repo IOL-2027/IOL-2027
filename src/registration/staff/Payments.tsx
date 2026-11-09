@@ -11,18 +11,27 @@ type PaymentRow = {
   invoiceSplits: { recipientName: string; amount: number }[] | null; feeCategory: string; singleRooms: { teamLeaders: boolean[]; observers: boolean[] } | null
   invoiceNumber: string | null; invoiceRecipientTin: string | null
   proofAttachmentId: string | null; proofFilename: string | null; proofMimeType: string | null
+  /** Every file of the proof, oldest first. */
+  proofFiles?: ProofFile[]
   reviewNote: string | null; reviewedByName: string | null; reviewedAt: string | null; receiptNumber: string | null; updatedAt: string
 }
 
+type ProofFile = { id: string; filename: string; mimeType: string; createdAt: string }
+
+/** The proof's files; a payment from before proofs could be several files has just the one. */
+const proofFilesOf = (p: PaymentRow): ProofFile[] => p.proofFiles?.length ? p.proofFiles
+  : p.proofAttachmentId ? [{ id: p.proofAttachmentId, filename: p.proofFilename ?? 'Proof', mimeType: p.proofMimeType ?? '', createdAt: p.updatedAt }] : []
+
 const filters: [string, string][] = [['awaiting_review', 'Waiting for review'], ['awaiting_proof', 'Waiting for proof'], ['approved', 'Approved'], ['rejected', 'Returned'], ['', 'All']]
 
-function Preview({ payment }: { payment: PaymentRow }) {
-  const src = `/api/registration/attachments/${payment.proofAttachmentId}?inline=1`
+function Preview({ payment, file }: { payment: PaymentRow; file: ProofFile }) {
+  const src = `/api/registration/attachments/${file.id}?inline=1`
+  const title = `${file.filename}, proof of transfer from ${payment.countryTerritory}`
+  // Browsers cannot show HEIC photos: download those instead.
+  if (/hei[cf]/.test(file.mimeType)) return <p className="reg-muted">This browser cannot preview a HEIC photo. Download it to open it.</p>
   return (
     <div className="reg-proof-preview">
-      {payment.proofMimeType === 'application/pdf'
-        ? <iframe src={src} title={`Proof of transfer from ${payment.countryTerritory}`} />
-        : <img src={src} alt={`Proof of transfer from ${payment.countryTerritory}`} />}
+      {file.mimeType === 'application/pdf' ? <iframe src={src} title={title} /> : <img src={src} alt={title} />}
     </div>
   )
 }
@@ -101,12 +110,7 @@ export default function Payments({ canReview }: { canReview: boolean }) {
               {p.invoiceSplits?.length
                 ? p.invoiceSplits.map((_, i) => <a key={i} className="reg-btn-link" href={`/api/registration/delegations/${p.delegationId}/invoice?part=${i + 1}`} target="_blank" rel="noreferrer"><FileText size={16} aria-hidden="true" />Invoice {p.invoiceNumber}-{i + 1}</a>)
                 : <a className="reg-btn-link" href={`/api/registration/delegations/${p.delegationId}/invoice`} target="_blank" rel="noreferrer"><FileText size={16} aria-hidden="true" />Invoice {p.invoiceNumber ?? ''}</a>}
-              {p.proofAttachmentId && <>
-                <button type="button" className="reg-btn-link" aria-expanded={previewing === p.id} onClick={() => setPreviewing(previewing === p.id ? null : p.id)}>
-                  {previewing === p.id ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}{previewing === p.id ? 'Hide proof' : 'Preview proof'}
-                </button>
-                <a className="reg-btn-link" href={`/api/registration/attachments/${p.proofAttachmentId}`}><Download size={16} aria-hidden="true" />{p.proofFilename ?? 'Download proof'}</a>
-              </>}
+
               {p.status === 'approved' && p.receiptNumber && (
                 <button type="button" className="reg-btn-link" onClick={() => openReceipt({
                   organisation: p.invoiceRecipientName ?? p.countryTerritory, country: p.countryTerritory, recipientAddress: p.invoiceRecipientAddress,
@@ -114,9 +118,23 @@ export default function Payments({ canReview }: { canReview: boolean }) {
                   tierLabel: p.feeTier === 'early_bird' ? 'Early bird' : 'Normal', approvedAt: p.reviewedAt,
                 })}><FileText size={16} aria-hidden="true" />Receipt {p.receiptNumber}</button>
               )}
-              {!p.proofAttachmentId && <span className="reg-muted">No proof uploaded yet{p.status === 'awaiting_proof' ? ` · invoice saved ${day(p.updatedAt)}` : ''}</span>}
+              {!proofFilesOf(p).length && <span className="reg-muted">No proof uploaded yet{p.status === 'awaiting_proof' ? ` · invoice saved ${day(p.updatedAt)}` : ''}</span>}
             </div>
-            {previewing === p.id && <Preview payment={p} />}
+            {proofFilesOf(p).length > 0 && (
+              <div className="reg-pay-proof">
+                <strong>{proofFilesOf(p).length === 1 ? 'Proof of transfer' : `Proof of transfer: ${proofFilesOf(p).length} files`}</strong>
+                <ul>{proofFilesOf(p).map((file) => (
+                  <li key={file.id}>
+                    <span>{file.filename}<small>{day(file.createdAt)}</small></span>
+                    <button type="button" className="reg-btn-link" aria-expanded={previewing === file.id} onClick={() => setPreviewing(previewing === file.id ? null : file.id)}>
+                      {previewing === file.id ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}{previewing === file.id ? 'Hide' : 'Preview'}<span className="reg-visually-hidden"> {file.filename}</span>
+                    </button>
+                    <a className="reg-btn-link" href={`/api/registration/attachments/${file.id}`}><Download size={16} aria-hidden="true" />Download<span className="reg-visually-hidden"> {file.filename}</span></a>
+                    {previewing === file.id && <Preview payment={p} file={file} />}
+                  </li>
+                ))}</ul>
+              </div>
+            )}
             {canReview && p.status === 'awaiting_review' && (
               <div className="reg-pay-actions">
                 <div className={`reg-field reg-pay-reason${noteErrors[p.id] ? ' has-error' : ''}`}>

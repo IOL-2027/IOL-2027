@@ -45,15 +45,21 @@ registerJobRoutes(app)
 app.use(sessionMiddleware(requireDb))
 app.use(requireRequestHeader)
 
+// PDF, and the image types banks and phones produce: JPG, PNG, WEBP, and HEIC/HEIF (iPhone photos). Some browsers send
+// no type for a HEIC file, so its extension decides.
+const UPLOAD_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, callback) => {
-    const allowed = new Set(['application/pdf', 'image/jpeg', 'image/png'])
-    if (allowed.has(file.mimetype)) callback(null, true)
-    else callback(new HttpError(400, 'Only PDF, JPG and PNG files are accepted.'))
+    const extension = path.extname(file.originalname).toLowerCase()
+    if (!UPLOAD_TYPES.has(file.mimetype) && ['.heic', '.heif'].includes(extension)) file.mimetype = `image/${extension.slice(1)}`
+    if (UPLOAD_TYPES.has(file.mimetype)) callback(null, true)
+    else callback(new HttpError(400, 'Only PDF, JPG, PNG, WEBP and HEIC files are accepted.'))
   },
 })
+// The files that make up one proof of payment, at most.
+const MAX_PROOF_FILES = 10
 
 function normalizeRole(role) {
   const value = requiredString(role, 'role').toLowerCase().replaceAll(' ', '_')
@@ -329,21 +335,32 @@ app.post('/api/auth/verify-email', requireAuth, asyncHandler(async (req, res) =>
 
 const TEAM_LETTERS = ['A', 'B']
 
-/** Keeps the team rows in step with number_of_teams: adds missing teams, removes unused extra ones. */
+/**
+ * Keeps the team rows in step with number_of_teams: adds missing teams, removes unused extra ones. One team is named
+ * after the country, two are its A and B teams (Team and observers shows the same names); a name changed in Teams
+ * is kept.
+ */
 async function ensureTeams(db, delegation) {
   const want = Math.min(Math.max(Number(delegation.number_of_teams) || 1, 1), 2)
   const existing = (await db.query('SELECT * FROM teams WHERE delegation_id = $1 ORDER BY code', [delegation.id])).rows
   const prefix = delegation.country_territory.replace(/\s*\(TEST\)\s*/i, '').trim()
   const short = prefix.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase()
+  const defaultName = (i, count) => (count === 1 ? prefix : `${prefix} ${TEAM_LETTERS[i]}`)
   for (let i = existing.length; i < want; i++) {
     await db.query(
       `INSERT INTO teams (delegation_id, name, code, status) VALUES ($1, $2, $3, 'draft') ON CONFLICT DO NOTHING`,
-      [delegation.id, `${prefix} ${TEAM_LETTERS[i]}`, `${short}-${TEAM_LETTERS[i]}`],
+      [delegation.id, defaultName(i, want), `${short}-${TEAM_LETTERS[i]}`],
     )
   }
   for (const team of existing.slice(want)) {
     const used = await db.query('SELECT 1 FROM members WHERE team_id = $1 LIMIT 1', [team.id])
     if (!used.rowCount) await db.query('DELETE FROM teams WHERE id = $1', [team.id])
+  }
+  const defaults = [prefix, ...TEAM_LETTERS.map((letter) => `${prefix} ${letter}`)]
+  const teams = (await db.query('SELECT id, name FROM teams WHERE delegation_id = $1 ORDER BY code', [delegation.id])).rows
+  for (const [i, team] of teams.entries()) {
+    const name = defaultName(i, teams.length)
+    if (team.name !== name && defaults.includes(team.name)) await db.query('UPDATE teams SET name = $1, updated_at = now() WHERE id = $2', [name, team.id])
   }
 }
 
@@ -371,7 +388,7 @@ app.get('/api/registration/delegations/:delegationId', ...signedIn, delegationAc
       [id],
     ),
     query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC', [id]),
-    query(`SELECT id, member_id, kind, original_filename, mime_type, size_bytes, created_at FROM attachments WHERE delegation_id = $1 ORDER BY created_at DESC`, [id]),
+    query(`SELECT id, member_id, payment_id, kind, original_filename, mime_type, size_bytes, created_at FROM attachments WHERE delegation_id = $1 ORDER BY created_at DESC`, [id]),
     query(`SELECT bc.member_id, bc.status, bc.issued_at FROM badge_credentials bc JOIN members m ON m.id = bc.member_id WHERE m.delegation_id = $1`, [id]),
   ])
   // Once an invoice exists, at its fee tier, so the Payment step and the invoice agree.
@@ -399,6 +416,10 @@ app.patch('/api/registration/delegations/:delegationId', ...signedIn, delegation
   const body = { ...req.body }
   const current = (await query('SELECT number_of_teams, number_of_observers, fee_category, single_rooms FROM delegations WHERE id = $1', [req.params.delegationId])).rows[0]
   if (!current) throw new HttpError(404, 'Delegation not found.')
+  // Team and observers sets the amount paid, so it is locked once the proof of payment is in (admins can still change it).
+  if (['numberOfTeams', 'numberOfObservers', 'observerTeams', 'singleRooms'].some((key) => key in body) && !DELEGATION_ADMINS.includes(req.user.role) && await proofIsIn(requireDb(), req.params.delegationId)) {
+    throw new HttpError(409, 'Your proof of payment is uploaded, so Team and observers is locked: it sets the amount you paid. Email the organisers to change it.')
+  }
   const { fees } = await loadSettings(requireDb())
   if ('numberOfTeams' in body) {
     const teams = Number(body.numberOfTeams)
@@ -408,19 +429,32 @@ app.patch('/api/registration/delegations/:delegationId', ...signedIn, delegation
     body.numberOfContestants = teams * 4
   }
   const teams = body.numberOfTeams ?? current.number_of_teams
-  if ('numberOfObservers' in body) {
+  const perTeam = fees.maxObserversPerTeam
+  // Observers are added team by team in Team and observers: observerTeams says which team each one comes with (0 for
+  // the first, 1 for the second), at most perTeam a team, and sets the number of observers.
+  if ('observerTeams' in body) {
+    const list = body.observerTeams
+    if (!Array.isArray(list) || list.some((t) => !Number.isInteger(t) || t < 0 || t >= teams)) throw new HttpError(400, 'Each observer must come with one of your teams.')
+    if (TEAM_LETTERS.some((_, t) => list.filter((x) => x === t).length > perTeam)) throw new HttpError(400, `Up to ${perTeam} ${perTeam === 1 ? 'observer' : 'observers'} per team.`)
+    body.numberOfObservers = list.length
+  } else if ('numberOfObservers' in body) {
     const observers = Number(body.numberOfObservers)
     const most = maxObservers(fees, teams)
-    if (!Number.isInteger(observers) || observers < 0 || observers > most) throw new HttpError(400, `Up to ${fees.maxObserversPerTeam} observers per team: ${most} for ${teams === 1 ? 'one team' : 'two teams'}.`)
+    if (!Number.isInteger(observers) || observers < 0 || observers > most) throw new HttpError(400, `Up to ${perTeam} observers per team: ${most} for ${teams === 1 ? 'one team' : 'two teams'}.`)
     body.numberOfObservers = observers
   }
-  // One yes or no per Team Leader (one per team) and per observer; kept the same length as those numbers.
+  // One yes or no per Team Leader (one per team) and per observer, kept the same length as those numbers, and the team
+  // each observer comes with (filled in team by team where it was never chosen).
   if ('singleRooms' in body || 'numberOfTeams' in body || 'numberOfObservers' in body) {
     const given = body.singleRooms ?? current.single_rooms ?? {}
     if (typeof given !== 'object') throw new HttpError(400, 'Single rooms must list each Team Leader and observer.')
     const fit = (list, length) => Array.from({ length }, (_, i) => Boolean(Array.isArray(list) ? list[i] : false))
-    body.singleRooms = { teamLeaders: fit(given.teamLeaders, teams), observers: fit(given.observers, body.numberOfObservers ?? current.number_of_observers) }
+    const observers = body.numberOfObservers ?? current.number_of_observers
+    const chosen = body.observerTeams ?? current.single_rooms?.observerTeams ?? []
+    const observerTeams = Array.from({ length: observers }, (_, i) => (Number.isInteger(chosen[i]) && chosen[i] < teams ? chosen[i] : Math.min(Math.floor(i / Math.max(perTeam, 1)), teams - 1)))
+    body.singleRooms = { teamLeaders: fit(given.teamLeaders, teams), observers: fit(given.observers, observers), observerTeams }
   }
+  delete body.observerTeams
   if ('completedSteps' in body) {
     const allowed = ['start', 'setup', 'teams', 'people', 'welfare', 'travel']
     if (!Array.isArray(body.completedSteps) || body.completedSteps.some((s) => !allowed.includes(s))) throw new HttpError(400, 'Invalid step list.')
@@ -502,8 +536,11 @@ app.put('/api/registration/delegations/:delegationId/invoice', ...signedIn, dele
     const [first] = invoices
     // The first invoice's payer is also kept in the payer columns, which a single invoice uses on its own.
     const values = [first.recipientName, first.recipientAddress, invoices.length, invoices.length > 1 ? JSON.stringify(invoices) : null, fees.total, fees.tier, first.recipientTin]
+    // Locked once the proof of payment is in, as Team and observers is: saving recalculates the amount and the fee rate.
+    if (!DELEGATION_ADMINS.includes(req.user.role) && await proofIsIn(client, delegation.id)) {
+      throw new HttpError(409, 'Your proof of payment is uploaded, so the invoice details are locked. Email the organisers to change them.')
+    }
     const open = (await openPaymentQuery(client, delegation.id)).rows[0]
-    if (open?.status === 'awaiting_review') throw new HttpError(409, 'Your proof is being reviewed. Contact the organisers to change invoice details.')
     let row
     if (open) {
       row = (await client.query(
@@ -582,11 +619,19 @@ const memberFields = {
   mobileWhatsapp: 'mobile_whatsapp',
 }
 
-/** People can only be added or edited once proof of payment is uploaded (Team Leader flow), except by admins. */
+/**
+ * People can only be added or edited once proof of payment is uploaded (Team Leader flow), except by admins. It stays
+ * open if Finance returns the proof ("rejected" only follows an upload); submitting still needs a proof not returned.
+ */
 async function requirePeopleOpen(req, delegationId) {
   if (DELEGATION_ADMINS.includes(req.user.role)) return
-  const paid = await query(`SELECT 1 FROM payments WHERE delegation_id = $1 AND status IN ('awaiting_review', 'approved') LIMIT 1`, [delegationId])
-  if (!paid.rowCount) throw new HttpError(409, 'People opens once proof of payment is uploaded.')
+  if (!(await proofIsIn(requireDb(), delegationId))) throw new HttpError(409, 'People opens once proof of payment is uploaded.')
+}
+
+/** Whether a proof of payment is in: with Finance, confirmed, or returned by Finance to be completed. */
+async function proofIsIn(db, delegationId) {
+  const result = await db.query(`SELECT 1 FROM payments WHERE delegation_id = $1 AND status IN ('awaiting_review', 'approved', 'rejected') LIMIT 1`, [delegationId])
+  return result.rowCount > 0
 }
 
 /** The account's own Team Leader: the first Team Leader record, made with the account. */
@@ -738,39 +783,71 @@ app.delete('/api/registration/travel/:travelRecordId', ...signedIn, childAccess(
   res.status(204).end()
 }))
 
-app.post('/api/registration/delegations/:delegationId/payment-proof', ...signedIn, delegationAccess('write'), upload.single('proof'), asyncHandler(async (req, res) => {
-  if (!req.file) throw new HttpError(400, 'Choose the proof of transfer file to upload.')
-  const extension = path.extname(req.file.originalname).toLowerCase() || '.bin'
-  const storedPath = await saveUpload(`${req.params.delegationId}/proof-${crypto.randomUUID()}${extension}`, req.file)
+// The proof of payment is one or more files: each upload adds to it (the bank's confirmation for each transfer, say)
+// and sends it to Finance again. A file can be removed until Finance confirms the payment, as long as one stays.
+app.post('/api/registration/delegations/:delegationId/payment-proof', ...signedIn, delegationAccess('write'), upload.array('proof', MAX_PROOF_FILES), asyncHandler(async (req, res) => {
+  const files = req.files ?? []
+  if (!files.length) throw new HttpError(400, 'Choose the proof of transfer to upload.')
+  const stored = []
+  for (const file of files) {
+    const extension = path.extname(file.originalname).toLowerCase() || '.bin'
+    stored.push(await saveUpload(`${req.params.delegationId}/proof-${crypto.randomUUID()}${extension}`, file))
+  }
   const response = await withTransaction(async (client) => {
     const payment = (await openPaymentQuery(client, req.params.delegationId)).rows[0]
     if (!payment) throw new HttpError(409, 'Save the invoice details before uploading proof.')
-    const attachment = (await client.query(
-      `INSERT INTO attachments (delegation_id, kind, original_filename, stored_path, mime_type, size_bytes, uploaded_by_account_id)
-       VALUES ($1, 'payment_proof', $2, $3, $4, $5, $6)
-       RETURNING id, delegation_id, kind, original_filename, mime_type, size_bytes, created_at`,
-      [req.params.delegationId, req.file.originalname, storedPath, req.file.mimetype, req.file.size, req.user.id],
-    )).rows[0]
+    const already = (await client.query('SELECT count(*)::int AS n FROM attachments WHERE payment_id = $1', [payment.id])).rows[0].n
+    if (already + files.length > MAX_PROOF_FILES) throw new HttpError(400, `The proof can have up to ${MAX_PROOF_FILES} files. Remove ${already ? 'one you no longer need' : 'some'} first, or put several in one PDF.`)
+    const attachments = []
+    for (const [i, file] of files.entries()) {
+      attachments.push((await client.query(
+        `INSERT INTO attachments (delegation_id, payment_id, kind, original_filename, stored_path, mime_type, size_bytes, uploaded_by_account_id)
+         VALUES ($1, $2, 'payment_proof', $3, $4, $5, $6, $7)
+         RETURNING id, delegation_id, payment_id, kind, original_filename, mime_type, size_bytes, created_at`,
+        [req.params.delegationId, payment.id, file.originalname, stored[i], file.mimetype, file.size, req.user.id],
+      )).rows[0])
+    }
     const updated = (await client.query(
-      `UPDATE payments SET proof_attachment_id = $1, status = 'awaiting_review', review_note = NULL, updated_at = now() WHERE id = $2 RETURNING *`,
-      [attachment.id, payment.id],
+      `UPDATE payments SET proof_attachment_id = COALESCE(proof_attachment_id, $1), status = 'awaiting_review', review_note = NULL, updated_at = now() WHERE id = $2 RETURNING *`,
+      [attachments[0].id, payment.id],
     )).rows[0]
     await client.query(`UPDATE delegations SET payment_status = 'awaiting_review', updated_at = now() WHERE id = $1`, [req.params.delegationId])
-    await insertAudit(client, { actorAccountId: req.user.id, delegationId: req.params.delegationId, eventType: 'payment_proof_uploaded', entityType: 'payment', entityId: payment.id, details: { originalFilename: req.file.originalname } })
-    return { payment: updated, attachment }
+    await insertAudit(client, { actorAccountId: req.user.id, delegationId: req.params.delegationId, eventType: 'payment_proof_uploaded', entityType: 'payment', entityId: payment.id, details: { originalFilenames: files.map((f) => f.originalname) } })
+    return { payment: updated, attachments }
   })
 
   const d = (await query('SELECT country_territory, team_leader_email, primary_team_leader_name FROM delegations WHERE id = $1', [req.params.delegationId])).rows[0]
   const emailCtx = {
     countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, paymentReference: response.payment.payment_reference,
     amountDue: response.payment.amount_due, currency: response.payment.currency || 'USD', invoiceCount: response.payment.invoice_count,
-    proofFilename: req.file.originalname, delegationId: req.params.delegationId,
+    proofFilename: files.map((f) => f.originalname).join(', '), delegationId: req.params.delegationId, peopleUrl: `${portalUrl}/?step=people`,
   }
   sendEmail({ pool: requireDb(), to: d.team_leader_email, ...buildProofReceivedEmail(emailCtx), purpose: 'payment_proof_received', delegationId: req.params.delegationId, retry: true }).catch((e) => console.error(e.message))
   if (process.env.FINANCE_EMAIL) {
     sendEmail({ pool: requireDb(), to: process.env.FINANCE_EMAIL, ...buildFinanceAlertEmail(emailCtx), purpose: 'finance_proof_alert', delegationId: req.params.delegationId, retry: true }).catch((e) => console.error(e.message))
   }
-  res.status(201).json({ payment: camelizeRow(response.payment), attachment: camelizeRow(response.attachment) })
+  res.status(201).json({ payment: camelizeRow(response.payment), attachments: camelizeRows(response.attachments) })
+}))
+
+// A proof file uploaded by mistake. It is unlinked from the payment, not deleted, so the record of what was sent stays.
+app.delete('/api/registration/attachments/:attachmentId/proof', ...signedIn, asyncHandler(async (req, res) => {
+  const attachment = (await query(`SELECT * FROM attachments WHERE id = $1 AND kind = 'payment_proof' AND payment_id IS NOT NULL`, [req.params.attachmentId])).rows[0]
+  if (!attachment) throw new HttpError(404, 'File not found.')
+  await authorizeDelegation(req, attachment.delegation_id, 'write')
+  const payment = await withTransaction(async (client) => {
+    const row = (await client.query('SELECT * FROM payments WHERE id = $1 FOR UPDATE', [attachment.payment_id])).rows[0]
+    if (!row || !['awaiting_review', 'rejected'].includes(row.status)) throw new HttpError(409, 'Finance has confirmed this payment, so its proof can no longer change.')
+    const others = (await client.query('SELECT id FROM attachments WHERE payment_id = $1 AND id <> $2 ORDER BY created_at', [row.id, attachment.id])).rows
+    if (!others.length) throw new HttpError(409, 'This is the only file of your proof. Upload the right one first, then remove this one.')
+    await client.query('UPDATE attachments SET payment_id = NULL WHERE id = $1', [attachment.id])
+    const updated = (await client.query(
+      `UPDATE payments SET proof_attachment_id = CASE WHEN proof_attachment_id = $1 THEN $2 ELSE proof_attachment_id END, updated_at = now() WHERE id = $3 RETURNING *`,
+      [attachment.id, others[0].id, row.id],
+    )).rows[0]
+    await insertAudit(client, { actorAccountId: req.user.id, delegationId: attachment.delegation_id, eventType: 'payment_proof_file_removed', entityType: 'attachment', entityId: attachment.id, details: { originalFilename: attachment.original_filename } })
+    return updated
+  })
+  res.json({ payment: camelizeRow(payment) })
 }))
 
 app.get('/api/registration/attachments/:attachmentId', ...signedIn, asyncHandler(async (req, res) => {
@@ -781,7 +858,7 @@ app.get('/api/registration/attachments/:attachmentId', ...signedIn, asyncHandler
   } else {
     await authorizeDelegation(req, attachment.delegation_id, req.user.role === 'welfare_staff' ? 'none' : 'read')
   }
-  // ?inline=1 lets staff preview a proof in the page. Only PDF, JPG and PNG are ever stored, and nosniff
+  // ?inline=1 lets staff preview a proof in the page. Only PDFs and images are ever stored, and nosniff
   // stops the browser from treating a file as anything other than its declared type.
   res.set('Content-Type', attachment.mime_type)
   res.set('X-Content-Type-Options', 'nosniff')

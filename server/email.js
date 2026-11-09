@@ -145,14 +145,14 @@ export function buildVerificationEmail({ countryTerritory, fullName, code }) {
   return { subject, html: layout(preview, body) }
 }
 
-export function buildProofReceivedEmail({ countryTerritory, fullName, paymentReference, amountDue, currency, invoiceCount }) {
+export function buildProofReceivedEmail({ countryTerritory, fullName, paymentReference, amountDue, currency, invoiceCount, peopleUrl }) {
   const subject = 'Payment proof received — IOL 2027'
-  const preview = `We received your payment proof for ${countryTerritory}. Finance will review it within 5 business days.`
+  const preview = `We received your payment proof for ${countryTerritory}. People is open now, so you can carry on with your registration.`
   const body = `
     ${h1('Payment proof received')}
     ${p(`Hi ${esc(fullName)},`)}
     ${p(`We have received your proof of payment for the IOL 2027 registration of <strong style="color:${C.ink}">${esc(countryTerritory)}</strong>.
-         Finance will review the transfer and update your registration status within 5 business days.`)}
+         Finance will check it against the bank statement, usually within 5 business days, and email you once the payment is confirmed.`)}
     ${infoTable([
       ['Delegation', countryTerritory],
       ['Payment reference', paymentReference],
@@ -160,7 +160,28 @@ export function buildProofReceivedEmail({ countryTerritory, fullName, paymentRef
       ['Invoices requested', String(invoiceCount || 1)],
       ['Review status', 'Awaiting Finance review'],
     ])}
-    ${notice('No further action is needed at this stage. We will email you once the payment has been confirmed.')}
+    ${notice('<strong>You do not need to wait.</strong> People is open now, so you can add everyone’s details while Finance checks the payment.')}
+    ${peopleUrl ? button('Continue your registration', peopleUrl) : ''}
+    ${p('Team and observers and the invoice details are now locked, because they set the amount you paid. To change them, reply to this email.', SMALL)}
+    ${p(`If you have questions about your payment, reply to this email with your payment reference.`, SMALL)}
+  `
+  return { subject, html: layout(preview, body) }
+}
+
+export function buildProofReturnedEmail({ countryTerritory, fullName, paymentReference, note, paymentUrl }) {
+  const subject = 'Please upload a new proof of payment — IOL 2027'
+  const preview = `Finance could not match the proof of payment for ${countryTerritory}. Please upload a new one.`
+  const body = `
+    ${h1('Please upload a new proof of payment')}
+    ${p(`Hi ${esc(fullName)},`)}
+    ${p(`Finance could not match your proof of payment for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> against the bank statement, so they have returned it.`)}
+    ${notice(`<strong>Finance’s note:</strong> ${esc(note)}`, C.orange)}
+    ${infoTable([
+      ['Delegation', countryTerritory],
+      ['Payment reference', paymentReference],
+    ])}
+    ${p('Add the missing or corrected files in the Payment step, and remove any that were wrong. Everything else you have entered is kept, and you can carry on with the other steps meanwhile.')}
+    ${button('Upload a new proof', paymentUrl)}
     ${p(`If you have questions about your payment, reply to this email with your payment reference.`, SMALL)}
   `
   return { subject, html: layout(preview, body) }
@@ -176,7 +197,7 @@ export function buildFinanceAlertEmail({ countryTerritory, paymentReference, amo
       ['Delegation', countryTerritory],
       ['Payment reference', paymentReference],
       ['Amount declared', amountDue ? `${Number(amountDue).toLocaleString()} ${currency || 'USD'}` : 'Not specified'],
-      ['File uploaded', proofFilename || '—'],
+      ['Files uploaded', proofFilename || '—'],
       ['Delegation ID', delegationId],
     ])}
     ${notice(`Use the admin dashboard to confirm or reject this payment. Confirming will automatically send a confirmation email to the Team Leader.`, C.orange)}

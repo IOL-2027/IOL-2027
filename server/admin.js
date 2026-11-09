@@ -2,7 +2,7 @@
 // organiser settings and staff accounts. Who may call what is listed in docs/ROLES.md.
 import crypto from 'node:crypto'
 import { HttpError, ROLES, filterMember, hashPassword, requireRole } from './auth.js'
-import { buildInviteEmail, buildPaymentConfirmedEmail, retryEmail, sendEmail } from './email.js'
+import { buildInviteEmail, buildPaymentConfirmedEmail, buildProofReturnedEmail, retryEmail, sendEmail } from './email.js'
 import { backProblem } from './badge-pdf.js'
 import { sendBadgesIfSettled } from './badges.js'
 import {
@@ -153,7 +153,10 @@ export function registerAdminRoutes(app, { signedIn }) {
     const status = optionalString(req.query.status)
     const result = await query(
       `SELECT p.*, d.country_territory, d.primary_team_leader_name, d.team_leader_email, d.number_of_teams, d.number_of_observers, d.fee_category, d.single_rooms,
-         a.original_filename AS proof_filename, a.mime_type AS proof_mime_type, r.full_name AS reviewed_by_name
+         a.original_filename AS proof_filename, a.mime_type AS proof_mime_type, r.full_name AS reviewed_by_name,
+         -- Every file of the proof, oldest first (a proof can be several files).
+         COALESCE((SELECT json_agg(json_build_object('id', f.id, 'filename', f.original_filename, 'mimeType', f.mime_type, 'createdAt', f.created_at) ORDER BY f.created_at)
+           FROM attachments f WHERE f.payment_id = p.id), '[]') AS proof_files
        FROM payments p JOIN delegations d ON d.id = p.delegation_id
        LEFT JOIN attachments a ON a.id = p.proof_attachment_id LEFT JOIN accounts r ON r.id = p.reviewed_by_account_id
        WHERE ($1::text IS NULL OR p.status = $1) ORDER BY p.updated_at DESC LIMIT 300`,
@@ -201,6 +204,13 @@ export function registerAdminRoutes(app, { signedIn }) {
       await insertAudit(client, { actorAccountId: req.user.id, delegationId: payment.delegation_id, eventType: 'payment_rejected', entityType: 'payment', entityId: payment.id, details: { note } })
       return payment
     })
+    // The Team Leader hears straight away, with Finance's reason, rather than finding out on their next visit.
+    const d = (await query('SELECT country_territory, team_leader_email, primary_team_leader_name FROM delegations WHERE id = $1', [rejected.delegation_id])).rows[0]
+    const { subject, html } = buildProofReturnedEmail({
+      countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, paymentReference: rejected.payment_reference, note, paymentUrl: `${portalUrl}/?step=payment`,
+    })
+    await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_proof_returned', delegationId: rejected.delegation_id, retry: true })
+      .catch((e) => console.error(e.message))
     res.json({ payment: camelizeRow(rejected) })
   }))
 
