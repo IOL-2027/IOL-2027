@@ -184,6 +184,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-aside a { color: var(--plum); font-weight: 700; }
 .reg-aside-ok { background: var(--reg-ok-bg); color: var(--reg-ok-text); font-weight: 700; }
 .reg-aside-warn { background: var(--reg-attn-bg); color: var(--reg-attn-text); }
+.reg-cards > .reg-aside-lock { margin: 0; }
 .reg-aside-warn strong { color: var(--ink); }
 .reg-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
 .reg-chip.is-ok { background: var(--reg-ok-bg); color: var(--reg-ok-text); }
@@ -459,6 +460,13 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-pay-note strong { color: var(--ink); }
 .reg-pay-files { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
 .reg-pay-files .reg-muted { font-size: 14px; }
+/* Every file of a proof of payment, each with its preview. */
+.reg-pay-proof { grid-column: 1 / -1; display: grid; gap: 6px; font-size: 14px; }
+.reg-pay-proof ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.reg-pay-proof li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; padding: 6px 0; border-top: 1px solid var(--reg-border); }
+.reg-pay-proof li > span { display: grid; flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+.reg-pay-proof li small { color: var(--reg-muted); }
+.reg-pay-proof .reg-proof-preview, .reg-pay-proof li > p { flex: 1 1 100%; margin: 4px 0 8px; }
 .reg-proof-preview { grid-column: 1 / -1; border: 1px solid var(--reg-border); border-radius: var(--reg-radius); background: var(--reg-tint); overflow: hidden; }
 .reg-proof-preview iframe { display: block; width: 100%; height: 560px; border: 0; background: var(--reg-field-bg); }
 .reg-proof-preview img { display: block; max-width: 100%; max-height: 640px; margin: 0 auto; }
@@ -798,6 +806,9 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-card-status { flex: none; margin-top: 3px; }
 .reg-step .reg-card-subhead { margin: 28px 0 12px; font-size: 16px; font-weight: 800; }
 .reg-card-lead { margin: 0 0 18px !important; }
+.reg-card-lead svg { vertical-align: -2px; }
+.reg-files.reg-proof-files { margin-bottom: 24px; }
+.reg-proof-files .reg-btn-remove { min-height: 40px; padding: 0 4px; font-size: 14px; }
 .reg-card-foot { margin: 16px 0 0; }
 .reg-card-empty { margin: 0; font-size: 15px; }
 .reg-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 26px; }
