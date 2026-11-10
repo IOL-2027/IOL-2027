@@ -625,6 +625,9 @@ const memberFields = {
  */
 async function requirePeopleOpen(req, delegationId) {
   if (DELEGATION_ADMINS.includes(req.user.role)) return
+  // Some delegations have it open from the start (the account the IOL committee reviews the site with).
+  const early = await query('SELECT people_open_early FROM delegations WHERE id = $1', [delegationId])
+  if (early.rows[0]?.people_open_early) return
   if (!(await proofIsIn(requireDb(), delegationId))) throw new HttpError(409, 'People opens once proof of payment is uploaded.')
 }
 
