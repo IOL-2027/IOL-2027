@@ -44,7 +44,7 @@ const guides: Record<Door, GuideItem[]> = {
     },
     {
       icon: ClipboardList, title: 'Have these ready',
-      list: ['The invitation code from the organisers’ email', 'An email address your team can rely on', 'How many teams (up to two) and observers'],
+      list: ['The invitation code from the organisers’ email', 'An email address your team can rely on', 'How many teams (up to two if accredited) and observers'],
       body: 'Payment, passport details and flights come later.',
       links: [{ href: '/registration/fees-deadlines', label: 'Fees and deadlines', external: true }],
     },

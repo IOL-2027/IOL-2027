@@ -16,19 +16,36 @@ const previousHosts = [
   'Bulgaria', 'Russia', 'Netherlands', 'Estonia', 'Poland', 'Sweden', 'United States of America', 'Slovenia', 'United Kingdom',
   'China', 'India', 'Ireland', 'Czechia', 'Republic of Korea', 'Latvia', 'Isle of Man', 'Brazil', 'Taiwan', 'Romania',
 ]
+// Every accredited country or territory (ioling.org/countries, "Last updated 27 Oct 2026"). Only these may bring two
+// teams. The United Arab Emirates' application was in progress then: it counts as not accredited until the Board
+// accepts it, and the registration admin changes its fee rate on the invitation code.
+const accreditedCountries = [
+  'Australia', 'Austria', 'Brazil', 'Bulgaria', 'Canada Anglophone', 'Canada Francophone', 'China', 'Colombia', 'Czechia', 'Estonia',
+  'Finland', 'Georgia', 'Germany', 'Greece', 'Hong Kong, China', 'Hungary', 'India', 'Iran', 'Ireland', 'Isle of Man', 'Israel', 'Japan',
+  'Kazakhstan', 'Latvia', 'Macau', 'Malaysia', 'Malta', 'Moldova', 'Nepal', 'Netherlands', 'Philippines', 'Poland', 'Republic of Korea',
+  'Romania', 'Russia', 'Singapore', 'Slovenia', 'Spain', 'Sweden', 'Switzerland', 'Taiwan', 'Thailand', 'Türkiye', 'Ukraine',
+  'United Kingdom', 'United States of America',
+]
 const hostSpellings = {
   'russian federation': 'russia', 'the netherlands': 'netherlands', holland: 'netherlands', usa: 'united states of america',
   us: 'united states of america', 'united states': 'united states of america', uk: 'united kingdom', 'great britain': 'united kingdom',
   'czech republic': 'czechia', 'south korea': 'republic of korea', korea: 'republic of korea', 'korea, republic of': 'republic of korea',
   'chinese taipei': 'taiwan', 'people’s republic of china': 'china', "people's republic of china": 'china',
+  'hong kong': 'hong kong, china', 'hong kong sar': 'hong kong, china', macao: 'macau', 'macau, china': 'macau', 'macao, china': 'macau',
+  turkey: 'türkiye', turkiye: 'türkiye', 'canada (anglophone)': 'canada anglophone', 'canada (francophone)': 'canada francophone',
+  'islamic republic of iran': 'iran', 'iran, islamic republic of': 'iran', 'republic of moldova': 'moldova',
 }
 const countryKey = (name) => String(name ?? '').replace(/\(test\)/i, '').trim().toLowerCase().replace(/\s+/g, ' ')
 
-/** The fee category a new invitation code gets: previous host if the country or territory has hosted the IOL. */
+/**
+ * The fee category a new invitation code gets: previous host if the country or territory has hosted the IOL,
+ * accredited if it is on the IOL's accredited list, otherwise not accredited (one team).
+ */
 export function defaultFeeCategory(country) {
   const key = countryKey(country)
   const name = hostSpellings[key] ?? key
-  return previousHosts.some((host) => host.toLowerCase() === name) ? 'previous_host' : 'accredited'
+  if (previousHosts.some((host) => host.toLowerCase() === name)) return 'previous_host'
+  return accreditedCountries.some((c) => c.toLowerCase() === name) ? 'accredited' : 'non_accredited'
 }
 
 export const defaultSettings = {
