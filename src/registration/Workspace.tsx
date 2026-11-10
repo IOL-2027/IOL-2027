@@ -663,7 +663,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
       <div className="reg-home-foot">
         <dl>
-          <div><dt>Early bird rate</dt><dd>Invoice details saved by 12 March 2027</dd></div>
+          <div><dt>Early bird rate</dt><dd>Proof of payment uploaded by 12 March 2027</dd></div>
           <div><dt>Registration closes</dt><dd>30 April 2027</dd></div>
           <div><dt>The Olympiad</dt><dd>21–28 July 2027, Bangkok</dd></div>
         </dl>
@@ -932,8 +932,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                     </> : <span className="reg-muted">Given when you save the invoice details</span>}</dd></div>
                   </dl>
                   <span className="reg-visually-hidden" role="status">{copied ? `${copied} copied` : ''}</span>
-                  {!payment && data.fees.tier === 'early_bird' && (
-                    <p className="reg-hint reg-card-foot">The rate is fixed when you save the invoice details: save them by {new Date(`${data.fees.dueDate}T12:00:00+07:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} to keep the early bird rate.</p>
+                  {(!payment || payment.status === 'awaiting_proof') && data.fees.tier === 'early_bird' && (
+                    <p className="reg-hint reg-card-foot">The fee depends on the day your proof of payment is uploaded: upload it by {new Date(`${data.fees.dueDate}T12:00:00+07:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} to keep the early bird rate. After that, the invoice moves to the regular rate.</p>
                   )}
                 </Card>
 
