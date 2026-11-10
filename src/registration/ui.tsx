@@ -1,6 +1,6 @@
 // Form pieces shared by the Team Leader portal, sign-in screens and the staff back office.
 import { useState, type InputHTMLAttributes, type ReactNode } from 'react'
-import { Check, CircleAlert, Clock, LogOut } from 'lucide-react'
+import { Check, CircleAlert, Clock, Eye, EyeOff, LogOut } from 'lucide-react'
 import { ApiError, type User } from './api'
 import { selectOptions, type Field } from './portalData'
 
@@ -146,13 +146,28 @@ export function Alert({ children }: { children: ReactNode }) {
 
 export function TextField({ name, label, hint, error, idPrefix = 'acc', ...input }: { name: string; label: string; hint?: string; error?: string; idPrefix?: string } & InputHTMLAttributes<HTMLInputElement>) {
   const id = `${idPrefix}-${name}`
+  // A password can be shown while typing, to catch a typo.
+  const [shown, setShown] = useState(false)
+  const password = input.type === 'password'
+  const control = (
+    <input id={id} name={name} className="reg-control" aria-invalid={error ? true : undefined}
+      aria-describedby={[hint ? `${id}-hint` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined} {...input}
+      type={password && shown ? 'text' : input.type} />
+  )
   return (
     <div className={`reg-field${error ? ' has-error' : ''}`}>
       <label htmlFor={id}>{label}</label>
       {hint && <p className="reg-hint" id={`${id}-hint`}>{hint}</p>}
       {error && <p className="reg-error" id={`${id}-error`}><CircleAlert size={16} aria-hidden="true" />{error}</p>}
-      <input id={id} name={name} className="reg-control" aria-invalid={error ? true : undefined}
-        aria-describedby={[hint ? `${id}-hint` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined} {...input} />
+      {password ? (
+        <div className="reg-password">
+          {control}
+          <button type="button" className="reg-password-toggle" aria-controls={id} aria-pressed={shown} onClick={() => setShown(!shown)}>
+            {shown ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+            <span className="reg-visually-hidden">{shown ? 'Hide' : 'Show'} {label.toLowerCase()}</span>
+          </button>
+        </div>
+      ) : control}
     </div>
   )
 }
