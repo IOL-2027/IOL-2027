@@ -55,6 +55,8 @@ export type Payment = {
 }
 export type Delegation = {
   id: string; countryTerritory: string; accreditedOrganisation: string | null; primaryTeamLeaderName: string
+  /** People, and Rooms and welfare, open before the proof of payment is in (the committee's review account). */
+  peopleOpenEarly?: boolean
   teamLeaderEmail: string; numberOfTeams: number; numberOfObservers: number; registrationStatus: string
   paymentStatus: string; declaredArrivalDate: string | null; declaredDepartureDate: string | null
   stayWindowNote: string | null; welfareNote: string | null; contestantRoomType: string | null; completedSteps: string[]; submittedAt: string | null

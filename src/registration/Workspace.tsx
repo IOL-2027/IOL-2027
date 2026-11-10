@@ -151,6 +151,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     // observers and the invoice details lock, because they set the amount paid. Submitting still needs a proof
     // Finance has not returned.
     const proofIn = paymentDone || payment?.status === 'rejected'
+    // People, and Rooms and welfare, open with the proof, or from the start for a delegation the organisers opened early.
+    const peopleOpen = proofIn || Boolean(d.peopleOpenEarly)
     const submitted = d.registrationStatus !== 'draft'
     const draftMember = { role: 'contestant' as const, teamId: data.teams[0]?.id ?? null }
     // The account's own Team Leader comes first; with two teams, one more person may lead the second team.
@@ -170,7 +172,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
         return [...trips.map((t, i) => tripRecord(dir, t, data.members, several ? i + 1 : undefined)), ...(adding ? [tripRecord(dir, undefined, data.members, several ? trips.length + 1 : undefined)] : [])]
       }),
     }
-    return { d, steps, payment, paymentDone, proofIn, submitted, records }
+    return { d, steps, payment, paymentDone, proofIn, peopleOpen, submitted, records }
   }, [data, draftOpen, draftTrip])
 
   const eyebrow = staff ? `Back office · ${staff.roleLabel}` : 'Team Leader portal'
@@ -183,7 +185,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     </>
   }
 
-  const { d, steps, payment, paymentDone, proofIn, submitted, records } = derived
+  const { d, steps, payment, paymentDone, proofIn, peopleOpen, submitted, records } = derived
   const isDone = (id: SectionId) => (id === 'payment' ? paymentDone : id === 'submit' ? submitted : steps.has(id))
   const doneCount = required.filter((s) => isDone(s.id)).length
   const allRequiredDone = doneCount === required.length
@@ -208,7 +210,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
   const statusOf = (s: Section): StepStatus => {
     // People, and Rooms and welfare (built from People), open once the proof of payment is uploaded.
-    if ((s.id === 'people' || s.id === 'welfare') && !proofIn) return 'locked'
+    if ((s.id === 'people' || s.id === 'welfare') && !peopleOpen) return 'locked'
     if (s.id === 'payment' && payment?.status === 'rejected') return 'attention'
     if (isDone(s.id)) return todo[s.id]?.length ? 'attention' : 'done'
     if (s.id === 'start') return 'info'
@@ -562,9 +564,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       : paymentStatus === 'rejected' ? 'Finance returned the proof. Upload a new one.'
       : payment ? 'Invoice details saved. Transfer, then upload the bank’s proof.' : 'Invoice details, the bank transfer, then the proof of transfer.',
     teams: steps.has('teams') ? data.teams.map((t) => `${t.name}: ${t.contestLanguage ?? 'no language yet'}`).join(' · ') : 'Choose each team’s contest language.',
-    people: !proofIn ? 'Opens once the proof of payment is uploaded.'
+    people: !peopleOpen ? 'Opens once the proof of payment is uploaded.'
       : `${peopleCount} ${peopleCount === 1 ? 'person' : 'people'} entered${peopleToFinish ? `, ${peopleToFinish} still to finish` : ''}.`,
-    welfare: !proofIn ? 'Opens with People, once the proof of payment is uploaded.' : steps.has('welfare') ? 'Summary checked.' : 'Check the summary built from everyone’s details, and add any room requests.',
+    welfare: !peopleOpen ? 'Opens with People, once the proof of payment is uploaded.' : steps.has('welfare') ? 'Summary checked.' : 'Check the summary built from everyone’s details, and add any room requests.',
     travel: d.declaredArrivalDate && d.declaredDepartureDate
       ? `Staying ${formatDate(d.declaredArrivalDate)} to ${formatDate(d.declaredDepartureDate)}. ${flightsIn ? `${flightsIn} ${flightsIn === 1 ? 'flight' : 'flights'} added${flightsMissing ? ', but not everyone is on one yet' : ''}` : 'Flights once they are booked'}.`
       : 'Stay dates now; flights once they are booked.',
