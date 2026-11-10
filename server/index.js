@@ -18,7 +18,7 @@ import {
   checkPasswordRules, createSession, destroySession, filterMember, hashPassword, loginBlocked, recordLogin,
   requireAuth, requireRequestHeader, requireRole, requireVerified, sessionMiddleware, verifyPassword,
 } from './auth.js'
-import { delegationFees, loadSettings, maxObservers, needsGuardianConsent } from './fees.js'
+import { delegationFees, feeTier, loadSettings, maxObservers, needsGuardianConsent } from './fees.js'
 import {
   asyncHandler, buildUpdate, camelizeRow, camelizeRows, hashToken, insertAudit, isEmail, missingMemberDetails,
   exposeDevCodes, optionalNumber, optionalString, pool, query, requireDb, requiredString, portalUrl, withTransaction,
@@ -391,6 +391,7 @@ app.get('/api/registration/delegations/:delegationId', ...signedIn, delegationAc
     query(`SELECT id, member_id, payment_id, kind, original_filename, mime_type, size_bytes, created_at FROM attachments WHERE delegation_id = $1 ORDER BY created_at DESC`, [id]),
     query(`SELECT bc.member_id, bc.status, bc.issued_at FROM badge_credentials bc JOIN members m ON m.id = bc.member_id WHERE m.delegation_id = $1`, [id]),
   ])
+  if (payments.rows[0]) payments.rows[0] = await catchUpFeeTier(requireDb(), payments.rows[0], settings.fees)
   // Once an invoice exists, at its fee tier, so the Payment step and the invoice agree.
   const fees = delegationFees(settings.fees, delegation, payments.rows[0]?.fee_tier)
   res.json({
@@ -569,8 +570,9 @@ app.put('/api/registration/delegations/:delegationId/invoice', ...signedIn, dele
 app.get('/api/registration/delegations/:delegationId/invoice', ...signedIn, delegationAccess('read'), asyncHandler(async (req, res) => {
   const d = (await query('SELECT * FROM delegations WHERE id = $1', [req.params.delegationId])).rows[0]
   if (!d) throw new HttpError(404, 'Delegation not found.')
-  const payment = (await query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC LIMIT 1', [d.id])).rows[0]
-  if (!payment) throw new HttpError(409, 'Save the invoice details first.')
+  const latest = (await query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC LIMIT 1', [d.id])).rows[0]
+  if (!latest) throw new HttpError(409, 'Save the invoice details first.')
+  const payment = await catchUpFeeTier(requireDb(), latest, (await loadSettings(requireDb())).fees)
   if (await splitsOutOfStep(d, payment)) throw new HttpError(409, 'The total has changed since the invoices were split. Update the invoice amounts in Payment, then download them again.')
   const parts = payment.invoice_splits?.length ?? 0
   const part = req.query.part === undefined ? null : Number(req.query.part)
@@ -797,8 +799,10 @@ app.post('/api/registration/delegations/:delegationId/payment-proof', ...signedI
     stored.push(await saveUpload(`${req.params.delegationId}/proof-${crypto.randomUUID()}${extension}`, file))
   }
   const response = await withTransaction(async (client) => {
-    const payment = (await openPaymentQuery(client, req.params.delegationId)).rows[0]
-    if (!payment) throw new HttpError(409, 'Save the invoice details before uploading proof.')
+    const open = (await openPaymentQuery(client, req.params.delegationId)).rows[0]
+    if (!open) throw new HttpError(409, 'Save the invoice details before uploading proof.')
+    // The fee is set by the day the proof is received: an early-bird invoice whose proof comes later is at the regular fee.
+    const payment = await catchUpFeeTier(client, open, (await loadSettings(client)).fees)
     const already = (await client.query('SELECT count(*)::int AS n FROM attachments WHERE payment_id = $1', [payment.id])).rows[0].n
     if (already + files.length > MAX_PROOF_FILES) throw new HttpError(400, `The proof can have up to ${MAX_PROOF_FILES} files. Remove ${already ? 'one you no longer need' : 'some'} first, or put several in one PDF.`)
     const attachments = []
@@ -943,6 +947,22 @@ async function notifySubmitted(d) {
 async function delegationInvoice(d, payment, part = null) {
   const settings = await loadSettings(requireDb())
   return invoicePdf({ delegation: d, payment, fees: delegationFees(settings.fees, d, payment?.fee_tier), invoice: settings.invoice, part })
+}
+
+/**
+ * The fee depends on the day the proof of payment is received. An invoice still waiting for its proof after the last
+ * early-bird day moves to the regular fee (a split one then asks for its amounts again, see splitsOutOfStep). A proof
+ * already received keeps its tier, also when Finance returns it for a missing file.
+ */
+async function catchUpFeeTier(db, payment, fees) {
+  if (payment?.status !== 'awaiting_proof' || payment.fee_tier !== 'early_bird' || feeTier(fees) === 'early_bird') return payment
+  const d = (await db.query('SELECT * FROM delegations WHERE id = $1', [payment.delegation_id])).rows[0]
+  const updated = (await db.query(
+    `UPDATE payments SET fee_tier = 'normal', amount_due = $1, updated_at = now() WHERE id = $2 AND status = 'awaiting_proof' AND fee_tier = 'early_bird' RETURNING *`,
+    [delegationFees(fees, d, 'normal').total, payment.id],
+  )).rows[0]
+  if (updated) await insertAudit(db, { actorAccountId: null, delegationId: d.id, eventType: 'fee_tier_changed', entityType: 'payment', entityId: payment.id, details: { feeTier: 'normal', reason: 'proof not received by the last early-bird day' } })
+  return updated ?? payment
 }
 
 /** True when an unpaid invoice was split for a total that has since changed (more observers, a single room). */

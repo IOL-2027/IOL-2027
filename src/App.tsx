@@ -569,10 +569,10 @@ function Registration() {
     </div></section>
     <section className="two-col wrap registration-block" id="accredited-countries"><div><p className="eyebrow">Who can register</p><h2>Countries accredited by the IOL.</h2></div><div className="prose">
       <p>Teams come through their country’s national linguistics olympiad, run by an organisation accredited by the International Linguistics Olympiad. The list of accredited countries and territories is on <a className="inline-link" href="https://ioling.org/countries/" target="_blank" rel="noreferrer">ioling.org</a>.</p>
-      <p>Not accredited yet? Write to the IOL Board at <a className="inline-link" href="mailto:contact@ioling.org">contact@ioling.org</a>. Under the IOL regulations, applications made by 1 January are guaranteed a place at that year’s olympiad.</p>
+      <p>Not accredited yet? Write to the IOL Board at <a className="inline-link" href="mailto:contact@ioling.org">contact@ioling.org</a>. The deadline to request accreditation is 1 January; the Board then reviews each request.</p>
     </div></section>
-    <section className="two-col wrap registration-block registration-fees"><div><p className="eyebrow">Fees and deadlines</p><h2>Register by 12&nbsp;March for the early bird fee.</h2></div><div className="prose">
-      <p>The fee depends on the day the registration is submitted, not the day it is started.</p>
+    <section className="two-col wrap registration-block registration-fees"><div><p className="eyebrow">Fees and deadlines</p><h2>Pay by 12&nbsp;March for the early bird fee.</h2></div><div className="prose">
+      <p>The fee depends on the day the proof of payment is received, not the day the registration is started.</p>
       <a className="text-link" href="/registration/fees-deadlines">How payment works <ArrowRight size={16} /></a>
     </div><RegistrationDates /></section>
     <section className="two-col wrap registration-block" id="working-languages"><div><p className="eyebrow">Working languages</p><h2>Problems in your team’s language.</h2></div><div className="prose">
@@ -589,9 +589,9 @@ function RegistrationDates() {
   return <ol className="reg-dates">
     <li className="reg-date reg-date-start"><h3>Registration opens</h3><strong>18 Jan 2027</strong><p>Fee amounts and the bank-transfer instructions are published.</p></li>
     <li className="reg-period reg-period-early"><p><strong>Early bird fee</strong> 18 Jan – 12 Mar</p></li>
-    <li className="reg-date reg-date-mid"><h3>Early bird deadline</h3><strong>12 Mar 2027</strong><p>Registrations submitted by this day pay the early bird fee.</p></li>
+    <li className="reg-date reg-date-mid"><h3>Early bird deadline</h3><strong>12 Mar 2027</strong><p>Registrations whose proof of payment is received by this day pay the early bird fee.</p></li>
     <li className="reg-period reg-period-regular"><p><strong>Regular fee</strong> 13 Mar – 30 Apr</p></li>
-    <li className="reg-date reg-date-end"><h3>Regular registration ends</h3><strong>30 Apr 2027</strong><p>Registrations submitted from 13 March pay the regular fee.</p></li>
+    <li className="reg-date reg-date-end"><h3>Regular registration ends</h3><strong>30 Apr 2027</strong><p>Proof of payment received from 13 March pays the regular fee.</p></li>
   </ol>
 }
 
