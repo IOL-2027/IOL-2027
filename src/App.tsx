@@ -603,7 +603,7 @@ function PortalRedirect({ to }: { to: string }) {
 // In the order the registration portal asks for things (src/registration/portalData.ts).
 const registrationReady = [
   'The invitation code, sent to your country’s official contact',
-  'How many teams (up to two) and observers you are bringing',
+  'How many teams (up to two for an accredited country, one otherwise) and observers you are bringing',
   'Invoice details: the organisation to invoice, and how many invoices',
   'A bank that can make an international transfer, with its charges paid by the sender',
   'For each person: official and passport names, passport number and nationality, date of birth, shirt sizes',
@@ -615,7 +615,7 @@ const registrationJourney: { phase: string; steps: { title: string; detail: stri
     { title: 'Team Leader account', detail: 'The Team Leader creates the country’s account with the code and verifies their email address.' },
   ] },
   { phase: 'In the portal', steps: [
-    { title: 'Team and observers', detail: 'How many teams (up to two) and how many observers. These two numbers set the fees; names are not needed yet.', tag: 'Sets the fees' },
+    { title: 'Team and observers', detail: 'How many teams (up to two for an accredited country or territory, one for any other) and how many observers. These two numbers set the fees; names are not needed yet.', tag: 'Sets the fees' },
     { title: 'Payment', detail: 'Give the invoice details, transfer the full amount, then upload the bank’s proof of transfer. Finance checks it and issues an e-receipt.', tag: 'Bank transfer only' },
     { title: 'Teams', detail: 'Choose each team’s working language for the team contest.' },
     { title: 'People', detail: 'Each contestant’s and observer’s details: names, passport details, exam language, shirt sizes, and any food, medical or accessibility notes. It can be filled in over several sittings.', tag: 'Opens after proof of payment' },

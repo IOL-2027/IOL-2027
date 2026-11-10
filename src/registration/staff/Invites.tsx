@@ -106,7 +106,7 @@ export default function Invites() {
             <TextField idPrefix="invite" name="email" label="Contact email (optional)" type="email" autoComplete="off" />
             <div className="reg-field">
               <label htmlFor="invite-fee">Fee rate</label>
-              <p className="reg-hint" id="invite-fee-hint">Automatic finds previous IOL hosts by name. Choose not accredited for a guest country.</p>
+              <p className="reg-hint" id="invite-fee-hint">Automatic goes by name: previous IOL hosts, then the countries accredited on ioling.org/countries (27 Oct 2026); any other is not accredited. Check it when a name is spelt differently.</p>
               <select id="invite-fee" name="feeCategory" className="reg-control" defaultValue="" aria-describedby="invite-fee-hint">
                 <option value="">Automatic</option>
                 {feeCategories.map((c) => <option key={c} value={c}>{feeCategoryLabel[c]}</option>)}
