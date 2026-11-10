@@ -554,12 +554,13 @@ export function registerAdminRoutes(app, { signedIn }) {
     let fees
     try { fees = cleanFees(req.body) } catch (error) { throw new HttpError(400, error.message) }
     await saveSetting(req, 'fees', fees)
-    // Invoices that have not been paid yet follow the new fees; paid or under-review ones keep their amount.
+    // Invoices that have not been paid yet follow the new fees; paid or under-review ones keep their amount. One whose
+    // proof Finance returned keeps its tier: the fee is set by the day the proof was received.
     const open = (await query(
-      `SELECT p.id AS payment_id, d.* FROM payments p JOIN delegations d ON d.id = p.delegation_id WHERE p.status IN ('awaiting_proof', 'rejected')`,
+      `SELECT p.id AS payment_id, p.status AS payment_state, p.fee_tier AS payment_tier, d.* FROM payments p JOIN delegations d ON d.id = p.delegation_id WHERE p.status IN ('awaiting_proof', 'rejected')`,
     )).rows
     for (const p of open) {
-      const due = delegationFees(fees, p)
+      const due = delegationFees(fees, p, p.payment_state === 'rejected' ? p.payment_tier : undefined)
       await query('UPDATE payments SET amount_due = $1, fee_tier = $2, updated_at = now() WHERE id = $3', [due.total, due.tier, p.payment_id])
     }
     const settings = await loadSettings(requireDb())
