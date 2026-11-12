@@ -3,8 +3,8 @@
 -- also the first team's Team Leader, and each team's Team Leader. The delegation's name column now holds the
 -- representative (it held the account's own Team Leader, who was the same person until now).
 DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'delegations' AND column_name = 'national_representative_name') THEN
-    ALTER TABLE delegations RENAME COLUMN national_representative_name TO national_representative_name;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'delegations' AND column_name = 'primary_team_leader_name') THEN
+    ALTER TABLE delegations RENAME COLUMN primary_team_leader_name TO national_representative_name;
   END IF;
 END $$;
 -- NULL until Team and observers is answered. Everyone registered so far signed up as their first team's Team Leader.
