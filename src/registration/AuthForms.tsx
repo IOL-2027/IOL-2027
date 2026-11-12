@@ -102,7 +102,7 @@ function ResetPassword({ initialEmail, onDone, onBack }: { initialEmail: string;
     if (step === 'code') {
       if (!/^\d{6}$/.test(String(data.get('code') ?? '').trim())) found.code = 'Enter the 6 digits from the email.'
       if (String(data.get('password') ?? '').length < 12) found.password = 'Use at least 12 characters.'
-      else if (data.get('password') !== data.get('password2')) found.password2 = 'The two passwords are not the same. Type the new password again.'
+      else if (data.get('password') !== data.get('password2')) found.password2 = 'The passwords do not match. Type the same new password in both boxes.'
     }
     setErrors(found)
     if (Object.keys(found).length) { focusFirstError(formRef.current); return }
@@ -148,7 +148,7 @@ function ResetPassword({ initialEmail, onDone, onBack }: { initialEmail: string;
           <TextField name="email" label="Email address" type="email" autoComplete="email" defaultValue={email} error={errors.email} />
           <TextField name="code" label="Code from the email" inputMode="numeric" autoComplete="one-time-code" maxLength={6} className="reg-control reg-control-otp" error={errors.code} />
           <TextField name="password" label="New password" hint="At least 12 characters." type="password" autoComplete="new-password" error={errors.password} />
-          <TextField name="password2" label="Retype the new password" type="password" autoComplete="new-password" error={errors.password2} />
+          <TextField name="password2" label="Confirm new password" type="password" autoComplete="new-password" error={errors.password2} />
           <p className="reg-reassure"><MailCheck size={18} aria-hidden="true" /><span>No email? Check spam, or <button type="button" className="reg-inline-btn" onClick={resend}>send a new code</button>.</span></p>
           <p className="reg-status-line" role="status">{status}</p>
           <div className="reg-account-actions">
@@ -206,7 +206,7 @@ function SignUp({ onCreated, onSignIn, onForgot, initialCode }: {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value('email'))) found.email = 'Enter an email address like name@example.org.'
       if (!value('name')) found.name = 'Enter the Team Leader’s full name.'
       if (String(data.get('password') ?? '').length < 12) found.password = 'Use at least 12 characters.'
-      else if (data.get('password') !== data.get('password2')) found.password2 = 'The two passwords are not the same. Type the password again.'
+      else if (data.get('password') !== data.get('password2')) found.password2 = 'The passwords do not match. Type the same password in both boxes.'
     }
     setErrors(found)
     if (Object.keys(found).length) { focusFirstError(formRef.current); return }
@@ -267,7 +267,7 @@ function SignUp({ onCreated, onSignIn, onForgot, initialCode }: {
           <TextField name="email" label="Email address" hint="For signing in and for official notices from the organisers." error={errors.email} type="email" autoComplete="email" />
           <TextField name="name" label="Full name" hint="Entered once and reused on teams, badges and letters." error={errors.name} autoComplete="name" />
           <TextField name="password" label="Password" hint="At least 12 characters." error={errors.password} type="password" autoComplete="new-password" />
-          <TextField name="password2" label="Retype the password" error={errors.password2} type="password" autoComplete="new-password" />
+          <TextField name="password2" label="Confirm password" error={errors.password2} type="password" autoComplete="new-password" />
           <div className="reg-account-actions">
             <button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{busy ? 'Creating…' : 'Create account'} <ArrowRight size={18} aria-hidden="true" /></button>
             <button type="button" className="reg-btn-link" onClick={() => { setErrors({}); setStep(0) }}><ArrowLeft size={16} aria-hidden="true" />Back</button>
