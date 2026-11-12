@@ -553,7 +553,7 @@ function Registration() {
       <p className="system-label">{registrationOpen ? 'REGISTRATION / OPEN' : 'REGISTRATION / OPENS 18 JANUARY 2027'}</p>
       {registrationOpen ? <h1>REGISTER<br /><em>YOUR TEAM.</em></h1> : <h1>OPENS<br /><em>18 JAN 2027.</em></h1>}
       <p>{registrationOpen
-        ? 'Team Leaders register their country in the IOL 2027 registration portal, using the invitation code their national organisation received by email.'
+        ? 'National representatives register their country in the IOL 2027 registration portal, using the invitation code their national organisation received by email.'
         : 'Registration happens in the IOL 2027 registration portal. Each accredited country’s official contact receives an invitation code by email before it opens.'}</p>
       <div className="hero-actions">{registrationOpen
         ? <><a className="pill pill-light" href={portalUrl}>Go to the registration portal <span><ArrowUpRight size={16} /></span></a><a href="/registration/how-to-register" className="text-link">How to register <ArrowRight size={16} /></a></>
@@ -561,10 +561,10 @@ function Registration() {
     </div><aside><span>FEE RELEASE</span><strong>18 JAN 2027</strong><span>EARLY BIRD</span><strong>18 JAN-12 MAR</strong><span>REGULAR</span><strong>13 MAR-30 APR</strong><span>STATUS</span><strong>{registrationOpen ? 'OPEN' : 'PREPARING'}</strong></aside>
       <ScrollCue target="registration-details" label="Details below" />
     </section>
-    <section className="two-col wrap" id="registration-details"><div><p className="eyebrow">How to register</p><h2>One Team Leader account per country.</h2></div><div className="prose">
-      <p>The official contact for each accredited country or territory receives an invitation code by email. The Team Leader uses it to create the country’s account in the registration portal{registrationOpen ? <> at <a className="inline-link" href={portalUrl}>{portalHost}</a></> : null}, then registers in stages:</p>
+    <section className="two-col wrap" id="registration-details"><div><p className="eyebrow">How to register</p><h2>One account per country.</h2></div><div className="prose">
+      <p>The official contact for each accredited country or territory receives an invitation code by email. The national representative uses it to create the country’s account in the registration portal{registrationOpen ? <> at <a className="inline-link" href={portalUrl}>{portalHost}</a></> : null}, then registers in stages:</p>
       <ol className="registration-stages">{stages.map((stage) => <li key={stage}>{stage}</li>)}</ol>
-      <p>Each stage can be saved and finished later. Once the registration is submitted, the payment is confirmed and everyone’s travel is in, the Team Leader receives a QR badge for each person by email.</p>
+      <p>Each stage can be saved and finished later. Once the registration is submitted, the payment is confirmed and everyone’s travel is in, the national representative receives a QR badge for each person by email.</p>
       <a className="text-link" href="/registration/how-to-register">The registration flow, step by step <ArrowRight size={16} /></a>
     </div></section>
     <section className="two-col wrap registration-block" id="accredited-countries"><div><p className="eyebrow">Who can register</p><h2>Countries accredited by the IOL.</h2></div><div className="prose">
@@ -576,7 +576,7 @@ function Registration() {
       <a className="text-link" href="/registration/fees-deadlines">How payment works <ArrowRight size={16} /></a>
     </div><RegistrationDates /></section>
     <section className="two-col wrap registration-block" id="working-languages"><div><p className="eyebrow">Working languages</p><h2>Problems in your team’s language.</h2></div><div className="prose">
-      <p>Contestants read the problems and answer in a working language of their choice. A language that has not been used before must be requested before 31 January 2027.</p>
+      <p>Contestants read the problems and answer in a working language of their choice. A language that was not used at the previous Olympiad must be requested by 1 February 2027.</p>
       <a className="text-link" href="https://ioling.org/upcoming/" target="_blank" rel="noreferrer">IOL 2027 dates on ioling.org <ExternalLink size={14} /></a>
     </div></section>
     <SectionLinks links={[{ href: '/registration/how-to-register', label: 'How to register', detail: 'Every step of the registration flow.' }, { href: '/registration/fees-deadlines', label: 'Fees & deadlines', detail: 'Registration periods and how payment works.' }, { href: '/registration/visas', label: 'Visa & invitation letters', detail: 'Check the requirements for your country.' }]} />
@@ -612,10 +612,10 @@ const registrationReady = [
 const registrationJourney: { phase: string; steps: { title: string; detail: string; tag?: string; href?: string }[] }[] = [
   { phase: 'Before the portal', steps: [
     { title: 'Invitation code', detail: 'Each accredited country’s official contact receives an invitation code by email. The code sets the country, so it is never typed in.' },
-    { title: 'Team Leader account', detail: 'The Team Leader creates the country’s account with the code and verifies their email address.' },
+    { title: 'Country account', detail: 'The national representative creates the country’s account with the code and verifies their email address.' },
   ] },
   { phase: 'In the portal', steps: [
-    { title: 'Team and observers', detail: 'How many teams (up to two for an accredited country or territory, one for any other) and how many observers. These two numbers set the fees; names are not needed yet.', tag: 'Sets the fees' },
+    { title: 'Team and observers', detail: 'How many teams (up to two for an accredited country or territory, one for any other) and how many observers, which set the fees, and who the national representative and each Team Leader are.', tag: 'Sets the fees' },
     { title: 'Payment', detail: 'Give the invoice details, transfer the full amount, then upload the bank’s proof of transfer. Finance checks it and issues an e-receipt.', tag: 'Bank transfer only' },
     { title: 'Teams', detail: 'Choose each team’s working language for the team contest.' },
     { title: 'People', detail: 'Each contestant’s and observer’s details: names, passport details, exam language, shirt sizes, and any food, medical or accessibility notes. It can be filled in over several sittings.', tag: 'Opens after proof of payment' },
@@ -625,13 +625,13 @@ const registrationJourney: { phase: string; steps: { title: string; detail: stri
   ] },
   { phase: 'Before the Olympiad', steps: [
     { title: 'Invitation letters', detail: 'Once the payment is confirmed, an invitation letter is sent for each person to support their visa application.', href: '/registration/visas' },
-    { title: 'QR badges', detail: 'When the payment is confirmed and everyone’s arrival and departure are in, the Team Leader receives each person’s badge QR code by email. Badges are scanned on arrival and at checkpoints during the week.' },
+    { title: 'QR badges', detail: 'When the payment is confirmed and everyone’s arrival and departure are in, the national representative receives each person’s badge QR code by email. Badges are scanned on arrival and at checkpoints during the week.' },
   ] },
 ]
 
 function RegistrationHow() {
   const firstStep = registrationJourney.map((_, index) => registrationJourney.slice(0, index).reduce((total, phase) => total + phase.steps.length, 1))
-  return <><PageIntro eyebrow="Registration / How to register" title="Registering your country, step by step." body="One Team Leader registers the whole country, from the invitation code and payment to each person’s details and travel. Everything saved in the portal is kept, so it can be done over several sittings." />
+  return <><PageIntro eyebrow="Registration / How to register" title="Registering your country, step by step." body="One national representative registers the whole country, from the invitation code and payment to each person’s details and travel. Everything saved in the portal is kept, so it can be done over several sittings." />
     <section className="how-ready wrap"><div><p className="eyebrow">Before you start</p><h2>Have these ready.</h2></div><ul>{registrationReady.map((item) => <li key={item}><Check size={18} aria-hidden="true" />{item}</li>)}</ul></section>
     <section className="how-journey wrap">{registrationJourney.map((phase, index) => <div className="how-phase" key={phase.phase}><h2>{phase.phase}</h2>
       <ol start={firstStep[index]}>{phase.steps.map((step, stepIndex) => <li key={step.title}><span className="how-step-number" aria-hidden="true">{firstStep[index] + stepIndex}</span><div>
@@ -645,7 +645,7 @@ function RegistrationHow() {
 }
 
 function RegistrationFees() {
-  return <><PageIntro eyebrow="Registration / Fees & deadlines" title="Fees, deadlines and how to pay." body="The confirmed registration windows come from the IOL 2027 fees and important dates notice. Final amounts and bank-account instructions will be published after Finance approval." /><section className="reg-dates-page wrap"><RegistrationDates /></section><section className="two-col wrap" id="payment"><div><p className="eyebrow">Payment process</p><h2>Transfer outside the website, then upload proof.</h2></div><div className="prose"><p>Teams will use the bank-transfer instructions shown in the registration system. The website does not collect payment or card details.</p><p>After transfer, the team leader uploads proof of payment. Finance verifies the proof manually before registration is confirmed.</p></div></section></>
+  return <><PageIntro eyebrow="Registration / Fees & deadlines" title="Fees, deadlines and how to pay." body="The confirmed registration windows come from the IOL 2027 fees and important dates notice. Final amounts and bank-account instructions will be published after Finance approval." /><section className="reg-dates-page wrap"><RegistrationDates /></section><section className="two-col wrap" id="payment"><div><p className="eyebrow">Payment process</p><h2>Transfer outside the website, then upload proof.</h2></div><div className="prose"><p>National representatives will use the bank-transfer instructions shown in the registration system. The website does not collect payment or card details.</p><p>After transfer, the national representative uploads proof of payment. Finance verifies the proof manually before registration is confirmed.</p></div></section></>
 }
 
 const visaSteps = [
@@ -696,7 +696,7 @@ function Transportation() {
     <section className="transport-airports wrap">
       <article><span>BKK</span><h3>Suvarnabhumi Airport</h3><p>Bangkok’s main international airport.</p><p className="transport-service"><Check size={16} aria-hidden="true" />Pick-up and drop-off provided</p></article>
       <article><span>DMK</span><h3>Don Mueang International Airport</h3><p>Bangkok’s older airport, used by many regional and low-cost airlines.</p><p className="transport-service"><Check size={16} aria-hidden="true" />Pick-up and drop-off provided</p></article>
-      <article className="transport-flights"><h3>Share your flights</h3><p>Team Leaders add everyone’s stay dates in the registration portal, then their flights once they are booked. The organising team plans the pick-ups from them.</p><a className="text-link" href="/registration/how-to-register">How to register <ArrowRight size={15} /></a></article>
+      <article className="transport-flights"><h3>Share your flights</h3><p>National representatives add everyone’s stay dates in the registration portal, then their flights once they are booked. The organising team plans the pick-ups from them.</p><a className="text-link" href="/registration/how-to-register">How to register <ArrowRight size={15} /></a></article>
     </section>
     <section className="transport-timetable wrap"><div><p className="transport-status">To be confirmed</p><h2>Airport pick-up timetable</h2><p>It will be published here once the transport plan is confirmed.</p></div>
       <ul>{['Pick-up windows', 'Airport meeting points', 'Who to contact on arrival', 'Coach departure times'].map((item) => <li key={item}><Clock size={16} aria-hidden="true" />{item}</li>)}</ul>

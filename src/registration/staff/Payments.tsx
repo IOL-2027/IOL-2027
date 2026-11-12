@@ -5,7 +5,7 @@ import { openReceipt } from '../invoice'
 import { Done, FilterField, Note, Panel, Problem, day, errorText, human, useLoad, when } from './common'
 
 type PaymentRow = {
-  id: string; delegationId: string; countryTerritory: string; primaryTeamLeaderName: string; teamLeaderEmail: string
+  id: string; delegationId: string; countryTerritory: string; nationalRepresentativeName: string; teamLeaderEmail: string
   numberOfTeams: number; numberOfObservers: number; paymentReference: string; amountDue: string; currency: string; feeTier: string
   status: string; invoiceRecipientName: string | null; invoiceRecipientAddress: string | null; invoiceCount: number; invoiceSplitNote: string | null
   invoiceSplits: { recipientName: string; amount: number }[] | null; feeCategory: string; singleRooms: { teamLeaders: boolean[]; observers: boolean[] } | null
@@ -50,14 +50,14 @@ export default function Payments({ canReview }: { canReview: boolean }) {
   const act = async (payment: PaymentRow, action: 'approve' | 'reject') => {
     setActionError(''); setDone('')
     if (action === 'reject' && !notes[payment.id]?.trim()) {
-      setNoteErrors((n) => ({ ...n, [payment.id]: 'Write the reason the Team Leader will see.' }))
+      setNoteErrors((n) => ({ ...n, [payment.id]: 'Write the reason the national representative will see.' }))
       document.getElementById(`note-${payment.id}`)?.focus()
       return
     }
     setBusy(payment.id)
     try {
       await api(`/api/admin/payments/${payment.id}/${action}`, { method: 'POST', body: { note: notes[payment.id] ?? '' } })
-      setDone(`${payment.countryTerritory}: ${action === 'approve' ? 'payment approved and receipt issued' : 'proof returned to the Team Leader'}.`)
+      setDone(`${payment.countryTerritory}: ${action === 'approve' ? 'payment approved and receipt issued' : 'proof returned to the national representative'}.`)
       setNoteErrors((n) => ({ ...n, [payment.id]: '' }))
       reload()
     } catch (e) {
@@ -94,7 +94,7 @@ export default function Payments({ canReview }: { canReview: boolean }) {
               <span>{human(p.status)}{p.reviewedByName ? ` by ${p.reviewedByName}` : ''} · {when(p.reviewedAt ?? p.updatedAt)}</span>
             </div>
             <dl className="reg-pay-details">
-              <div><dt>Team Leader</dt><dd>{p.primaryTeamLeaderName}<small>{p.teamLeaderEmail}</small></dd></div>
+              <div><dt>National representative</dt><dd>{p.nationalRepresentativeName}<small>{p.teamLeaderEmail}</small></dd></div>
               <div><dt>Invoice to</dt><dd>{p.invoiceRecipientName ?? '—'}{p.invoiceRecipientTin && <small>TIN {p.invoiceRecipientTin}</small>}{p.invoiceRecipientAddress && <small>{p.invoiceRecipientAddress}</small>}</dd></div>
               <div><dt>Invoices</dt><dd>{p.invoiceCount}{p.invoiceSplits
                 ? p.invoiceSplits.map((s, i) => <small key={i}>{p.invoiceNumber}-{i + 1}: {s.recipientName}, {p.currency} {Number(s.amount).toLocaleString('en-US')}</small>)
@@ -104,7 +104,7 @@ export default function Payments({ canReview }: { canReview: boolean }) {
                 return singles ? `, ${singles} single ${singles === 1 ? 'room' : 'rooms'}` : ''
               })()}</dd></div>
             </dl>
-            {p.reviewNote && <p className="reg-pay-note"><strong>Note to the Team Leader:</strong> {p.reviewNote}</p>}
+            {p.reviewNote && <p className="reg-pay-note"><strong>Note to the national representative:</strong> {p.reviewNote}</p>}
             <div className="reg-pay-files">
               {/* A split invoice is one PDF per payer. */}
               {p.invoiceSplits?.length

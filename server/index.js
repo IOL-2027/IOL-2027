@@ -153,7 +153,7 @@ app.post('/api/registration/invite/verify', asyncHandler(async (req, res) => {
   // so the answer sends them to sign in rather than saying the code is wrong.
   if (invite && (invite.status === 'used' || invite.used_by_account_id)) {
     return res.status(409).json({
-      error: `This code has already been used to create the Team Leader account for ${invite.country_territory}. Sign in with that account instead.`,
+      error: `This code has already been used to create the account for ${invite.country_territory}. Sign in with that account instead.`,
       codeUsed: true, countryTerritory: invite.country_territory, accountHint: invite.used_by_email ? maskEmail(invite.used_by_email) : null,
     })
   }
@@ -253,7 +253,8 @@ app.post('/api/auth/password-reset/confirm', asyncHandler(async (req, res) => {
 app.post('/api/registration/team-leader-account', asyncHandler(async (req, res) => {
   const inviteCode = requiredString(req.body.inviteCode, 'Invitation code').toUpperCase()
   const email = requiredString(req.body.email, 'Email').toLowerCase()
-  const fullName = requiredString(req.body.fullName, 'Full name')
+  // The national representative's name is asked in Team and observers, not at sign-up (since 12 Nov 2026).
+  const fullName = optionalString(req.body.fullName) ?? ''
   if (!isEmail(email)) throw new HttpError(400, 'Enter an email address like name@example.org.')
   checkPasswordRules(req.body.password)
 
@@ -282,15 +283,11 @@ app.post('/api/registration/team-leader-account', asyncHandler(async (req, res) 
     )).rows[0]
     const delegation = (await client.query(
       `INSERT INTO delegations (account_id, invite_code_id, country_territory, accredited_organisation,
-         primary_team_leader_name, team_leader_email, registration_contact_email, number_of_teams, number_of_contestants, number_of_observers, fee_category)
+         national_representative_name, team_leader_email, registration_contact_email, number_of_teams, number_of_contestants, number_of_observers, fee_category)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 4, 0, $8) RETURNING *`,
       [account.id, invite.id, invite.country_territory, invite.accredited_organisation, fullName, email, invite.contact_email, invite.fee_category],
     )).rows[0]
-    await client.query(
-      `INSERT INTO members (delegation_id, role, display_name, badge_name, official_name, email)
-       VALUES ($1, 'team_leader', $2, $2, $2, $3)`,
-      [delegation.id, fullName, email],
-    )
+    // Team Leaders are named in Team and observers, which adds their records to People.
     await ensureTeams(client, delegation)
     if (!reuse) await client.query(`UPDATE invite_codes SET status = 'used', used_at = now(), used_by_account_id = $1, updated_at = now() WHERE id = $2`, [account.id, invite.id])
     await insertAudit(client, { actorAccountId: account.id, delegationId: delegation.id, eventType: 'team_leader_account_created', entityType: 'delegation', entityId: delegation.id, details: { inviteCode } })
@@ -456,6 +453,18 @@ app.patch('/api/registration/delegations/:delegationId', ...signedIn, delegation
     body.singleRooms = { teamLeaders: fit(given.teamLeaders, teams), observers: fit(given.observers, observers), observerTeams }
   }
   delete body.observerTeams
+  // Who registers and who leads each team, from Team and observers. Not locked by the proof: names do not change fees.
+  let leaderNames = null
+  if ('nationalRepresentativeName' in body || 'representativeIsTeamLeader' in body || 'teamLeaderNames' in body) {
+    const name = requiredString(body.nationalRepresentativeName, 'National representative’s name')
+    if (name.length > 200) throw new HttpError(400, 'The name must be at most 200 characters.')
+    if (typeof body.representativeIsTeamLeader !== 'boolean') throw new HttpError(400, 'Say whether the national representative is also a Team Leader.')
+    const given = Array.isArray(body.teamLeaderNames) ? body.teamLeaderNames : []
+    leaderNames = Array.from({ length: teams }, (_, i) => (i === 0 && body.representativeIsTeamLeader ? name : String(given[i] ?? '').trim().slice(0, 200)))
+    if (!leaderNames[0]) throw new HttpError(400, 'Enter the Team Leader’s name.')
+    body.nationalRepresentativeName = name
+  }
+  delete body.teamLeaderNames
   if ('completedSteps' in body) {
     const allowed = ['start', 'setup', 'teams', 'people', 'welfare', 'travel']
     if (!Array.isArray(body.completedSteps) || body.completedSteps.some((s) => !allowed.includes(s))) throw new HttpError(400, 'Invalid step list.')
@@ -477,13 +486,21 @@ app.patch('/api/registration/delegations/:delegationId', ...signedIn, delegation
     contestantRoomType: 'contestant_room_type',
     completedSteps: 'completed_steps',
     singleRooms: 'single_rooms',
+    nationalRepresentativeName: 'national_representative_name',
+    representativeIsTeamLeader: 'representative_is_team_leader',
   }
   const delegation = await withTransaction(async (client) => {
     const { sets, values } = buildUpdate(body, fieldMap)
     values.push(req.params.delegationId)
     const result = await client.query(`UPDATE delegations SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values)
     if (!result.rowCount) throw new HttpError(404, 'Delegation not found.')
-    if ('numberOfTeams' in body) await ensureTeams(client, result.rows[0])
+    if ('numberOfTeams' in body || leaderNames) await ensureTeams(client, result.rows[0])
+    if (leaderNames) {
+      await syncTeamLeaders(client, result.rows[0], leaderNames)
+      // The account is the representative's: emails and the page header greet them by this name.
+      await client.query('UPDATE accounts SET full_name = $1, updated_at = now() WHERE id = $2', [body.nationalRepresentativeName, result.rows[0].account_id])
+      if (!('singleRooms' in body)) await syncSingleRooms(client, result.rows[0].id)
+    }
     // An invoice not paid yet follows the new numbers, as it does when Finance changes the fees, and the answers
     // reach the Team Leaders' and observers' records in People.
     if ('singleRooms' in body) {
@@ -639,7 +656,40 @@ async function proofIsIn(db, delegationId) {
   return result.rowCount > 0
 }
 
-/** The account's own Team Leader: the first Team Leader record, made with the account. */
+/**
+ * The Team Leaders named in Team and observers, one per team in order (an empty name leaves that team's for later).
+ * A record already there is renamed; its badge and official names follow when they still matched the old name, so
+ * names corrected in People are kept. A new record joins its team, and the representative's has the account's email.
+ */
+async function syncTeamLeaders(db, delegation, names) {
+  const teams = (await db.query('SELECT id FROM teams WHERE delegation_id = $1 ORDER BY code', [delegation.id])).rows
+  const leaders = (await db.query(`SELECT * FROM members WHERE delegation_id = $1 AND role = 'team_leader' ORDER BY created_at`, [delegation.id])).rows
+  for (const [i, name] of names.entries()) {
+    if (!name) continue
+    const leader = leaders[i]
+    // The representative's own Team Leader record carries the account's email; another person's does not get it.
+    const own = i === 0 && delegation.representative_is_team_leader
+    if (leader) {
+      const email = own ? delegation.team_leader_email : leader.email === delegation.team_leader_email ? null : leader.email
+      if (leader.display_name === name && leader.email === email) continue
+      await db.query(
+        `UPDATE members SET display_name = $1, email = $3,
+           badge_name = CASE WHEN badge_name IS NULL OR badge_name = '' OR badge_name = display_name THEN $1 ELSE badge_name END,
+           official_name = CASE WHEN official_name = '' OR official_name = display_name THEN $1 ELSE official_name END,
+           updated_at = now() WHERE id = $2`,
+        [name, leader.id, email],
+      )
+    } else {
+      const email = own ? delegation.team_leader_email : null
+      await db.query(
+        `INSERT INTO members (delegation_id, team_id, role, display_name, badge_name, official_name, email) VALUES ($1, $2, 'team_leader', $3, $3, $3, $4)`,
+        [delegation.id, teams[i]?.id ?? null, name, email],
+      )
+    }
+  }
+}
+
+/** The first team's Team Leader: the first Team Leader record, named in Team and observers. */
 async function primaryLeaderId(delegationId) {
   return (await query(`SELECT id FROM members WHERE delegation_id = $1 AND role = 'team_leader' ORDER BY created_at LIMIT 1`, [delegationId])).rows[0]?.id
 }
@@ -701,7 +751,7 @@ app.patch('/api/registration/members/:memberId', ...signedIn, childAccess('membe
   if (body.role) {
     body.role = normalizeRole(body.role)
     const primary = await primaryLeaderId(req.delegationId)
-    if (req.params.memberId === primary && body.role !== 'team_leader') throw new HttpError(400, 'The account’s own Team Leader stays the Team Leader.')
+    if (req.params.memberId === primary && body.role !== 'team_leader') throw new HttpError(400, 'The first team’s Team Leader is named in Team and observers, so they stay the Team Leader.')
     if (body.role === 'team_leader' && req.params.memberId !== primary) await checkLeaderPlace(req.delegationId, req.params.memberId)
   }
   await checkTeamBelongs(body.teamId, req.delegationId)
@@ -714,7 +764,7 @@ app.patch('/api/registration/members/:memberId', ...signedIn, childAccess('membe
 }))
 
 app.delete('/api/registration/members/:memberId', ...signedIn, childAccess('members', 'memberId'), asyncHandler(async (req, res) => {
-  if (req.params.memberId === await primaryLeaderId(req.delegationId)) throw new HttpError(400, 'The account’s own Team Leader cannot be removed.')
+  if (req.params.memberId === await primaryLeaderId(req.delegationId)) throw new HttpError(400, 'The first team’s Team Leader is named in Team and observers. Change the name there instead.')
   await query('DELETE FROM members WHERE id = $1', [req.params.memberId])
   await syncSingleRooms(requireDb(), req.delegationId)
   await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'member_removed', entityType: 'member', entityId: req.params.memberId })
@@ -823,9 +873,9 @@ app.post('/api/registration/delegations/:delegationId/payment-proof', ...signedI
     return { payment: updated, attachments }
   })
 
-  const d = (await query('SELECT country_territory, team_leader_email, primary_team_leader_name FROM delegations WHERE id = $1', [req.params.delegationId])).rows[0]
+  const d = (await query('SELECT country_territory, team_leader_email, national_representative_name FROM delegations WHERE id = $1', [req.params.delegationId])).rows[0]
   const emailCtx = {
-    countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, paymentReference: response.payment.payment_reference,
+    countryTerritory: d.country_territory, fullName: d.national_representative_name, paymentReference: response.payment.payment_reference,
     amountDue: response.payment.amount_due, currency: response.payment.currency || 'USD', invoiceCount: response.payment.invoice_count,
     proofFilename: files.map((f) => f.originalname).join(', '), delegationId: req.params.delegationId, peopleUrl: `${portalUrl}/?step=people`,
   }
@@ -932,7 +982,7 @@ async function notifySubmitted(d) {
   const parts = payment?.invoice_splits?.length ? payment.invoice_splits.map((_, i) => i + 1) : [null]
   const attachments = await Promise.all(parts.map(async (part) => ({ filename: invoiceFilename(d, payment, part), content: await delegationInvoice(d, payment, part), contentType: 'application/pdf' })))
   const { subject, html } = buildRegistrationSubmittedEmail({
-    countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, numberOfTeams: d.number_of_teams, numberOfObservers: d.number_of_observers,
+    countryTerritory: d.country_territory, fullName: d.national_representative_name, numberOfTeams: d.number_of_teams, numberOfObservers: d.number_of_observers,
     paymentConfirmed: payment?.status === 'approved', travelComplete: !travelGaps.length, travelUrl: `${portalUrl}/?step=travel`,
   })
   // Kept and tried again if sending fails, so the badges below do not wait on it.

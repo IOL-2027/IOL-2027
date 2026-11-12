@@ -148,7 +148,7 @@ export function InvoiceSettingsPanel({ canEdit }: { canEdit: boolean }) {
   const bank = invoice?.bank
   return (
     <Panel id="invoice" title="Invoice and bank account" intro={canEdit
-      ? 'What every invoice says about the organisers. The bank account also appears on each Team Leader’s Payment step. Leave the bank fields empty until the account is confirmed.'
+      ? 'What every invoice says about the organisers. The bank account also appears on each country’s Payment step. Leave the bank fields empty until the account is confirmed.'
       : 'Set by Finance. Shown here for reference.'}>
       <Problem message={error} />
       {invoice && (
@@ -193,7 +193,7 @@ export function ConsentSettingsPanel({ canEdit }: { canEdit: boolean }) {
       const result = await api<SettingsData>('/api/admin/settings/guardian-consent', {
         method: 'PUT', body: { required: form.get('required') === 'on', ageThreshold: String(form.get('ageThreshold') ?? ''), referenceDate: String(form.get('referenceDate') ?? '') },
       })
-      setDone(result.guardianConsent.required ? 'Saved. Team Leaders now see an upload on each contestant under the age limit, and cannot submit without it.' : 'Saved. Guardian consent is not required.')
+      setDone(result.guardianConsent.required ? 'Saved. National representatives now see an upload on each contestant under the age limit, and cannot submit without it.' : 'Saved. Guardian consent is not required.')
       reload()
     } catch (e) {
       setSaveError(errorText(e))
@@ -218,7 +218,7 @@ export function ConsentSettingsPanel({ canEdit }: { canEdit: boolean }) {
               <input id="set-referenceDate" name="referenceDate" className="reg-control" type="date" defaultValue={policy.referenceDate} disabled={!canEdit} aria-describedby="set-referenceDate-hint" />
             </div>
           </div>
-          <Note>Currently {policy.required ? `required for contestants under ${policy.ageThreshold} on ${day(policy.referenceDate)}` : 'not required'}. The consent form template itself still needs to be written and sent to Team Leaders.</Note>
+          <Note>Currently {policy.required ? `required for contestants under ${policy.ageThreshold} on ${day(policy.referenceDate)}` : 'not required'}. The consent form template itself still needs to be written and sent to national representatives.</Note>
           {canEdit && <>
             <Alert>{saveError}</Alert>
             <div className="reg-staff-form-actions"><button type="submit" className="reg-btn reg-btn-primary">Save policy</button></div>

@@ -66,7 +66,7 @@ export default function Accounts({ me }: { me: User }) {
   const status = (a: AccountRow) => (a.disabledAt ? 'Disabled' : !a.lastLoginAt ? 'Not signed in yet' : 'Active')
 
   return (
-    <Panel id="accounts" title="Accounts and roles" intro="Create staff accounts and choose what each person can do. Team Leaders get their accounts through invitation codes, not here.">
+    <Panel id="accounts" title="Accounts and roles" intro="Create staff accounts and choose what each person can do. National representatives get their accounts through invitation codes, not here.">
       <form ref={formRef} className="reg-staff-form" onSubmit={create} noValidate>
         <h3 className="reg-staff-subhead">Add a staff member</h3>
         <div className="reg-grid reg-grid-3">

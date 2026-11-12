@@ -1,4 +1,4 @@
-// The registration portal's sign-in (portal / for Team Leaders, /staff for organisers), then the Team Leader
+// The registration portal's sign-in (portal / for national representatives, /staff for organisers), then the representative's
 // workspace or the staff back office. Either door signs in any account; the role decides what opens.
 import { useCallback, useEffect, useState, type ComponentType, type ReactNode } from 'react'
 import { ArrowRight, ArrowUpRight, CalendarDays, ClipboardList, Clock, LifeBuoy, MailQuestion, QrCode, Route, ShieldCheck } from 'lucide-react'
@@ -18,9 +18,9 @@ type PageState =
 
 const heroCopy: Record<Door, { eyebrow: string; title: ReactNode; lede: string }> = {
   team: {
-    eyebrow: 'Team Leader portal',
+    eyebrow: 'National representative portal',
     title: <>Register your country for <em>IOL&nbsp;2027.</em></>,
-    lede: 'One Team Leader registers the whole delegation: teams, payment, people and travel. Everything you save is kept, so it can be done over several sittings.',
+    lede: 'One national representative registers the whole delegation: teams, payment, people and travel. Everything you save is kept, so it can be done over several sittings.',
   },
   staff: {
     eyebrow: 'Organisers',
@@ -158,8 +158,8 @@ export default function TeamLeaderPortal({ door = 'team' }: { door?: Door }) {
         {user.delegationId
           ? <Workspace delegationId={user.delegationId} onSessionEnd={sessionEnded} session={session} />
           : <>
-            <PageHead eyebrow="Team Leader portal" title="Your registration" session={session} />
-            <div className="reg-shell wrap"><div className="reg-panel"><Alert>This Team Leader account is not linked to a delegation. Please contact the organisers.</Alert></div></div>
+            <PageHead eyebrow="National representative portal" title="Your registration" session={session} />
+            <div className="reg-shell wrap"><div className="reg-panel"><Alert>This account is not linked to a delegation. Please contact the organisers.</Alert></div></div>
           </>}
       </div>
     )
@@ -176,7 +176,7 @@ export default function TeamLeaderPortal({ door = 'team' }: { door?: Door }) {
           {state.status === 'unavailable' && (
             <div className="reg-account reg-entry"><div className="reg-account-card">
               <h2>Registration opens on 18 January 2027</h2>
-              <p className="reg-lede">Team Leader accounts are created with the invitation code each country receives by email. Until then, you can read how registration works.</p>
+              <p className="reg-lede">Accounts are created with the invitation code each country receives by email. Until then, you can read how registration works.</p>
               <div className="reg-account-actions"><a className="reg-btn reg-btn-primary" href="/registration">How registration works <ArrowRight size={18} aria-hidden="true" /></a></div>
               {state.message && <p className="reg-hint">{state.message}</p>}
             </div></div>

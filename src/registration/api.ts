@@ -54,9 +54,11 @@ export type Payment = {
   receiptNumber: string | null; reviewedAt: string | null
 }
 export type Delegation = {
-  id: string; countryTerritory: string; accreditedOrganisation: string | null; primaryTeamLeaderName: string
+  id: string; countryTerritory: string; accreditedOrganisation: string | null; nationalRepresentativeName: string
   /** People, and Rooms and welfare, open before the proof of payment is in (the committee's review account). */
   peopleOpenEarly?: boolean
+  /** Whether the national representative (who uses this account) is also the first team's Team Leader; null until answered. */
+  representativeIsTeamLeader?: boolean | null
   teamLeaderEmail: string; numberOfTeams: number; numberOfObservers: number; registrationStatus: string
   paymentStatus: string; declaredArrivalDate: string | null; declaredDepartureDate: string | null
   stayWindowNote: string | null; welfareNote: string | null; contestantRoomType: string | null; completedSteps: string[]; submittedAt: string | null
@@ -112,7 +114,7 @@ export async function api<T>(path: string, { method = 'GET', body, form }: Optio
 }
 
 export const roleLabel: Record<Role, string> = {
-  team_leader: 'Team Leader', participant: 'Participant', registration_admin: 'Registration admin',
+  team_leader: 'National representative', participant: 'Participant', registration_admin: 'Registration admin',
   finance_admin: 'Finance admin', checkin_staff: 'Check-in staff', welfare_staff: 'Welfare staff',
   content_editor: 'Content editor', results_staff: 'Results staff', viewer: 'Viewer', super_admin: 'Super admin',
 }
