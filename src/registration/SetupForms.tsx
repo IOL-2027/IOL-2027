@@ -183,7 +183,7 @@ export function TeamSetup({ data, locked, busy, error, dirty, onTouched, onSave,
       {help && <p className="reg-hint" id={`${id}-hint`}>{help}</p>}
       {errors[id] && <p className="reg-error" id={`${id}-error`}><CircleAlert size={16} aria-hidden="true" />{errors[id]}</p>}
       <input id={id} className="reg-control" value={value} autoComplete="off" maxLength={200}
-        onChange={(e) => { set(e.target.value); onTouched() }}
+        onChange={(e) => { set(e.target.value); onTouched(); if (errors[id]) setErrors(({ [id]: _fixed, ...rest }) => rest) }}
         aria-describedby={[help && `${id}-hint`, errors[id] && `${id}-error`].filter(Boolean).join(' ') || undefined} aria-invalid={errors[id] ? true : undefined} />
     </div>
   )

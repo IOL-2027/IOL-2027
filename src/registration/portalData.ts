@@ -73,7 +73,7 @@ export const personFieldGroups: { legend: string; note?: string; labels: string[
 
 export const sections: Section[] = [
   { id: 'start', title: 'Before you begin', required: false, intro: 'Registration happens in stages. To start you only need to know how many are coming; names and travel can follow.' },
-  { id: 'setup', title: 'Team and observers', required: true, intro: 'How many teams are coming, whether each brings an observer, and who would like a single room. This sets your fees; names come later, in People.' },
+  { id: 'setup', title: 'Team and observers', required: true, intro: 'Who registers your country and who leads each team, how many teams are coming, whether each brings an observer, and who would like a single room. This sets your fees; the other names come later, in People.' },
   { id: 'payment', title: 'Payment', required: true, intro: 'Four parts, in this order. Your invoice details are kept once saved, so you can transfer later and come back to upload the proof.' },
   { id: 'teams', title: 'Teams', required: true, intro: 'Each team needs its team contest language. Contestants are put in a team on their own record in People.', records: { noun: 'team', plural: 'teams' } },
   { id: 'people', title: 'People', required: true, intro: 'Everyone coming with your delegation. Each person is saved on their own, so you can fill this in stages. Opens once the proof of payment is uploaded.', records: { noun: 'person', plural: 'people' } },

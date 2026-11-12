@@ -182,7 +182,7 @@ export function SessionBar({ user, onSignOut }: { user?: User | null; onSignOut?
   return (
     <div className="reg-head-session">
       {testEnvironment && <span className="reg-test-chip">Test environment · data may be reset</span>}
-      {user && <span className="reg-head-who">Signed in as <strong>{user.fullName}</strong></span>}
+      {user && <span className="reg-head-who">Signed in as <strong>{user.fullName || user.email}</strong></span>}
       {user && onSignOut && <button type="button" className="reg-head-signout" onClick={signOut}><LogOut size={15} aria-hidden="true" />Sign out</button>}
     </div>
   )
