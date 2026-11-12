@@ -1,4 +1,4 @@
-// Signing in, creating a Team Leader account with an invitation code, verifying the email,
+// Signing in, creating a country's account (its national representative's) with an invitation code, verifying the email,
 // and resetting a password (also how staff set their first password).
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ArrowLeft, ArrowRight, Check, CircleAlert, Info, KeyRound, LogIn, MailCheck, ShieldCheck } from 'lucide-react'
@@ -204,7 +204,6 @@ function SignUp({ onCreated, onSignIn, onForgot, initialCode }: {
     if (step === 0 && !codePattern.test(value('code'))) found.code = 'Enter the code in the format IOL2027-ABC-1234. It is in the invitation email from the organisers.'
     if (step === 1) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value('email'))) found.email = 'Enter an email address like name@example.org.'
-      if (!value('name')) found.name = 'Enter the Team Leader’s full name.'
       if (String(data.get('password') ?? '').length < 12) found.password = 'Use at least 12 characters.'
       else if (data.get('password') !== data.get('password2')) found.password2 = 'The passwords do not match. Type the same password in both boxes.'
     }
@@ -216,7 +215,7 @@ function SignUp({ onCreated, onSignIn, onForgot, initialCode }: {
         await checkCode(value('code'))
       } else if (invite) {
         const result = await api<{ user: User; developmentCode?: string }>('/api/registration/team-leader-account', {
-          method: 'POST', body: { inviteCode: invite.code, email: value('email'), fullName: value('name'), password: String(data.get('password')) },
+          method: 'POST', body: { inviteCode: invite.code, email: value('email'), password: String(data.get('password')) },
         })
         onCreated(result.user, result.developmentCode)
       }
@@ -234,7 +233,7 @@ function SignUp({ onCreated, onSignIn, onForgot, initialCode }: {
         <span className="reg-used-icon" aria-hidden="true"><LogIn size={22} /></span>
         <h2 ref={headingRef} tabIndex={-1}>This code has been used</h2>
         <p className="reg-lede">
-          The Team Leader account for <strong>{used.country}</strong> was created with it{used.accountHint ? <>, using <strong>{used.accountHint}</strong></> : null}.
+          The account for <strong>{used.country}</strong> was created with it{used.accountHint ? <>, using <strong>{used.accountHint}</strong></> : null}.
           Sign in with that account to carry on where you left off. Nothing you saved is lost.
         </p>
         <div className="reg-account-actions">
@@ -258,14 +257,13 @@ function SignUp({ onCreated, onSignIn, onForgot, initialCode }: {
           <div className="reg-account-actions"><button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{busy ? 'Checking…' : 'Check code'} <ArrowRight size={18} aria-hidden="true" /></button></div>
         </>}
         {step === 1 && invite && <>
-          <h2 ref={headingRef} tabIndex={-1}>Create the Team Leader account</h2>
-          <p className="reg-lede">You will use this account for the whole registration, so use an address your team can rely on.</p>
+          <h2 ref={headingRef} tabIndex={-1}>Create your country’s account</h2>
+          <p className="reg-lede">The national representative uses this account for the whole registration, so use an address your team can rely on. Names come later, in Team and observers.</p>
           <div className="reg-confirmed">
             <Check size={18} strokeWidth={3} aria-hidden="true" />
             <div><strong>{invite.countryTerritory}</strong><span>{invite.accreditedOrganisation ? `${invite.accreditedOrganisation} · ` : ''}set by your invitation code</span></div>
           </div>
           <TextField name="email" label="Email address" hint="For signing in and for official notices from the organisers." error={errors.email} type="email" autoComplete="email" />
-          <TextField name="name" label="Full name" hint="Entered once and reused on teams, badges and letters." error={errors.name} autoComplete="name" />
           <TextField name="password" label="Password" hint="At least 12 characters." error={errors.password} type="password" autoComplete="new-password" />
           <TextField name="password2" label="Confirm password" error={errors.password2} type="password" autoComplete="new-password" />
           <div className="reg-account-actions">
@@ -280,7 +278,7 @@ function SignUp({ onCreated, onSignIn, onForgot, initialCode }: {
 
 /**
  * The last step of the account setup. `fresh` is straight after creating the account, when the code has just been sent;
- * otherwise this is a Team Leader coming back to an unverified account, so a new code goes out as the page opens.
+ * otherwise this is a national representative coming back to an unverified account, so a new code goes out as the page opens.
  */
 export function VerifyEmail({ user, developmentCode, fresh, onVerified, onSignOut }: {
   user: User; developmentCode?: string; fresh: boolean; onVerified: (user: User) => void; onSignOut: () => void
@@ -340,7 +338,7 @@ export function VerifyEmail({ user, developmentCode, fresh, onVerified, onSignOu
 }
 
 /**
- * Sign in, or create a Team Leader account with an invitation code, in one card. The organisers' door (allowSignup false)
+ * Sign in, or create a country's account with an invitation code, in one card. The organisers' door (allowSignup false)
  * offers only sign-in and password reset. initialCode (from an invitation email link) opens the sign-up with it filled in.
  */
 export function Entry({ onSignedIn, onCreated, notice, allowSignup = true, initialCode }: {

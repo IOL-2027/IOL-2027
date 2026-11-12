@@ -1,4 +1,4 @@
-// The Team Leader's registration workspace: a step rail on the left and one step at a time on the right. The last
+// The national representative's registration workspace: a step rail on the left and one step at a time on the right. The last
 // step, Submit, shows where every step stands and is where the registration is submitted.
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, FileText, Info, Lock, Plus, Send, Upload, UserPlus } from 'lucide-react'
@@ -175,7 +175,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     return { d, steps, payment, paymentDone, proofIn, peopleOpen, submitted, records }
   }, [data, draftOpen, draftTrip])
 
-  const eyebrow = staff ? `Back office · ${staff.roleLabel}` : 'Team Leader portal'
+  const eyebrow = staff ? `Back office · ${staff.roleLabel}` : 'National representative portal'
   if (loadError || !data || !derived) {
     return <>
       <PageHead eyebrow={eyebrow} title={staff ? 'Registration' : 'Your registration'} session={session} />
@@ -195,6 +195,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const todo: Partial<Record<SectionId, string[]>> = {}
   const needs = (step: SectionId, item: string) => { (todo[step] ??= []).push(item) }
   if (!d.declaredArrivalDate || !d.declaredDepartureDate) needs('travel', 'Add your stay dates')
+  // Names asked in Team and observers since sign-up stopped asking for one (12 Nov 2026).
+  if (!d.nationalRepresentativeName) needs('setup', 'Enter the national representative’s name')
+  if (!data.members.some((m) => m.role === 'team_leader')) needs('setup', 'Name the Team Leader')
   for (const id of ['teams', 'people'] as const) {
     (records[id] ?? []).filter((r) => r.status === 'attention' && r.id !== NEW_PERSON).forEach((r) => needs(id, `${r.label}: ${r.issue?.toLowerCase()}`))
   }
@@ -221,7 +224,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const section = sections.find((s) => s.id === activeId)!
   const status = statusOf(section)
   const locked = status === 'locked'
-  // Payment is done on the Team Leader's side once the proof is in; the label says where Finance is with it.
+  // Payment is done on the representative's side once the proof is in; the label says where Finance is with it.
   const stepLabel = (s: Section, st = statusOf(s)) => (s.id === 'payment' && st === 'done' ? (payment?.status === 'approved' ? 'Confirmed' : 'With Finance')
     : s.id === 'payment' && st === 'attention' ? 'Proof returned'
     : s.id === 'submit' ? (submitted ? 'Submitted' : ready ? 'Ready to submit' : statusLabel.waiting)
@@ -592,7 +595,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const phases: { title: string; steps: TrackStep[] }[] = [
     { title: 'Your account', steps: [
       { key: 'code', title: 'Invitation code', detail: `Linked this account to ${d.countryTerritory}.`, state: 'done', label: 'Done' },
-      { key: 'account', title: 'Team Leader account', detail: `${d.teamLeaderEmail}, email checked.`, state: 'done', label: 'Done' },
+      { key: 'account', title: 'Your account', detail: `${d.teamLeaderEmail}, email checked.`, state: 'done', label: 'Done' },
     ] },
     { title: 'Registration', steps: [...numbered.filter((s) => s.id !== 'submit').map(trackOf), submitStep] },
     { title: 'Before the Olympiad', steps: [
@@ -765,7 +768,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
   return <>
     <PageHead eyebrow={eyebrow} title={d.countryTerritory} session={session}
-      intro={`${d.primaryTeamLeaderName} · Team Leader${staff ? ` · ${d.teamLeaderEmail}` : ''}`}
+      intro={`${d.nationalRepresentativeName || d.teamLeaderEmail} · National representative${d.representativeIsTeamLeader ? ' and Team Leader' : ''}${staff ? ` · ${d.teamLeaderEmail}` : ''}`}
       aside={
         <div className="reg-head-progress">
           <p><strong>{submitted ? 'Submitted' : `${stepsDone} of ${numbered.length}`}</strong>{submitted ? ' · people and travel can still change' : ' steps done'}</p>
@@ -855,7 +858,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
           {activeId === 'start' && <>
             <Card id="start-steps" title="How registration works" intro="Seven steps, the last of them submitting. Everything you save is kept, so you can stop at any point and come back later, on any device.">
-              <p className="reg-hint reg-card-lead">As Team Leader you are the organisers’ contact for your whole delegation, so please pass on to your team and observers what you read here.</p>
+              <p className="reg-hint reg-card-lead">As national representative you are the organisers’ contact for your whole delegation, so please pass on to your team and observers what you read here.</p>
               <ol className="reg-journey">
                 <li><strong>Team and observers.</strong> How many teams, whether each brings an observer, and who would like a single room. This sets your fees.</li>
                 <li><strong>Payment.</strong> Your invoice details, the bank transfer, then the bank’s proof of transfer.</li>

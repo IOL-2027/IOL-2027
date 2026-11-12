@@ -1,4 +1,4 @@
-// Static content for the Team Leader portal: section copy, select options and field shapes.
+// Static content for the national representative portal: section copy, select options and field shapes.
 // Live data (people, teams, fees, payments) comes from the registration API; see live.ts.
 
 export type FieldKind = 'text' | 'email' | 'tel' | 'number' | 'date' | 'time' | 'textarea' | 'select' | 'checkboxes' | 'upload'
@@ -85,7 +85,7 @@ export const sections: Section[] = [
     intro: 'Every registered person gets their own QR badge. Staff scan it on arrival and at event checkpoints.',
     facts: [
       { label: 'What the QR holds', value: 'A random badge reference only', help: 'No name, passport or other personal data is encoded.' },
-      { label: 'When badges are issued', value: 'When everything is in', help: 'Registration submitted, payment confirmed and every person’s arrival and departure added. The Team Leader gets an email with each person’s badge as a PDF, exactly as it will be printed, and a new set the next morning whenever a name, team or QR changes.' },
+      { label: 'When badges are issued', value: 'When everything is in', help: 'Registration submitted, payment confirmed and every person’s arrival and departure added. The national representative gets an email with each person’s badge as a PDF, exactly as it will be printed, and a new set the next morning whenever a name, team or QR changes.' },
       { label: 'Where it is scanned', value: 'Arrival desk and event checkpoints', help: 'Each scan records the checkpoint, time and result.' },
     ],
   },

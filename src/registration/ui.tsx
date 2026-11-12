@@ -1,4 +1,4 @@
-// Form pieces shared by the Team Leader portal, sign-in screens and the staff back office.
+// Form pieces shared by the national representative portal, sign-in screens and the staff back office.
 import { useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { Check, CircleAlert, Clock, Eye, EyeOff, LogOut } from 'lucide-react'
 import { ApiError, type User } from './api'
@@ -172,7 +172,7 @@ export function TextField({ name, label, hint, error, idPrefix = 'acc', ...input
   )
 }
 
-/** Set by the Team Leader workspace while a form has unsaved changes, so signing out asks first. */
+/** Set by the registration workspace while a form has unsaved changes, so signing out asks first. */
 export const unsavedWork = { current: false }
 
 /** Who is signed in and the way out, at the top right of the page header. */

@@ -9,7 +9,7 @@ const exportInfo: Record<string, { title: string; description: string }> = {
   summary: { title: 'Summary by country', description: 'One row per country with numbers only: teams, observers, single rooms, people entered, statuses, amount due, badges and check-ins. No names. Good for charts.' },
   people: { title: 'People, every detail', description: 'Everyone with every detail, including passports, health notes and status. Handle as confidential.' },
   people_status: { title: 'People and progress', description: 'Everyone’s name, country, team, role, registration stage, badge and first check-in. No personal details.' },
-  delegations: { title: 'Countries', description: 'One row per country: fee rate, Team Leader and contacts, counts, registration, payment and travel status, stay dates, room and welfare requests.' },
+  delegations: { title: 'Countries', description: 'One row per country: fee rate, national representative and contacts, counts, registration, payment and travel status, stay dates, room and welfare requests.' },
   payments: { title: 'Payments', description: 'One row per payment: references, receipt numbers, amounts, fee rate and tier, and who reviewed it.' },
   invoices: { title: 'Invoices', description: 'One row per invoice. A payment split between payers has a row for each payer and amount.' },
   travel: { title: 'Travel', description: 'Arrival and departure trips in date order, with how many people and who is on each.' },
@@ -46,7 +46,7 @@ type AuditEvent = {
 }
 
 export const eventText: Record<string, string> = {
-  team_leader_account_created: 'Created the Team Leader account', delegation_updated: 'Changed the registration', invoice_saved: 'Saved invoice details',
+  team_leader_account_created: 'Created the country’s account', delegation_updated: 'Changed the registration', invoice_saved: 'Saved invoice details',
   team_updated: 'Changed a team', member_added: 'Added a person', member_updated: 'Changed a person', member_removed: 'Removed a person',
   travel_saved: 'Saved a trip', travel_removed: 'Removed a trip', payment_proof_uploaded: 'Uploaded proof of payment', payment_approved: 'Approved a payment', payment_rejected: 'Returned a proof',
   registration_submitted: 'Submitted the registration', guardian_consent_uploaded: 'Uploaded a consent form', badge_issued: 'Issued a badge',

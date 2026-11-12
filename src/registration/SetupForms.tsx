@@ -1,5 +1,6 @@
-// Two forms of the Team Leader portal whose fields depend on each other as they are filled in: Team and observers
-// (teams, the observer each team may bring, and who needs a single room, which set the fees) and the invoice details
+// Two forms of the portal whose fields depend on each other as they are filled in: Team and observers (who registers
+// and leads each team, the teams, the observer each team may bring, and who needs a single room, which set the fees)
+// and the invoice details
 // on Payment (one invoice, or several with a payer and an amount each that must add up to the total).
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import { ArrowRight, CircleAlert, Info, Lock, Plus } from 'lucide-react'
@@ -74,12 +75,14 @@ export function teamNames(data: DelegationData, count: number) {
 }
 
 // numberOfObservers is sent too, for an API from before observers were added team by team.
-export type SetupBody = { numberOfTeams: number; numberOfObservers: number; observerTeams: number[]; singleRooms: { teamLeaders: boolean[]; observers: boolean[] } }
+export type NamesBody = { nationalRepresentativeName: string; representativeIsTeamLeader: boolean; teamLeaderNames: string[] }
+export type SetupBody = NamesBody & Partial<{ numberOfTeams: number; numberOfObservers: number; observerTeams: number[]; singleRooms: { teamLeaders: boolean[]; observers: boolean[] } }>
 type Observer = { key: number; team: number; room: string }
 
 /**
- * Team and observers: how many teams, the observer each team brings, who wants a single room, and what that costs.
- * Locked (shown, not changed) once the proof of payment is uploaded, because it sets the amount paid.
+ * Team and observers: who registers (the national representative) and who leads each team, how many teams, the
+ * observer each team brings, who wants a single room, and what that costs. Once the proof of payment is uploaded
+ * everything but the names is locked (shown, not changed), because it sets the amount paid.
  */
 export function TeamSetup({ data, locked, busy, error, dirty, onTouched, onSave, onContinue }: {
   data: DelegationData; locked: boolean; busy: boolean; error: ReactNode; dirty: boolean; onTouched: () => void; onSave: (body: SetupBody) => void; onContinue: () => void
@@ -100,6 +103,12 @@ export function TeamSetup({ data, locked, busy, error, dirty, onTouched, onSave,
   const [errors, setErrors] = useState<Record<string, string>>({})
   const focusAfter = useFocusAfter()
   const names = teamNames(data, teams)
+  // Names: blank until someone types them. The Team Leaders are the first ones in People, one per team.
+  const savedLeaders = data.members.filter((m) => m.role === 'team_leader').map((m) => m.displayName)
+  const [repName, setRepName] = useState(d.nationalRepresentativeName ?? '')
+  const [repLeads, setRepLeads] = useState(Boolean(d.representativeIsTeamLeader))
+  const [leaderNames, setLeaderNames] = useState(() => range(2).map((i) => savedLeaders[i] ?? ''))
+  const leaderName = (i: number) => (i === 0 && repLeads ? repName.trim() : leaderNames[i].trim())
   const shown = observers.filter((o) => o.team < teams).sort((a, b) => a.team - b.team || a.key - b.key)
   const observerFee = rules.observerFee === null ? 'Rate to be confirmed' : usd(rules.observerFee)
   /** "Observer", numbered when a team may bring more than one, and with the team's name when there are two. */
@@ -107,7 +116,10 @@ export function TeamSetup({ data, locked, busy, error, dirty, onTouched, onSave,
     const mates = shown.filter((x) => x.team === o.team)
     return `Observer${mates.length > 1 ? ` ${mates.indexOf(o) + 1}` : ''}${withTeam ? `, ${names[o.team]}` : ''}`
   }
-  const leaderLabel = (i: number) => (teams === 1 ? 'Team Leader (you)' : `Team Leader, ${names[i]}${i === 0 ? ' (you)' : ''}`)
+  const leaderLabel = (i: number) => {
+    const who = leaderName(i) || (teams === 1 ? 'Team Leader' : `Team Leader, ${names[i]}`)
+    return leaderName(i) ? `${who} (Team Leader${teams > 1 ? `, ${names[i]}` : ''})` : who
+  }
   const rooms = [
     ...range(teams).map((i) => ({ id: `setup-room-leader-${i + 1}`, label: leaderLabel(i), value: leaderRooms[i], set: (v: string) => setLeaderRooms((l) => l.map((a, j) => (j === i ? v : a))) })),
     ...shown.map((o) => ({ id: `setup-room-observer-${o.key}`, label: observerName(o), value: o.room, set: (v: string) => setObservers((l) => l.map((x) => (x.key === o.key ? { ...x, room: v } : x))) })),
@@ -143,36 +155,69 @@ export function TeamSetup({ data, locked, busy, error, dirty, onTouched, onSave,
   // Observers already named in People must still be covered by the fees.
   const named = data.members.filter((m) => m.role === 'observer').length
 
+  const namesBody: NamesBody = { nationalRepresentativeName: repName.trim(), representativeIsTeamLeader: repLeads, teamLeaderNames: range(teams).map(leaderName) }
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (locked) { onContinue(); return }
-    const missing = Object.fromEntries(rooms.filter((r) => !r.value).map((r) => [r.id, 'Choose yes or no.']))
+    const missing: Record<string, string> = {}
+    if (!repName.trim()) missing['setup-rep-name'] = 'Enter the national representative’s full name.'
+    if (!repLeads && !leaderNames[0].trim()) missing['setup-leader-0'] = 'Enter the Team Leader’s full name.'
+    if (!locked) for (const r of rooms) if (!r.value) missing[r.id] = 'Choose yes or no.'
     setErrors(missing)
     if (Object.keys(missing).length) { document.getElementById(Object.keys(missing)[0])?.focus(); return }
+    // Once locked only the names can change: save them if they did, then move on.
+    if (locked) {
+      const same = namesBody.nationalRepresentativeName === (d.nationalRepresentativeName ?? '') && repLeads === Boolean(d.representativeIsTeamLeader)
+        && namesBody.teamLeaderNames.every((n, i) => !n || n === (savedLeaders[i] ?? ''))
+      if (same) onContinue(); else onSave(namesBody)
+      return
+    }
     onSave({
+      ...namesBody,
       numberOfTeams: teams, numberOfObservers: shown.length, observerTeams: shown.map((o) => o.team),
       singleRooms: { teamLeaders: range(teams).map((i) => leaderRooms[i] === singleAnswers[1]), observers: shown.map((o) => o.room === singleAnswers[1]) },
     })
   }
+  const nameField = (id: string, label: string, value: string, set: (v: string) => void, help?: string) => (
+    <div className={`reg-field${errors[id] ? ' has-error' : ''}`}>
+      <label htmlFor={id}>{label}</label>
+      {help && <p className="reg-hint" id={`${id}-hint`}>{help}</p>}
+      {errors[id] && <p className="reg-error" id={`${id}-error`}><CircleAlert size={16} aria-hidden="true" />{errors[id]}</p>}
+      <input id={id} className="reg-control" value={value} autoComplete="off" maxLength={200}
+        onChange={(e) => { set(e.target.value); onTouched() }}
+        aria-describedby={[help && `${id}-hint`, errors[id] && `${id}-error`].filter(Boolean).join(' ') || undefined} aria-invalid={errors[id] ? true : undefined} />
+    </div>
+  )
 
   return (
     <form onSubmit={submit} noValidate data-dirty-key="setup">
       <div className="reg-cards">
         {locked && (
           <p className="reg-aside reg-aside-lock"><Lock size={18} aria-hidden="true" />
-            <span>Locked, because your proof of payment is uploaded and these choices set the amount you paid. To change anything here, email the organisers at <a href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a>.</span>
+            <span>Teams, observers and single rooms are locked, because your proof of payment is uploaded and they set the amount you paid. To change them, email the organisers at <a href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a>. The names below can still change.</span>
           </p>
         )}
-        <Card id="setup-delegation" title="Your delegation" intro="From your invitation code and your account. If anything looks wrong, email the organisers.">
+        <Card id="setup-delegation" title="Your delegation" intro="Who registers your country, and who leads each team. The country and fee rate come from your invitation code: if they look wrong, email the organisers.">
           <Facts items={[
-            { label: 'Team Leader', value: d.primaryTeamLeaderName, help: d.teamLeaderEmail },
             { label: 'Country or territory', value: d.countryTerritory },
             { label: 'Fee rate', value: data.fees.categoryLabel, help: d.feeCategory === 'previous_host' ? 'Countries that have hosted the IOL pay a lower team fee.' : d.feeCategory === 'non_accredited' ? 'Not yet accredited: one team.' : undefined },
+            { label: 'Account email', value: d.teamLeaderEmail },
           ]} />
+          <div className="reg-grid reg-names">
+            {nameField('setup-rep-name', 'National representative', repName, setRepName, 'Full name of the person registering your country, who uses this account.')}
+            <label className="reg-check reg-field-wide">
+              <input type="checkbox" id="setup-rep-leads" checked={repLeads} onChange={(e) => { setRepLeads(e.target.checked); onTouched() }} />
+              <span>The national representative is also the Team Leader{teams > 1 ? ` of ${names[0]}` : ''}</span>
+            </label>
+            {range(teams).map((i) => (i === 0 && repLeads ? null : (
+              <div key={i}>{nameField(`setup-leader-${i}`, teams > 1 ? `Team Leader, ${names[i]}` : 'Team Leader', leaderNames[i],
+                (v) => setLeaderNames((l) => l.map((n, j) => (j === i ? v : n))),
+                i === 0 ? 'Full name. The Team Leader travels with the team; their place is in the team fee.' : 'Not decided yet, or the same person leads both teams? Leave it empty.')}</div>
+            )))}
+          </div>
         </Card>
 
         <Card id="setup-numbers" title="Teams and observers"
-          intro={`Each team is four contestants and a Team Leader, whose place is in the team fee.${perTeam ? ` A team may also bring ${perTeam === 1 ? 'an observer' : `up to ${perTeam} observers`}, for example a parent or someone from your national olympiad.` : ''} You name everyone later, in People.`}>
+          intro={`Each team is four contestants and a Team Leader, whose place is in the team fee.${perTeam ? ` A team may also bring ${perTeam === 1 ? 'an observer' : `up to ${perTeam} observers`}, for example a parent or someone from your national olympiad.` : ''} You name the contestants and observers later, in People.`}>
           <div className="reg-grid">
             <LiveSelect id="setup-number-of-teams" label="Number of teams" value={String(teams)} options={oneTeamOnly ? ['1'] : ['1', '2']} onChange={(v) => setTeams(Number(v))} disabled={locked}
               help={oneTeamOnly ? 'A country or territory that is not accredited registers one team.' : 'One or two. A second team costs more than the first.'} />
@@ -237,8 +282,8 @@ export function TeamSetup({ data, locked, busy, error, dirty, onTouched, onSave,
       </div>
       <div className="reg-panel-actions">
         <Alert>{error}</Alert>
-        <button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{locked ? 'Continue' : busy ? 'Saving…' : 'Save and continue'} <ArrowRight size={18} aria-hidden="true" /></button>
-        <UnsavedNote show={dirty && !locked} />
+        <button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{busy ? 'Saving…' : locked && !dirty ? 'Continue' : 'Save and continue'} <ArrowRight size={18} aria-hidden="true" /></button>
+        <UnsavedNote show={dirty} />
       </div>
     </form>
   )
