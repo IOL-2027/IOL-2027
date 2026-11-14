@@ -93,7 +93,7 @@ export default function Invites() {
   const rows = (data?.invites ?? []).filter((i) => (show === 'all' || i.status === show) && (!term || `${i.countryTerritory} ${i.code} ${i.contactEmail ?? ''}`.toLowerCase().includes(term)))
 
   return (
-    <Panel id="invites" title="Invitation codes" intro="One code per country or territory. A code creates exactly one Team Leader account, which is then tied to that country.">
+    <Panel id="invites" title="Invitation codes" intro="One code per country or territory. A code creates exactly one account, for the country’s national representative, which is then tied to that country.">
       <form ref={formRef} className="reg-staff-form" onSubmit={create} noValidate>
         <div className="reg-switch reg-switch-small" role="group" aria-label="Add codes">
           <button type="button" aria-pressed={mode === 'one'} className={mode === 'one' ? 'active' : undefined} onClick={() => setMode('one')}>One country</button>

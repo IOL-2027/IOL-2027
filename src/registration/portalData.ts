@@ -1,4 +1,4 @@
-// Static content for the Team Leader portal: section copy, select options and field shapes.
+// Static content for the national representative portal: section copy, select options and field shapes.
 // Live data (people, teams, fees, payments) comes from the registration API; see live.ts.
 
 export type FieldKind = 'text' | 'email' | 'tel' | 'number' | 'date' | 'time' | 'textarea' | 'select' | 'checkboxes' | 'upload'
@@ -73,7 +73,7 @@ export const personFieldGroups: { legend: string; note?: string; labels: string[
 
 export const sections: Section[] = [
   { id: 'start', title: 'Before you begin', required: false, intro: 'Registration happens in stages. To start you only need to know how many are coming; names and travel can follow.' },
-  { id: 'setup', title: 'Team and observers', required: true, intro: 'How many teams are coming, whether each brings an observer, and who would like a single room. This sets your fees; names come later, in People.' },
+  { id: 'setup', title: 'Team and observers', required: true, intro: 'Who registers your country and who leads each team, how many teams are coming, whether each brings an observer, and who would like a single room. This sets your fees; the other names come later, in People.' },
   { id: 'payment', title: 'Payment', required: true, intro: 'Four parts, in this order. Your invoice details are kept once saved, so you can transfer later and come back to upload the proof.' },
   { id: 'teams', title: 'Teams', required: true, intro: 'Each team needs its team contest language. Contestants are put in a team on their own record in People.', records: { noun: 'team', plural: 'teams' } },
   { id: 'people', title: 'People', required: true, intro: 'Everyone coming with your delegation. Each person is saved on their own, so you can fill this in stages. Opens once the proof of payment is uploaded.', records: { noun: 'person', plural: 'people' } },
@@ -85,7 +85,7 @@ export const sections: Section[] = [
     intro: 'Every registered person gets their own QR badge. Staff scan it on arrival and at event checkpoints.',
     facts: [
       { label: 'What the QR holds', value: 'A random badge reference only', help: 'No name, passport or other personal data is encoded.' },
-      { label: 'When badges are issued', value: 'When everything is in', help: 'Registration submitted, payment confirmed and every person’s arrival and departure added. The Team Leader gets an email with each person’s badge as a PDF, exactly as it will be printed, and a new set the next morning whenever a name, team or QR changes.' },
+      { label: 'When badges are issued', value: 'When everything is in', help: 'Registration submitted, payment confirmed and every person’s arrival and departure added. The national representative gets an email with each person’s badge as a PDF, exactly as it will be printed, and a new set the next morning whenever a name, team or QR changes.' },
       { label: 'Where it is scanned', value: 'Arrival desk and event checkpoints', help: 'Each scan records the checkpoint, time and result.' },
     ],
   },

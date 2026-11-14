@@ -84,9 +84,9 @@ try {
       [d.code, d.country, d.org, d.leader[0], account.id],
     )).rows[0]
     const delegation = (await db.query(
-      `INSERT INTO delegations (account_id, invite_code_id, country_territory, accredited_organisation, primary_team_leader_name, team_leader_email,
-         number_of_teams, number_of_contestants, number_of_observers, completed_steps)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, '{start,setup}') RETURNING id`,
+      `INSERT INTO delegations (account_id, invite_code_id, country_territory, accredited_organisation, national_representative_name, team_leader_email,
+         number_of_teams, number_of_contestants, number_of_observers, completed_steps, representative_is_team_leader)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, '{start,setup}', true) RETURNING id`,
       [account.id, invite.id, d.country, d.org, d.leader[1], d.leader[0], d.teams.length, d.teams.length * 4],
     )).rows[0]
     await db.query(
@@ -135,15 +135,11 @@ try {
     [demo.code, demo.country, demo.org, demo.email, demoAccount.id],
   )).rows[0]
   const demoDelegation = (await db.query(
-    `INSERT INTO delegations (account_id, invite_code_id, country_territory, accredited_organisation, primary_team_leader_name, team_leader_email,
+    `INSERT INTO delegations (account_id, invite_code_id, country_territory, accredited_organisation, national_representative_name, team_leader_email,
        registration_contact_email, number_of_teams, number_of_contestants, number_of_observers)
      VALUES ($1, $2, $3, $4, $5, $6, $6, 1, 4, 0) RETURNING id`,
-    [demoAccount.id, demoInvite.id, demo.country, demo.org, demo.name, demo.email],
+    [demoAccount.id, demoInvite.id, demo.country, demo.org, '', demo.email],
   )).rows[0]
-  await db.query(
-    `INSERT INTO members (delegation_id, role, display_name, badge_name, official_name, email) VALUES ($1, 'team_leader', $2, $2, $2, $3)`,
-    [demoDelegation.id, demo.name, demo.email],
-  )
   await db.query(`INSERT INTO teams (delegation_id, name, code, status) VALUES ($1, 'Demoland A', 'DEM-A', 'draft')`, [demoDelegation.id])
   await db.query('COMMIT')
   const count = (await db.query(`SELECT count(*)::int AS n FROM accounts WHERE email LIKE '%@iol2027.test'`)).rows[0].n

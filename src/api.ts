@@ -23,7 +23,7 @@ export type Delegation = {
   accountId: string
   countryTerritory: string
   accreditedOrganisation: string | null
-  primaryTeamLeaderName: string
+  nationalRepresentativeName: string
   teamLeaderEmail: string
   mobileWhatsapp: string | null
   numberOfTeams: number
@@ -169,7 +169,7 @@ const mockApi = {
     const del: Delegation = {
       id: delId, accountId: acc.id, countryTerritory: inv.countryTerritory,
       accreditedOrganisation: inv.accreditedOrganisation,
-      primaryTeamLeaderName: body.fullName, teamLeaderEmail: body.email,
+      nationalRepresentativeName: body.fullName, teamLeaderEmail: body.email,
       mobileWhatsapp: body.mobileWhatsapp ?? null,
       numberOfTeams: nTeams, numberOfContestants: body.numberOfContestants ?? nTeams * 4,
       numberOfObservers: body.numberOfObservers ?? 0,

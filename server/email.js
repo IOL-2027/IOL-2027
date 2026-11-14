@@ -30,7 +30,7 @@ const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&
 
 // ── shared layout ─────────────────────────────────────────────────────────────
 // Why the reader got the email, in the footer.
-const TEAM_LEADER_REASON = 'This message was sent to you because you are registered or registering as a Team Leader for IOL 2027.'
+const TEAM_LEADER_REASON = 'This message was sent to you because you are registering your country or territory for IOL 2027 as its national representative.'
 const ORGANISER_REASON = 'This message was sent to you because you are an IOL 2027 organiser with access to the registration back office.'
 
 function layout(previewText, bodyHtml, reason = TEAM_LEADER_REASON) {
@@ -136,8 +136,8 @@ export function buildVerificationEmail({ countryTerritory, fullName, code }) {
   const preview = `Your verification code is ${code} — expires in 30 minutes.`
   const body = `
     ${h1('Verify your email')}
-    ${p(`Hi ${esc(fullName)},`)}
-    ${p(`You're creating a Team Leader account for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> at IOL 2027.
+    ${p(`Hi ${esc(fullName || 'there')},`)}
+    ${p(`You're creating the registration account for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> at IOL 2027.
          Enter the code below to verify your email address and continue.`)}
     ${codeBlock(code)}
     ${p(`If you did not request this code, please ignore this email.`, SMALL)}
@@ -150,7 +150,7 @@ export function buildProofReceivedEmail({ countryTerritory, fullName, paymentRef
   const preview = `We received your payment proof for ${countryTerritory}. People is open now, so you can carry on with your registration.`
   const body = `
     ${h1('Payment proof received')}
-    ${p(`Hi ${esc(fullName)},`)}
+    ${p(`Hi ${esc(fullName || 'there')},`)}
     ${p(`We have received your proof of payment for the IOL 2027 registration of <strong style="color:${C.ink}">${esc(countryTerritory)}</strong>.
          Finance will check it against the bank statement, usually within 5 business days, and email you once the payment is confirmed.`)}
     ${infoTable([
@@ -173,7 +173,7 @@ export function buildProofReturnedEmail({ countryTerritory, fullName, paymentRef
   const preview = `Finance could not match the proof of payment for ${countryTerritory}. Please upload a new one.`
   const body = `
     ${h1('Please upload a new proof of payment')}
-    ${p(`Hi ${esc(fullName)},`)}
+    ${p(`Hi ${esc(fullName || 'there')},`)}
     ${p(`Finance could not match your proof of payment for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> against the bank statement, so they have returned it.`)}
     ${notice(`<strong>Finance’s note:</strong> ${esc(note)}`, C.orange)}
     ${infoTable([
@@ -192,7 +192,7 @@ export function buildFinanceAlertEmail({ countryTerritory, paymentReference, amo
   const preview = `New payment proof uploaded for ${countryTerritory}.`
   const body = `
     ${h1('New payment proof')}
-    ${p(`A Team Leader has uploaded a proof of payment and is awaiting Finance review.`)}
+    ${p(`A national representative has uploaded a proof of payment and is awaiting Finance review.`)}
     ${infoTable([
       ['Delegation', countryTerritory],
       ['Payment reference', paymentReference],
@@ -200,7 +200,7 @@ export function buildFinanceAlertEmail({ countryTerritory, paymentReference, amo
       ['Files uploaded', proofFilename || '—'],
       ['Delegation ID', delegationId],
     ])}
-    ${notice(`Use the admin dashboard to confirm or reject this payment. Confirming will automatically send a confirmation email to the Team Leader.`, C.orange)}
+    ${notice(`Use the admin dashboard to confirm or reject this payment. Confirming will automatically send a confirmation email to the national representative.`, C.orange)}
   `
   return { subject, html: layout(preview, body, ORGANISER_REASON) }
 }
@@ -210,7 +210,7 @@ export function buildPaymentConfirmedEmail({ countryTerritory, fullName, payment
   const preview = `Your payment for ${countryTerritory} is confirmed. Next, add everyone's flights.`
   const body = `
     ${h1('Payment confirmed')}
-    ${p(`Hi ${esc(fullName)},`)}
+    ${p(`Hi ${esc(fullName || 'there')},`)}
     ${p(`Finance has confirmed your payment for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong>. Thank you.`)}
     ${infoTable([
       ['Delegation', countryTerritory],
@@ -238,7 +238,7 @@ export function buildRegistrationSubmittedEmail({ countryTerritory, fullName, nu
   ].filter(Boolean)
   const body = `
     ${h1('Registration submitted')}
-    ${p(`Hi ${esc(fullName)},`)}
+    ${p(`Hi ${esc(fullName || 'there')},`)}
     ${p(`The registration for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> at IOL 2027 has been submitted. Your invoice is attached to this email as a PDF.`)}
     ${infoTable([
       ['Delegation', countryTerritory],
@@ -296,7 +296,7 @@ export function buildBadgesEmail({ countryTerritory, fullName, people, removed =
     : `<strong>Please check every name by ${longDate(printCutoff)}.</strong> That is the last day for changes to go to the print shop. Anything changed later is printed at the registration desk when you arrive.`
   const body = `
     ${h1(update ? 'Your badges have changed' : 'Your badges are ready')}
-    ${p(`Hi ${esc(fullName)},`)}
+    ${p(`Hi ${esc(fullName || 'there')},`)}
     ${update
       ? p(`The badges for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> have changed since our last email. Every badge is attached again, so this email replaces the earlier one.`)
       : p(`Everything for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> is in: the registration is submitted, the payment is confirmed and everyone’s travel is added. Each person’s badge is attached as a PDF, exactly as it will be printed.`)}
@@ -331,12 +331,12 @@ export function buildSummaryEmail({ fullName, toPrint, staffToPrint, reprint, ne
     needQr && ['Badges that need a new QR first', String(needQr)],
     ['Print cut-off', cutoff],
     waiting.people && ['Countries still finishing registration', `${plural(waiting.countries, 'country', 'countries')}, ${plural(waiting.people, 'person', 'people')} without a badge yet`],
-    ['Badge emails to Team Leaders in the last day', String(badgeEmails)],
+    ['Badge emails to national representatives in the last day', String(badgeEmails)],
     failedEmails && ['Emails not sent', `${failedEmails}, after trying for a day and a half`],
   ].filter(Boolean)
   const body = `
     ${h1('Daily summary')}
-    ${p(`Hi ${esc(fullName)},`)}
+    ${p(`Hi ${esc(fullName || 'there')},`)}
     ${p('Here is what is waiting in the registration back office this morning.')}
     ${infoTable(rows)}
     ${button('Open Badges', `${portalUrl}/staff#badges`)}
@@ -352,7 +352,7 @@ export function buildPasswordCodeEmail({ fullName, code, setup, portalUrl }) {
   const preview = `Your code is ${code}. ${expiry}.`
   const body = `
     ${h1(setup ? 'Set your password' : 'Reset your password')}
-    ${p(`Hi ${esc(fullName)},`)}
+    ${p(`Hi ${esc(fullName || 'there')},`)}
     ${p(setup
       ? 'An IOL 2027 organiser created a staff account for you. Open the organiser sign-in, choose “Forgot your password?”, and enter this code with your email address to set a password.'
       : 'Someone asked to reset the password for your IOL 2027 account. Enter this code on the sign-in page to choose a new password.')}
@@ -369,9 +369,9 @@ export function buildInviteEmail({ countryTerritory, organisation, code, portalU
   const body = `
     ${h1('Register your team for IOL 2027')}
     ${p(`You are receiving this as the official contact for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong>${organisation ? ` (${esc(organisation)})` : ''}. The 24th International Linguistics Olympiad takes place in Bangkok, Thailand, from 21 to 28 July 2027.`)}
-    ${p('Use this code once to create the Team Leader account. It links the account to your country and its team allowance.')}
+    ${p('Use this code once to create your country’s registration account. It links the account to your country and its team allowance.')}
     ${infoTable([['Country or territory', countryTerritory], ['Invitation code', code]])}
-    ${button('Create the Team Leader account', `${portalUrl}/?invite=${encodeURIComponent(code)}`)}
+    ${button('Create the account', `${portalUrl}/?invite=${encodeURIComponent(code)}`)}
     ${notice('Registration happens in stages: team numbers and payment first, then people, then travel once flights are booked.')}
     ${p('Please do not forward this code outside your national organisation. If you are not the right contact, reply to this email.', SMALL)}
   `
