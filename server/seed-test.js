@@ -118,8 +118,9 @@ try {
     }
   }
 
-  for (const [code, country] of [['IOL2027-TST-0001', 'Testland (TEST)'], ['IOL2027-TST-0002', 'Sampleland (TEST)']]) {
-    await db.query(`INSERT INTO invite_codes (code, country_territory, accredited_organisation, status) VALUES ($1, $2, 'Test organisation', 'active')`, [code, country])
+  // One code per fee rate that is not the usual one, to try the prices (12 Nov 2026).
+  for (const [code, country, feeCategory] of [['IOL2027-TST-0001', 'Testland (TEST)', 'non_accredited'], ['IOL2027-TST-0002', 'Sampleland (TEST)', 'previous_host']]) {
+    await db.query(`INSERT INTO invite_codes (code, country_territory, accredited_organisation, status, fee_category) VALUES ($1, $2, 'Test organisation', 'active', $3)`, [code, country, feeCategory])
   }
   // Works every time on a test server: each use replaces the account made with it before (server/index.js).
   await db.query(`INSERT INTO invite_codes (code, country_territory, accredited_organisation, status, reusable) VALUES ('IOL2027-TST-LOOP', 'Loopland (TEST)', 'Test organisation', 'active', true)`)
