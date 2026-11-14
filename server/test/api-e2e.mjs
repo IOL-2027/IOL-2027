@@ -137,7 +137,12 @@ check('a proof file can be removed', (await tl.req('DELETE', `/api/registration/
 const left = (await tl.get(`/api/registration/delegations/${thaiId}`)).json.attachments.filter((a) => a.kind === 'payment_proof' && a.paymentId === reproof.json.payment.id)
 await tl.req('DELETE', `/api/registration/attachments/${left[0].id}/proof`)
 check('the last proof file cannot be removed (409)', (await tl.req('DELETE', `/api/registration/attachments/${left[1].id}/proof`)).status === 409)
-check('TL cannot add a second Team Leader', (await tl.post(`/api/registration/delegations/${thaiId}/members`, { role: 'team_leader', displayName: 'x' })).status === 400)
+// Names in Team and observers still save after the proof (they do not change the fees).
+const thaiNames = await tl.patch(`/api/registration/delegations/${thaiId}`, { nationalRepresentativeName: 'Dr. Ananya Somchai', representativeIsTeamLeader: true, teamLeaderNames: ['', 'Kittipong Rattana'] })
+const thaiNow = (await tl.get(`/api/registration/delegations/${thaiId}`)).json
+const thaiLeaders = thaiNow.members.filter((m) => m.role === 'team_leader')
+check('names save after the proof; the second team gets its Team Leader', thaiNames.status === 200 && thaiLeaders.length === 2 && thaiLeaders[1].displayName === 'Kittipong Rattana' && thaiLeaders[1].teamId === thaiNow.teams[1]?.id, JSON.stringify(thaiLeaders.map((m) => [m.displayName, m.teamId])))
+check('a third Team Leader for two teams is refused (400)', (await tl.post(`/api/registration/delegations/${thaiId}/members`, { role: 'team_leader', displayName: 'x' })).status === 400)
 const blocked = await tl.post(`/api/registration/delegations/${thaiId}/submit`)
 check('submit with missing steps -> 409 + list', blocked.status === 409 && Array.isArray(blocked.json.missing) && blocked.json.missing.length > 0, JSON.stringify(blocked.json))
 await tl.patch(`/api/registration/delegations/${thaiId}`, { completedSteps: ['start', 'setup', 'teams', 'people', 'welfare', 'travel'], declaredArrivalDate: '2027-07-20', declaredDepartureDate: '2027-07-28' })
@@ -173,10 +178,10 @@ check('invite verify (unused code)', (await signup.post('/api/registration/invit
 const usedCode = await signup.post('/api/registration/invite/verify', { code: 'IOL2027-THA-TEST' })
 check('used invite code -> 409, sign in instead', usedCode.status === 409 && usedCode.json.codeUsed === true && usedCode.json.accountHint === 't•••••@iol2027.test')
 check('unknown invite code -> 404', (await signup.post('/api/registration/invite/verify', { code: 'IOL2027-ZZZ-0000' })).status === 404)
-check('sign-up with an existing email -> 409 (takeover fixed)', (await signup.post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'tl.thailand@iol2027.test', fullName: 'Attacker', password: 'attacker-password-1' })).status === 409)
+check('sign-up with an existing email -> 409 (takeover fixed)', (await signup.post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'tl.thailand@iol2027.test', password: 'attacker-password-1' })).status === 409)
 check('existing account still signs in with its own password', (await login('tl.thailand@iol2027.test')).r.status === 200)
-check('short password rejected', (await signup.post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'new.leader@iol2027.test', fullName: 'New Leader', password: 'short' })).status === 400)
-const created = await signup.post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'new.leader@iol2027.test', fullName: 'New Leader', password: 'a-long-enough-password' })
+check('short password rejected', (await signup.post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'new.leader@iol2027.test', password: 'short' })).status === 400)
+const created = await signup.post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'new.leader@iol2027.test', password: 'a-long-enough-password' })
 check('sign-up creates account + session + dev code', created.status === 201 && created.json.user.emailVerified === false && /^\d{6}$/.test(created.json.developmentCode ?? ''), JSON.stringify(created.json))
 const newId = created.json.user.delegationId
 check('unverified account cannot open its delegation (403)', (await signup.get(`/api/registration/delegations/${newId}`)).status === 403)
@@ -185,10 +190,25 @@ check('resend within a minute -> 429', (await signup.post('/api/auth/verify-emai
 check('right code verifies', (await signup.post('/api/auth/verify-email', { code: created.json.developmentCode })).json?.user?.emailVerified === true)
 const fresh = await signup.get(`/api/registration/delegations/${newId}`)
 check('verified account opens its delegation with 1 team auto-created', fresh.status === 200 && fresh.json.teams.length === 1, JSON.stringify(fresh.json?.teams))
-check('used invite code cannot create a second account (hijack fixed)', (await new Client().post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'hijacker@iol2027.test', fullName: 'H', password: 'another-long-password' })).status === 404)
+check('sign-up asks no name: no names and no Team Leader yet', fresh.json.delegation.nationalRepresentativeName === '' && !fresh.json.members.some((m) => m.role === 'team_leader'), JSON.stringify([fresh.json.delegation.nationalRepresentativeName, fresh.json.members]))
+// Team and observers names the national representative and the Team Leader.
+const namesAt = (body) => signup.patch(`/api/registration/delegations/${newId}`, body)
+check('names without the representative -> 400', (await namesAt({ nationalRepresentativeName: '', representativeIsTeamLeader: true, teamLeaderNames: [] })).status === 400)
+check('names without saying who leads -> 400', (await namesAt({ nationalRepresentativeName: 'Kanya Srisuk', teamLeaderNames: ['Somchai Boonmee'] })).status === 400)
+check('a representative who does not lead needs a Team Leader -> 400', (await namesAt({ nationalRepresentativeName: 'Kanya Srisuk', representativeIsTeamLeader: false, teamLeaderNames: [''] })).status === 400)
+check('representative and a separate Team Leader save', (await namesAt({ nationalRepresentativeName: 'Kanya Srisuk', representativeIsTeamLeader: false, teamLeaderNames: ['Somchai Boonmee'] })).status === 200)
+let named = (await signup.get(`/api/registration/delegations/${newId}`)).json
+let leaders = named.members.filter((m) => m.role === 'team_leader')
+check('the Team Leader is added to People, without the account email', leaders.length === 1 && leaders[0].displayName === 'Somchai Boonmee' && !leaders[0].email && leaders[0].teamId === named.teams[0].id, JSON.stringify(leaders))
+check("the account takes the representative's name", named.delegation.nationalRepresentativeName === 'Kanya Srisuk' && named.delegation.representativeIsTeamLeader === false && (await signup.get('/api/auth/me')).json.user.fullName === 'Kanya Srisuk')
+check('ticking "also the Team Leader" saves', (await namesAt({ nationalRepresentativeName: 'Kanya Srisuk', representativeIsTeamLeader: true, teamLeaderNames: [] })).status === 200)
+named = (await signup.get(`/api/registration/delegations/${newId}`)).json
+leaders = named.members.filter((m) => m.role === 'team_leader')
+check('the same record becomes the representative, with the account email', leaders.length === 1 && leaders[0].displayName === 'Kanya Srisuk' && leaders[0].email === 'new.leader@iol2027.test', JSON.stringify(leaders))
+check('used invite code cannot create a second account (hijack fixed)', (await new Client().post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'hijacker@iol2027.test', password: 'another-long-password' })).status === 404)
 
 // --- the reusable test code (test servers only): each sign-up replaces the account made with it before
-const loop = { inviteCode: 'IOL2027-TST-LOOP', email: 'loop@iol2027.test', fullName: 'Loop Leader', password: 'a-long-enough-password' }
+const loop = { inviteCode: 'IOL2027-TST-LOOP', email: 'loop@iol2027.test', password: 'a-long-enough-password' }
 const firstLoop = await new Client().post('/api/registration/team-leader-account', loop)
 check('reusable code creates an account', firstLoop.status === 201, JSON.stringify(firstLoop.json))
 check('reusable code still verifies after use', (await new Client().post('/api/registration/invite/verify', { code: 'IOL2027-TST-LOOP' })).status === 200)
