@@ -3,7 +3,7 @@ import { ArrowRight, Check, CircleAlert } from 'lucide-react'
 import { FilterField, Note, Panel, Problem, TableWrap, day, human, stageLabel, useLoad } from './common'
 
 type DelegationRow = {
-  id: string; countryTerritory: string; primaryTeamLeaderName: string; teamLeaderEmail: string; numberOfTeams: number; numberOfObservers: number
+  id: string; countryTerritory: string; nationalRepresentativeName: string; teamLeaderEmail: string; numberOfTeams: number; numberOfObservers: number
   registrationStatus: string; paymentStatus: string; travelStatus: string; submittedAt: string | null; people: number
 }
 type PersonRow = {
@@ -22,22 +22,22 @@ export function Countries({ onOpen }: { onOpen?: (delegationId: string) => void 
   const { data, error } = useLoad<{ delegations: DelegationRow[] }>('/api/admin/delegations')
   const [search, setSearch] = useState('')
   const term = search.trim().toLowerCase()
-  const rows = (data?.delegations ?? []).filter((d) => !term || `${d.countryTerritory} ${d.primaryTeamLeaderName} ${d.teamLeaderEmail}`.toLowerCase().includes(term))
+  const rows = (data?.delegations ?? []).filter((d) => !term || `${d.countryTerritory} ${d.nationalRepresentativeName} ${d.teamLeaderEmail}`.toLowerCase().includes(term))
   return (
-    <Panel id="countries" title="Countries" intro={onOpen ? 'Every delegation and where it is in registration. Open one to see or fix it the way its Team Leader does.' : 'Every delegation and where it is in registration.'}>
+    <Panel id="countries" title="Countries" intro={onOpen ? 'Every delegation and where it is in registration. Open one to see or fix it the way its national representative does.' : 'Every delegation and where it is in registration.'}>
       <div className="reg-filter-bar">
         <FilterField id="country-search" label="Search">
-          <input id="country-search" className="reg-control reg-control-compact" type="search" placeholder="Country or Team Leader" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input id="country-search" className="reg-control reg-control-compact" type="search" placeholder="Country or national representative" value={search} onChange={(e) => setSearch(e.target.value)} />
         </FilterField>
       </div>
       <Problem message={error} />
       {data && (rows.length === 0 ? <Note>No countries match.</Note> : (
         <TableWrap label="Countries">
-          <thead><tr><th scope="col">Country</th><th scope="col">Team Leader</th><th scope="col">Teams</th><th scope="col">People</th><th scope="col">Registration</th><th scope="col">Payment</th>{onOpen && <th scope="col"><span className="reg-visually-hidden">Actions</span></th>}</tr></thead>
+          <thead><tr><th scope="col">Country</th><th scope="col">National representative</th><th scope="col">Teams</th><th scope="col">People</th><th scope="col">Registration</th><th scope="col">Payment</th>{onOpen && <th scope="col"><span className="reg-visually-hidden">Actions</span></th>}</tr></thead>
           <tbody>{rows.map((d) => (
             <tr key={d.id}>
               <th scope="row">{d.countryTerritory}</th>
-              <td>{d.primaryTeamLeaderName}<small>{d.teamLeaderEmail}</small></td>
+              <td>{d.nationalRepresentativeName}<small>{d.teamLeaderEmail}</small></td>
               <td>{d.numberOfTeams}<small>{d.numberOfObservers} {d.numberOfObservers === 1 ? 'observer' : 'observers'}</small></td>
               <td>{d.people}</td>
               <td>{human(d.registrationStatus)}{d.submittedAt && <small>{day(d.submittedAt)}</small>}</td>
@@ -130,13 +130,13 @@ export function Welfare() {
   const quiet = (text: string | null) => !text || /^(no restrictions|no special requirements)$/i.test(text.trim())
   const rows = (data?.people ?? []).filter((p) => !onlyNotes || !quiet(p.foodAllergyNotes) || !quiet(p.medicalAccessibilityNotes))
   return (
-    <Panel id="welfare" title="Welfare" intro="Food, medical and emergency information for everyone, and any room requests from Team Leaders. Passport data is not shown here.">
+    <Panel id="welfare" title="Welfare" intro="Food, medical and emergency information for everyone, and any room requests from national representatives. Passport data is not shown here.">
       <div className="reg-filter-bar">
         <label className="reg-check reg-filter-check"><input type="checkbox" checked={onlyNotes} onChange={(e) => setOnlyNotes(e.target.checked)} /><span>Only people with food or medical notes</span></label>
       </div>
       <Problem message={error} />
       {data && data.requests.length > 0 && <>
-        <h3 className="reg-staff-subhead">Requests from Team Leaders</h3>
+        <h3 className="reg-staff-subhead">Requests from national representatives</h3>
         <ul className="reg-export-list reg-requests">
           {data.requests.map((r) => <li key={r.countryTerritory}><div><strong>{r.countryTerritory}</strong><span>{r.welfareNote}</span></div></li>)}
         </ul>

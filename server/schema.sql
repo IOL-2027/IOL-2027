@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS delegations (
   invite_code_id uuid NOT NULL UNIQUE REFERENCES invite_codes(id) ON DELETE RESTRICT,
   country_territory text NOT NULL,
   accredited_organisation text,
-  primary_team_leader_name text NOT NULL,
+  national_representative_name text NOT NULL,
   team_leader_email text NOT NULL,
   mobile_whatsapp text,
   registration_contact_email text,

@@ -35,7 +35,7 @@ INSERT INTO delegations (
   invite_code_id,
   country_territory,
   accredited_organisation,
-  primary_team_leader_name,
+  national_representative_name,
   team_leader_email,
   mobile_whatsapp,
   registration_contact_email,
@@ -61,7 +61,7 @@ VALUES (
 )
 ON CONFLICT (invite_code_id) DO UPDATE SET
   account_id = EXCLUDED.account_id,
-  primary_team_leader_name = EXCLUDED.primary_team_leader_name,
+  national_representative_name = EXCLUDED.national_representative_name,
   team_leader_email = EXCLUDED.team_leader_email,
   mobile_whatsapp = EXCLUDED.mobile_whatsapp,
   registration_contact_email = EXCLUDED.registration_contact_email,

@@ -192,7 +192,7 @@ export async function sendBadgesIfSettled(delegationId, { update = false } = {})
   const delivery = await withTransaction(async (client) => {
     // One delegation at a time, so two triggers at once cannot both issue the same badges or both send the email.
     const d = (await client.query(
-      'SELECT id, country_territory, primary_team_leader_name, team_leader_email, badges_mailed FROM delegations WHERE id = $1 FOR UPDATE',
+      'SELECT id, country_territory, national_representative_name, team_leader_email, badges_mailed FROM delegations WHERE id = $1 FOR UPDATE',
       [delegationId],
     )).rows[0]
     const missing = (await client.query(
@@ -224,7 +224,7 @@ export async function sendBadgesIfSettled(delegationId, { update = false } = {})
       attachments.push({ filename: files[i], content, contentType: 'application/pdf' })
     }
     const { subject, html } = buildBadgesEmail({
-      countryTerritory: d.country_territory, fullName: d.primary_team_leader_name, update: Boolean(mailed), removed,
+      countryTerritory: d.country_territory, fullName: d.national_representative_name, update: Boolean(mailed), removed,
       people: marked.map((b) => ({ ...b.content, change: mailed ? b.change : null, skippedName: b.skippedName })),
       printCutoff, cutoffPassed: bangkokDate() > printCutoff, portalUrl,
     })
