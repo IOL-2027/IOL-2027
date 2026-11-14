@@ -106,7 +106,8 @@ check('departure before arrival rejected', (await tl.patch(`/api/registration/de
 check('adding a person before payment -> 409', (await tl.post(`/api/registration/delegations/${thaiId}/members`, { role: 'contestant', displayName: 'Early Bird' })).status === 409)
 check('proof before invoice -> 409', (await tl.post(`/api/registration/delegations/${thaiId}/payment-proof`, undefined, { form: (() => { const f = new FormData(); f.append('proof', new Blob(['%PDF-1.4'], { type: 'application/pdf' }), 'p.pdf'); return f })() })).status === 409)
 const inv = await tl.put(`/api/registration/delegations/${thaiId}/invoice`, { recipientName: 'National Linguistics Olympiad Thailand', invoiceCount: 1 })
-check('invoice saved, amount computed by server (2 teams = 2880)', inv.status === 200 && Number(inv.json.payment.amountDue) === 2880, JSON.stringify(inv.json))
+const thaiTotal = (await tl.get(`/api/registration/delegations/${thaiId}`)).json.fees.total
+check('invoice saved, amount computed by server from the fee table', inv.status === 200 && thaiTotal > 0 && Number(inv.json.payment.amountDue) === thaiTotal, `${thaiTotal} ${JSON.stringify(inv.json.payment)}`)
 check('the invoice is numbered like IOL2027/23', /^IOL2027\/\d+$/.test(inv.json.payment?.invoiceNumber ?? ''), JSON.stringify(inv.json.payment))
 const invPdf = await tl.get(`/api/registration/delegations/${thaiId}/invoice`)
 check('the invoice downloads as a PDF', invPdf.status === 200 && invPdf.headers.get('content-type') === 'application/pdf' && invPdf.text.startsWith('%PDF'), invPdf.status)
@@ -137,17 +138,24 @@ check('a proof file can be removed', (await tl.req('DELETE', `/api/registration/
 const left = (await tl.get(`/api/registration/delegations/${thaiId}`)).json.attachments.filter((a) => a.kind === 'payment_proof' && a.paymentId === reproof.json.payment.id)
 await tl.req('DELETE', `/api/registration/attachments/${left[0].id}/proof`)
 check('the last proof file cannot be removed (409)', (await tl.req('DELETE', `/api/registration/attachments/${left[1].id}/proof`)).status === 409)
-check('TL cannot add a second Team Leader', (await tl.post(`/api/registration/delegations/${thaiId}/members`, { role: 'team_leader', displayName: 'x' })).status === 400)
+// Names in Team and observers still save after the proof (they do not change the fees).
+const thaiNames = await tl.patch(`/api/registration/delegations/${thaiId}`, { nationalRepresentativeName: 'Dr. Ananya Somchai', representativeIsTeamLeader: true, teamLeaderNames: ['', 'Kittipong Rattana'] })
+const thaiNow = (await tl.get(`/api/registration/delegations/${thaiId}`)).json
+const thaiLeaders = thaiNow.members.filter((m) => m.role === 'team_leader')
+check('names save after the proof; the second team gets its Team Leader', thaiNames.status === 200 && thaiLeaders.length === 2 && thaiLeaders[1].displayName === 'Kittipong Rattana' && thaiLeaders[1].teamId === thaiNow.teams[1]?.id, JSON.stringify(thaiLeaders.map((m) => [m.displayName, m.teamId])))
+check('a third Team Leader for two teams is refused (400)', (await tl.post(`/api/registration/delegations/${thaiId}/members`, { role: 'team_leader', displayName: 'x' })).status === 400)
 const blocked = await tl.post(`/api/registration/delegations/${thaiId}/submit`)
 check('submit with missing steps -> 409 + list', blocked.status === 409 && Array.isArray(blocked.json.missing) && blocked.json.missing.length > 0, JSON.stringify(blocked.json))
 await tl.patch(`/api/registration/delegations/${thaiId}`, { completedSteps: ['start', 'setup', 'teams', 'people', 'welfare', 'travel'], declaredArrivalDate: '2027-07-20', declaredDepartureDate: '2027-07-28' })
 const gaps = await tl.post(`/api/registration/delegations/${thaiId}/submit`)
 check('submit with incomplete people -> 409 naming them', gaps.status === 409 && gaps.json.missing.some((m) => m.startsWith('Arun Songsiri:')), JSON.stringify(gaps.json))
+check('the observer chosen in Team and observers is added', (await tl.post(`/api/registration/delegations/${thaiId}/members`, { role: 'observer', displayName: 'Pim Observer', teamId: thaiNow.teams[0].id, observerCategory: 'Parent', email: 'pim.observer@iol2027.test' })).status === 201)
 const snapshot = (await tl.get(`/api/registration/delegations/${thaiId}`)).json
-const details = { badgeName: 'Test', officialName: 'Test Person', passportName: 'TEST PERSON', passportNumber: 'T1234567', passportNationality: 'Thai', dateOfBirth: '2008-01-01', genderForRoomAllocation: 'Male', tshirtSize: 'M', poloSize: 'M', emergencyContact: 'Test Contact +66 80 000 0000' }
+const details = { badgeName: 'Test', officialName: 'Test Person', passportName: 'TEST PERSON', passportNumber: 'T1234567', passportNationality: 'Thai', dateOfBirth: '2008-01-01', genderForRoomAllocation: 'Male', tshirtSize: 'M', poloSize: 'M', emergencyContact: 'Test Contact +66 80 000 0000', foodAllergyNotes: 'None', medicalAccessibilityNotes: 'None' }
 for (const m of snapshot.members) await tl.patch(`/api/registration/members/${m.id}`, { ...details, ...(m.role === 'contestant' ? { teamId: m.teamId ?? snapshot.teams[0].id, examLanguage: 'English' } : {}) })
 for (const t of snapshot.teams) await tl.patch(`/api/registration/teams/${t.id}`, { contestLanguage: t.contestLanguage ?? 'English' })
-check('submit when complete -> 200', (await tl.post(`/api/registration/delegations/${thaiId}/submit`)).status === 200)
+const submitted = await tl.post(`/api/registration/delegations/${thaiId}/submit`)
+check('submit when complete -> 200', submitted.status === 200, JSON.stringify(submitted.json))
 check('submit twice -> 409', (await tl.post(`/api/registration/delegations/${thaiId}/submit`)).status === 409)
 
 // --- finance review
@@ -173,10 +181,10 @@ check('invite verify (unused code)', (await signup.post('/api/registration/invit
 const usedCode = await signup.post('/api/registration/invite/verify', { code: 'IOL2027-THA-TEST' })
 check('used invite code -> 409, sign in instead', usedCode.status === 409 && usedCode.json.codeUsed === true && usedCode.json.accountHint === 't•••••@iol2027.test')
 check('unknown invite code -> 404', (await signup.post('/api/registration/invite/verify', { code: 'IOL2027-ZZZ-0000' })).status === 404)
-check('sign-up with an existing email -> 409 (takeover fixed)', (await signup.post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'tl.thailand@iol2027.test', fullName: 'Attacker', password: 'attacker-password-1' })).status === 409)
+check('sign-up with an existing email -> 409 (takeover fixed)', (await signup.post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'tl.thailand@iol2027.test', password: 'attacker-password-1' })).status === 409)
 check('existing account still signs in with its own password', (await login('tl.thailand@iol2027.test')).r.status === 200)
-check('short password rejected', (await signup.post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'new.leader@iol2027.test', fullName: 'New Leader', password: 'short' })).status === 400)
-const created = await signup.post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'new.leader@iol2027.test', fullName: 'New Leader', password: 'a-long-enough-password' })
+check('short password rejected', (await signup.post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'new.leader@iol2027.test', password: 'short' })).status === 400)
+const created = await signup.post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'new.leader@iol2027.test', password: 'a-long-enough-password' })
 check('sign-up creates account + session + dev code', created.status === 201 && created.json.user.emailVerified === false && /^\d{6}$/.test(created.json.developmentCode ?? ''), JSON.stringify(created.json))
 const newId = created.json.user.delegationId
 check('unverified account cannot open its delegation (403)', (await signup.get(`/api/registration/delegations/${newId}`)).status === 403)
@@ -185,10 +193,25 @@ check('resend within a minute -> 429', (await signup.post('/api/auth/verify-emai
 check('right code verifies', (await signup.post('/api/auth/verify-email', { code: created.json.developmentCode })).json?.user?.emailVerified === true)
 const fresh = await signup.get(`/api/registration/delegations/${newId}`)
 check('verified account opens its delegation with 1 team auto-created', fresh.status === 200 && fresh.json.teams.length === 1, JSON.stringify(fresh.json?.teams))
-check('used invite code cannot create a second account (hijack fixed)', (await new Client().post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'hijacker@iol2027.test', fullName: 'H', password: 'another-long-password' })).status === 404)
+check('sign-up asks no name: no names and no Team Leader yet', fresh.json.delegation.nationalRepresentativeName === '' && !fresh.json.members.some((m) => m.role === 'team_leader'), JSON.stringify([fresh.json.delegation.nationalRepresentativeName, fresh.json.members]))
+// Team and observers names the national representative and the Team Leader.
+const namesAt = (body) => signup.patch(`/api/registration/delegations/${newId}`, body)
+check('names without the representative -> 400', (await namesAt({ nationalRepresentativeName: '', representativeIsTeamLeader: true, teamLeaderNames: [] })).status === 400)
+check('names without saying who leads -> 400', (await namesAt({ nationalRepresentativeName: 'Kanya Srisuk', teamLeaderNames: ['Somchai Boonmee'] })).status === 400)
+check('a representative who does not lead needs a Team Leader -> 400', (await namesAt({ nationalRepresentativeName: 'Kanya Srisuk', representativeIsTeamLeader: false, teamLeaderNames: [''] })).status === 400)
+check('representative and a separate Team Leader save', (await namesAt({ nationalRepresentativeName: 'Kanya Srisuk', representativeIsTeamLeader: false, teamLeaderNames: ['Somchai Boonmee'] })).status === 200)
+let named = (await signup.get(`/api/registration/delegations/${newId}`)).json
+let leaders = named.members.filter((m) => m.role === 'team_leader')
+check('the Team Leader is added to People, without the account email', leaders.length === 1 && leaders[0].displayName === 'Somchai Boonmee' && !leaders[0].email && leaders[0].teamId === named.teams[0].id, JSON.stringify(leaders))
+check("the account takes the representative's name", named.delegation.nationalRepresentativeName === 'Kanya Srisuk' && named.delegation.representativeIsTeamLeader === false && (await signup.get('/api/auth/me')).json.user.fullName === 'Kanya Srisuk')
+check('ticking "also the Team Leader" saves', (await namesAt({ nationalRepresentativeName: 'Kanya Srisuk', representativeIsTeamLeader: true, teamLeaderNames: [] })).status === 200)
+named = (await signup.get(`/api/registration/delegations/${newId}`)).json
+leaders = named.members.filter((m) => m.role === 'team_leader')
+check('the same record becomes the representative, with the account email', leaders.length === 1 && leaders[0].displayName === 'Kanya Srisuk' && leaders[0].email === 'new.leader@iol2027.test', JSON.stringify(leaders))
+check('used invite code cannot create a second account (hijack fixed)', (await new Client().post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-0001', email: 'hijacker@iol2027.test', password: 'another-long-password' })).status === 404)
 
 // --- the reusable test code (test servers only): each sign-up replaces the account made with it before
-const loop = { inviteCode: 'IOL2027-TST-LOOP', email: 'loop@iol2027.test', fullName: 'Loop Leader', password: 'a-long-enough-password' }
+const loop = { inviteCode: 'IOL2027-TST-LOOP', email: 'loop@iol2027.test', password: 'a-long-enough-password' }
 const firstLoop = await new Client().post('/api/registration/team-leader-account', loop)
 check('reusable code creates an account', firstLoop.status === 201, JSON.stringify(firstLoop.json))
 check('reusable code still verifies after use', (await new Client().post('/api/registration/invite/verify', { code: 'IOL2027-TST-LOOP' })).status === 200)
@@ -215,14 +238,14 @@ const peopleCsv = await S.admin.get('/api/admin/exports/people')
 check('people CSV: header and download name', peopleCsv.status === 200 && peopleCsv.text.includes('Passport number') && /attachment; filename="iol2027-people-/.test(peopleCsv.headers.get('content-disposition') ?? ''))
 const csvBytes = new Uint8Array(await (await fetch(BASE + '/api/admin/exports/people', { headers: { Cookie: S.admin.cookie } })).arrayBuffer())
 check('CSV starts with a UTF-8 byte-order mark so Excel keeps Thai text', csvBytes[0] === 0xef && csvBytes[1] === 0xbb && csvBytes[2] === 0xbf)
-check('Finance cannot export people (403)', (await S.finance.get('/api/admin/exports/people')).status === 403)
+check('every staff role can export (Finance: people)', (await S.finance.get('/api/admin/exports/people')).status === 200)
 check('Finance exports payments', (await S.finance.get('/api/admin/exports/payments')).text.includes('Receipt number'))
 const narin = (await S.admin.get(`/api/registration/delegations/${thaiId}`)).json.members.find((m) => m.role === 'contestant')
 await S.admin.patch(`/api/registration/members/${narin.id}`, { foodAllergyNotes: '=HYPERLINK("http://example.com")' })
 const welfareCsv = await S.welfare.get('/api/admin/exports/welfare')
 check('welfare CSV has no passport column', welfareCsv.status === 200 && !welfareCsv.text.includes('Passport'))
 check('spreadsheet formulas are neutralised in CSV', welfareCsv.text.includes("'=HYPERLINK"), welfareCsv.text.slice(0, 300))
-check('Content editor has no exports', (await S.content.get('/api/admin/exports')).json.kinds.length === 0)
+check('Content editor lists the exports', (await S.content.get('/api/admin/exports')).json.kinds.includes('people'))
 check('unknown export -> 404', (await S.admin.get('/api/admin/exports/everything')).status === 404)
 
 // --- activity log
@@ -253,14 +276,14 @@ check('a used code cannot be changed (409)', (await S.admin.patch(`/api/admin/in
 
 // --- organiser settings: fees and guardian consent
 const s0 = await S.finance.get('/api/admin/settings')
-check('Finance reads the fee settings', s0.status === 200 && s0.json.fees.roomRate === 220 && s0.json.fees.teamFee.early_bird === 1000)
+check('Finance reads the fee settings', s0.status === 200 && s0.json.fees.singleRoomFee === 400 && s0.json.fees.teamFees.early_bird.accredited[0] === 2475, JSON.stringify(s0.json.fees))
 check('Admin cannot change fees (403)', (await S.admin.put('/api/admin/settings/fees', s0.json.fees)).status === 403)
-check('a negative fee is refused (400)', (await S.finance.put('/api/admin/settings/fees', { ...s0.json.fees, roomRate: -1 })).status === 400)
+check('a negative fee is refused (400)', (await S.finance.put('/api/admin/settings/fees', { ...s0.json.fees, singleRoomFee: -1 })).status === 400)
 const s1 = await S.finance.put('/api/admin/settings/fees', { ...s0.json.fees, observerFee: 300 })
 check('Finance sets the observer fee', s1.status === 200 && s1.json.fees.observerFee === 300)
 const thaiFees = (await S.admin.get(`/api/registration/delegations/${thaiId}`)).json.fees
 check('the observer fee reaches delegation invoices', thaiFees.lines.find((l) => l.key === 'observers').amount === 300 && thaiFees.observersPending === false, JSON.stringify(thaiFees))
-check('fees restored', (await S.finance.put('/api/admin/settings/fees', s0.json.fees)).json?.fees?.observerFee === null)
+check('fees restored', (await S.finance.put('/api/admin/settings/fees', s0.json.fees)).json?.fees?.observerFee === s0.json.fees.observerFee)
 const bankForm = { ...s0.json.invoice, bank: { beneficiaryName: 'Test Foundation', bankName: 'Test Bank', accountNumber: '000-000000-0', swiftCode: 'TESTTHBK' } }
 check('Admin cannot change the bank account (403)', (await S.admin.put('/api/admin/settings/invoice', bankForm)).status === 403)
 check('a malformed SWIFT code is refused (400)', (await S.finance.put('/api/admin/settings/invoice', { ...bankForm, bank: { ...bankForm.bank, swiftCode: 'TEST' } })).status === 400)
