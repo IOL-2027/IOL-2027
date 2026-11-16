@@ -569,7 +569,6 @@ function Registration() {
     </div></section>
     <section className="two-col wrap registration-block" id="accredited-countries"><div><p className="eyebrow">Who can register</p><h2>Countries accredited by the IOL.</h2></div><div className="prose">
       <p>Teams come through their country’s national linguistics olympiad, run by an organisation accredited by the International Linguistics Olympiad. The list of accredited countries and territories is on <a className="inline-link" href="https://ioling.org/countries/" target="_blank" rel="noreferrer">ioling.org</a>.</p>
-      <p>Not accredited yet? Write to the IOL Board at <a className="inline-link" href="mailto:contact@ioling.org">contact@ioling.org</a>, which reviews each request.</p>
     </div></section>
     <section className="two-col wrap registration-block registration-fees"><div><p className="eyebrow">Fees and deadlines</p><h2>Pay by 12&nbsp;March for the early bird fee.</h2></div><div className="prose">
       <p>The fee depends on the day the proof of payment is received, not the day the registration is started.</p>
