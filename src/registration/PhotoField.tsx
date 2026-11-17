@@ -17,16 +17,17 @@ async function loadImage(file: File): Promise<HTMLImageElement> {
     const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 })
     blob = Array.isArray(converted) ? converted[0] : converted
   }
+  // The address stays valid while the photo is shown in the frame; PhotoField releases it when the photo goes.
   const url = URL.createObjectURL(blob)
+  const image = new Image()
+  image.src = url
   try {
-    const image = new Image()
-    image.src = url
     await image.decode()
-    return image
-  } finally {
-    // The decoded image stays usable after its address is released.
-    window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  } catch (error) {
+    URL.revokeObjectURL(url)
+    throw error
   }
+  return image
 }
 
 export function PhotoField({ current, busy, onSave }: { current?: Attachment; busy: boolean; onSave: (photo: Blob) => void }) {
@@ -47,7 +48,10 @@ export function PhotoField({ current, busy, onSave }: { current?: Attachment; bu
     return { zoom: v.zoom, x: Math.min(0, Math.max(FRAME.w - image.naturalWidth * s, v.x)), y: Math.min(0, Math.max(FRAME.h - image.naturalHeight * s, v.y)) }
   }
   useEffect(() => {
-    if (image) setView(clamp({ x: (FRAME.w - image.naturalWidth * base) / 2, y: (FRAME.h - image.naturalHeight * base) / 2, zoom: 1 }))
+    if (!image) return
+    setView(clamp({ x: (FRAME.w - image.naturalWidth * base) / 2, y: (FRAME.h - image.naturalHeight * base) / 2, zoom: 1 }))
+    // Releases the photo's temporary address once it is replaced, saved, cancelled or the page moves on.
+    return () => URL.revokeObjectURL(image.src)
   }, [image])
 
   const choose = async (file: File) => {

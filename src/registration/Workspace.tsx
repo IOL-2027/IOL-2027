@@ -272,7 +272,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const stepNumber = (s: Section) => numbered.findIndex((x) => x.id === s.id) + 1
   // The date beside each step that closes (IOL Board, 16 Nov 2026), as a date rather than days left.
   const deadlineOf = (id: SectionId): string | null => (
-    id === 'payment' && (!payment || payment.status === 'awaiting_proof') ? `${data.fees.tier === 'early_bird' ? 'Early bird rate until' : 'Due by'} ${longDate(data.fees.tier === 'early_bird' ? ev.earlyBirdEnds : ev.registrationEnds)}`
+    // A jury member's or volunteer's observer and single room have no early bird rate: only a date to pay by.
+    id === 'payment' && (!payment || payment.status === 'awaiting_proof') ? (country ? `${data.fees.tier === 'early_bird' ? 'Early bird rate until' : 'Due by'} ${longDate(data.fees.tier === 'early_bird' ? ev.earlyBirdEnds : ev.registrationEnds)}` : `Due by ${longDate(data.fees.dueDate)}`)
     : id === 'teams' ? (ev.languagesLocked ? `Languages closed on ${longDate(ev.languageLock)}` : `Languages can change until ${longDate(ev.languageLock)}`)
     : id === 'people' ? `By ${longDate(ev.peopleDeadline)}`
     : id === 'welfare' ? `By ${longDate(ev.peopleDeadline)}`
@@ -721,7 +722,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
       <div className="reg-home-foot">
         <dl>
-          {owesFor(data) && <div><dt>Early bird rate</dt><dd>Proof of payment uploaded by {longDate(ev.earlyBirdEnds)}</dd></div>}
+          {country && <div><dt>Early bird rate</dt><dd>Proof of payment uploaded by {longDate(ev.earlyBirdEnds)}</dd></div>}
           <div><dt>Registration closes</dt><dd>{longDate(ev.registrationEnds)}</dd></div>
           {country && <div><dt>Contest languages</dt><dd>Can change until {longDate(ev.languageLock)}</dd></div>}
           <div><dt>People details</dt><dd>By {longDate(ev.peopleDeadline)}</dd></div>
