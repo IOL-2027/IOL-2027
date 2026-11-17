@@ -301,7 +301,7 @@ app.post('/api/registration/team-leader-account', asyncHandler(async (req, res) 
       `INSERT INTO delegations (account_id, invite_code_id, country_territory, accredited_organisation,
          national_representative_name, team_leader_email, registration_contact_email, number_of_teams, number_of_contestants, number_of_observers, fee_category, kind)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $9, 0, $8, $10) RETURNING *`,
-      [account.id, invite.id, invite.country_territory, invite.accredited_organisation, fullName, email, country ? invite.contact_email : email, invite.fee_category, country ? 4 : 0, invite.kind],
+      [account.id, invite.id, invite.country_territory, invite.accredited_organisation, fullName, email, country ? invite.contact_email : email, invite.fee_category, 4, invite.kind],
     )).rows[0]
     // Team Leaders are named in Team and observers, which adds their records to People.
     if (country) await ensureTeams(client, delegation)
@@ -1168,7 +1168,8 @@ app.get('/api/admin/incomplete', ...signedIn, requireRole('registration_admin', 
 }))
 
 app.post('/api/registration/delegations/:delegationId/submit', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
-  const { missing } = await missingForSubmission(req.params.delegationId)
+  const { delegation: current, missing } = await missingForSubmission(req.params.delegationId)
+  if (current.registration_status !== 'draft') throw new HttpError(409, 'This registration has already been submitted.')
   if (missing.length) return res.status(409).json({ error: 'Finish the remaining steps first.', missing })
   // Both notices on Submit must be ticked: the royal reception's dress code and protocol, and travel insurance.
   if (req.body?.acknowledgeDressCode !== true || req.body?.acknowledgeInsurance !== true) {
