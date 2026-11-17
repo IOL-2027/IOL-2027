@@ -57,7 +57,7 @@ export function redrawPayload(credential) {
 const qrOptions = { errorCorrectionLevel: 'M', margin: 1, width: 480, color: { dark: '#160c1b', light: '#ffffff' } }
 export const badgeQrDataUrl = (payload) => QRCode.toDataURL(payload, qrOptions)
 
-const roleLabels = { contestant: 'Contestant', team_leader: 'Team Leader', observer: 'Observer', staff: 'Staff', guide: 'Guide', volunteer: 'Volunteer', guest: 'Guest' }
+const roleLabels = { contestant: 'Contestant', team_leader: 'Team Leader', observer: 'Observer', jury: 'Jury', staff: 'Staff', guide: 'Guide', volunteer: 'Volunteer', guest: 'Guest' }
 
 /** The first of these names that every badge font can print: a name in a script without a font falls back to another. */
 const printableName = (...names) => names.find((name) => name && !unprintable(name)) ?? names.find(Boolean)
@@ -102,7 +102,7 @@ export async function findBadge(text) {
     `SELECT bc.id, bc.member_id, bc.staff_id, bc.secret_hash, bc.status, bc.issued_at,
        COALESCE(m.display_name, s.full_name) AS display_name, COALESCE(m.badge_name, s.badge_name) AS badge_name,
        COALESCE(m.official_name, s.full_name) AS official_name, COALESCE(m.role, s.category) AS role,
-       COALESCE(d.country_territory, s.assignment) AS place, t.name AS team_name
+       COALESCE(CASE WHEN d.kind = 'country' THEN d.country_territory END, s.assignment) AS place, t.name AS team_name
      FROM badge_credentials bc
      LEFT JOIN members m ON m.id = bc.member_id LEFT JOIN delegations d ON d.id = m.delegation_id LEFT JOIN teams t ON t.id = m.team_id
      LEFT JOIN event_staff s ON s.id = bc.staff_id
@@ -147,7 +147,7 @@ export async function badgeBlockers(delegationId) {
 // Delegation members with a badge, in the order the email lists them.
 const memberBadges = (db, delegationId) => db.query(
   `SELECT bc.id, bc.member_id, bc.public_id, bc.secret_hash, 'member' AS kind, m.display_name, m.badge_name, m.official_name, m.role,
-     d.country_territory AS place, t.name AS team_name
+     CASE WHEN d.kind = 'country' THEN d.country_territory END AS place, t.name AS team_name
    FROM badge_credentials bc JOIN members m ON m.id = bc.member_id JOIN delegations d ON d.id = m.delegation_id LEFT JOIN teams t ON t.id = m.team_id
    WHERE m.delegation_id = $1 AND bc.status = 'active'
    ORDER BY CASE m.role WHEN 'team_leader' THEN 0 WHEN 'contestant' THEN 1 ELSE 2 END, t.name NULLS LAST, m.display_name`,

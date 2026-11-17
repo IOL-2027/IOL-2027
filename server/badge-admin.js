@@ -8,14 +8,15 @@ import { badgeContent, issueBadge, redrawPayload } from './badges.js'
 import { loadSettings } from './fees.js'
 import { asyncHandler, insertAudit, isEmail, optionalString, query, requireDb, withTransaction } from './lib.js'
 
-const STAFF_CATEGORIES = ['staff', 'guide', 'volunteer', 'guest']
+// Jury members and observers can be added here too (special guests, IOL Board 16 Nov 2026), for a badge.
+const STAFF_CATEGORIES = ['staff', 'guide', 'volunteer', 'guest', 'jury', 'observer']
 const PRINT_STATES = ['not_printed', 'reprint', 'printed']
 
 const badgeRows = (where = 'TRUE', params = []) => query(
   `SELECT * FROM (
      SELECT bc.id, bc.public_id, bc.secret_hash, bc.status, bc.issued_at, bc.printed_at, bc.printed_fingerprint,
        'member' AS kind, m.id AS holder_id, m.display_name, m.badge_name, m.official_name, m.role,
-       d.country_territory AS place, d.id AS delegation_id, t.name AS team_name, NULL AS email
+       CASE WHEN d.kind = 'country' THEN d.country_territory END AS place, d.id AS delegation_id, t.name AS team_name, NULL AS email
      FROM badge_credentials bc JOIN members m ON m.id = bc.member_id JOIN delegations d ON d.id = m.delegation_id
      LEFT JOIN teams t ON t.id = m.team_id
      UNION ALL
@@ -76,7 +77,7 @@ function cleanStaff(input, where = '') {
   if (!fullName) throw new HttpError(400, `${where}Full name is required.`)
   if (fullName.length > 120) throw new HttpError(400, `${where}Full name must be at most 120 characters.`)
   const category = String(input.category ?? '').trim().toLowerCase()
-  if (!STAFF_CATEGORIES.includes(category)) throw new HttpError(400, `${where}Role must be staff, guide, volunteer or guest.`)
+  if (!STAFF_CATEGORIES.includes(category)) throw new HttpError(400, `${where}Role must be staff, guide, volunteer, guest, jury or observer.`)
   const badgeName = optionalString(input.badgeName)
   if (badgeName && badgeName.length > 60) throw new HttpError(400, `${where}Badge name must be at most 60 characters.`)
   const assignment = optionalString(input.assignment)

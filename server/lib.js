@@ -93,15 +93,22 @@ export const requiredMemberColumns = {
   all: [['badge_name', 'badge name'], ['official_name', 'official name'], ['passport_name', 'passport name'], ['passport_number', 'passport number'],
     ['passport_nationality', 'passport nationality'], ['date_of_birth', 'date of birth'], ['gender_for_room_allocation', 'gender for room allocation'],
     ['tshirt_size', 'T-shirt size'], ['polo_size', 'polo shirt size'], ['emergency_contact', 'emergency contact'],
-    ['food_allergy_notes', 'food and allergy notes'], ['medical_accessibility_notes', 'medical or accessibility notes']],
+    ['medical_accessibility_notes', 'medical or accessibility notes'], ['photo_consent', 'photo and video consent']],
   contestant: [['team_id', 'team assignment'], ['exam_language', 'individual contest language']],
-  team_leader: [['room_type_preference', 'single room']],
+  team_leader: [['team_id', 'team assignment'], ['room_type_preference', 'single room']],
   observer: [['observer_category', 'observer category'], ['email', 'email'], ['room_type_preference', 'single room']],
+  jury: [['room_type_preference', 'single room']],
+  volunteer: [],
 }
 
 /** Labels of required details this member is still missing. */
 export function missingMemberDetails(member) {
-  return [...requiredMemberColumns.all, ...requiredMemberColumns[member.role]]
+  const gaps = [...requiredMemberColumns.all, ...(requiredMemberColumns[member.role] ?? [])]
     .filter(([column]) => member[column] === null || member[column] === undefined || String(member[column]).trim() === '')
     .map(([, label]) => label)
+  // Food is ticked from a list; "Other" (or an allergy) needs the details written in the food notes.
+  const diet = member.diet ?? []
+  if (!diet.length) gaps.push('food')
+  else if (diet.some((d) => d === 'Other' || d.endsWith('allergy')) && !String(member.food_allergy_notes ?? '').trim()) gaps.push('food details')
+  return gaps
 }

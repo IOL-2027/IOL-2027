@@ -30,9 +30,9 @@ const delegations = [
     leader: ['tl.thailand@iol2027.test', 'Dr. Ananya Somchai'], teams: ['Thailand A', 'Thailand B'], codes: ['THA-A', 'THA-B'],
     contestLanguage: ['English', null],
     people: [
-      { name: 'Narin Chaiwat', team: 0, gender: 'Male', dob: '2009-02-12', passport: 'AA1234567', passportName: 'CHAIWAT NARIN', shirt: 'M', food: 'No shellfish', medical: 'No special requirements', emergency: 'Somchai Chaiwat, +66 82 111 2233' },
-      { name: 'Mali Phan', team: 0, gender: 'Female', dob: null, passport: 'AA7654321', passportName: 'PHAN MALI', shirt: 'S', food: 'Vegetarian', medical: 'No special requirements', emergency: 'Nok Phan, +66 82 222 3344' },
-      { name: 'Kiet Rattanakul', team: 0, gender: 'Male', dob: '2009-06-03', passport: 'AA2468101', passportName: 'RATTANAKUL KIET', shirt: 'M', food: 'No pork', medical: 'Carries an inhaler', emergency: 'Arun Rattanakul, +66 82 333 4455' },
+      { name: 'Narin Chaiwat', team: 0, gender: 'Male', dob: '2009-02-12', passport: 'AA1234567', passportName: 'CHAIWAT NARIN', shirt: 'M', diet: ['Seafood or shellfish allergy'], food: 'No shellfish; mild reaction', medical: 'No special requirements', emergency: 'Somchai Chaiwat, +66 82 111 2233' },
+      { name: 'Mali Phan', team: 0, gender: 'Female', dob: null, passport: 'AA7654321', passportName: 'PHAN MALI', shirt: 'S', diet: ['Vegetarian'], food: null, medical: 'No special requirements', emergency: 'Nok Phan, +66 82 222 3344' },
+      { name: 'Kiet Rattanakul', team: 0, gender: 'Male', dob: '2009-06-03', passport: 'AA2468101', passportName: 'RATTANAKUL KIET', shirt: 'M', diet: ['No pork'], food: null, medical: 'Carries an inhaler', emergency: 'Arun Rattanakul, +66 82 333 4455' },
     ],
     participant: ['participant.thailand@iol2027.test', 'Narin Chaiwat'],
   },
@@ -40,7 +40,7 @@ const delegations = [
     code: 'IOL2027-JPN-TEST', country: 'Japan (TEST)', org: 'Japan Linguistics Olympiad',
     leader: ['tl.japan@iol2027.test', 'Prof. Haruki Sato'], teams: ['Japan A'], codes: ['JAP-A'], contestLanguage: ['English'],
     people: [
-      { name: 'Yui Tanaka', team: 0, gender: 'Female', dob: '2008-09-30', passport: 'TK0012345', passportName: 'TANAKA YUI', shirt: 'S', food: 'No restrictions', medical: 'No special requirements', emergency: 'Kenji Tanaka, +81 90 1234 5678' },
+      { name: 'Yui Tanaka', team: 0, gender: 'Female', dob: '2008-09-30', passport: 'TK0012345', passportName: 'TANAKA YUI', shirt: 'S', diet: ['No special diet'], food: null, medical: 'No special requirements', emergency: 'Kenji Tanaka, +81 90 1234 5678' },
     ],
   },
 ]
@@ -85,14 +85,10 @@ try {
     )).rows[0]
     const delegation = (await db.query(
       `INSERT INTO delegations (account_id, invite_code_id, country_territory, accredited_organisation, national_representative_name, team_leader_email,
-         number_of_teams, number_of_contestants, number_of_observers, completed_steps, representative_is_team_leader)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, '{start,setup}', true) RETURNING id`,
+         number_of_teams, number_of_contestants, number_of_observers, completed_steps, representative_is_team_leader, representative_team)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, '{start,setup}', true, 0) RETURNING id`,
       [account.id, invite.id, d.country, d.org, d.leader[1], d.leader[0], d.teams.length, d.teams.length * 4],
     )).rows[0]
-    await db.query(
-      `INSERT INTO members (delegation_id, role, display_name, badge_name, official_name, email) VALUES ($1, 'team_leader', $2, $2, $2, $3)`,
-      [delegation.id, d.leader[1], d.leader[0]],
-    )
     const teamIds = []
     for (const [i, name] of d.teams.entries()) {
       teamIds.push((await db.query(
@@ -100,13 +96,18 @@ try {
         [delegation.id, name, d.codes[i], d.contestLanguage[i], d.contestLanguage[i] ? 'ready' : 'draft'],
       )).rows[0].id)
     }
+    // The national representative leads the first team (a second team's Team Leader is named in Team and observers).
+    await db.query(
+      `INSERT INTO members (delegation_id, team_id, role, display_name, badge_name, official_name, email) VALUES ($1, $2, 'team_leader', $3, $3, $3, $4)`,
+      [delegation.id, teamIds[0], d.leader[1], d.leader[0]],
+    )
     let firstMemberId = null
     for (const p of d.people) {
       const id = (await db.query(
         `INSERT INTO members (delegation_id, team_id, role, display_name, badge_name, official_name, passport_name, passport_number, passport_nationality,
-           date_of_birth, gender_for_room_allocation, exam_language, tshirt_size, polo_size, food_allergy_notes, medical_accessibility_notes, emergency_contact)
-         VALUES ($1, $2, 'contestant', $3, $4, $3, $5, $6, $7, $8, $9, 'English', $10, $10, $11, $12, $13) RETURNING id`,
-        [delegation.id, teamIds[p.team], p.name, p.name.split(' ')[0], p.passportName, p.passport, d.country.replace(' (TEST)', ''), p.dob, p.gender, p.shirt, p.food, p.medical, p.emergency],
+           date_of_birth, gender_for_room_allocation, exam_language, tshirt_size, polo_size, food_allergy_notes, medical_accessibility_notes, emergency_contact, diet, photo_consent)
+         VALUES ($1, $2, 'contestant', $3, $4, $3, $5, $6, $7, $8, $9, 'English', $10, $10, $11, $12, $13, $14, true) RETURNING id`,
+        [delegation.id, teamIds[p.team], p.name, p.name.split(' ')[0], p.passportName, p.passport, d.country.replace(' (TEST)', ''), p.dob, p.gender, p.shirt, p.food, p.medical, p.emergency, p.diet],
       )).rows[0].id
       firstMemberId ??= id
     }
@@ -124,6 +125,9 @@ try {
   }
   // Works every time on a test server: each use replaces the account made with it before (server/index.js).
   await db.query(`INSERT INTO invite_codes (code, country_territory, accredited_organisation, status, reusable) VALUES ('IOL2027-TST-LOOP', 'Loopland (TEST)', 'Test organisation', 'active', true)`)
+  // The jury's and the volunteers' shared codes, as the organisers will hand them out (IOL Board, 16 Nov 2026): each
+  // use creates another account.
+  await db.query(`INSERT INTO invite_codes (code, country_territory, status, kind, shared, max_teams) VALUES ('IOL2027-JUR-TEST', 'IOL 2027 jury (TEST)', 'active', 'jury', true, 1), ('IOL2027-VOL-TEST', 'IOL 2027 volunteers (TEST)', 'active', 'volunteer', true, 1)`)
 
   // The demo Team Leader: same starting point as a new sign-up (one team, four contestant places, nothing filled in).
   const demoAccount = (await db.query(
@@ -144,7 +148,7 @@ try {
   await db.query(`INSERT INTO teams (delegation_id, name, code, status) VALUES ($1, 'Demoland A', 'DEM-A', 'draft')`, [demoDelegation.id])
   await db.query('COMMIT')
   const count = (await db.query(`SELECT count(*)::int AS n FROM accounts WHERE email LIKE '%@iol2027.test'`)).rows[0].n
-  console.log(`test data ready: ${count} @iol2027.test accounts, 3 delegations (demo leader ${demo.email}), 2 unused invite codes and the reusable IOL2027-TST-LOOP`)
+  console.log(`test data ready: ${count} @iol2027.test accounts, 3 delegations (demo leader ${demo.email}), 2 unused invite codes, the reusable IOL2027-TST-LOOP and the shared IOL2027-JUR-TEST and IOL2027-VOL-TEST`)
 } catch (error) {
   await db.query('ROLLBACK')
   throw error

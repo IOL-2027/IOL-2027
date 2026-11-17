@@ -2,11 +2,11 @@
 // organiser settings and staff accounts. Who may call what is listed in docs/ROLES.md.
 import crypto from 'node:crypto'
 import { HttpError, ROLES, filterMember, hashPassword, requireRole } from './auth.js'
-import { buildInviteEmail, buildPaymentConfirmedEmail, buildProofReturnedEmail, retryEmail, sendEmail } from './email.js'
+import { buildInviteEmail, buildPaymentConfirmedEmail, buildPickupEmail, buildProofReturnedEmail, retryEmail, sendEmail } from './email.js'
 import { backProblem } from './badge-pdf.js'
 import { sendBadgesIfSettled } from './badges.js'
 import {
-  calculateFees, cleanBadgeBack, cleanBadgeSettings, cleanFees, cleanGuardianConsent, cleanInvoice, defaultFeeCategory, delegationFees, feeCategories,
+  calculateFees, cleanBadgeBack, cleanBadgeSettings, cleanEvent, cleanFees, cleanGuardianConsent, cleanInvoice, defaultFeeCategory, delegationFees, feeCategories,
   ageOn, loadSettings, needsGuardianConsent, singleRoomCount,
 } from './fees.js'
 
@@ -243,14 +243,38 @@ export function registerAdminRoutes(app, { signedIn }) {
 
   app.get('/api/admin/invites', ...signedIn, requireRole('registration_admin'), asyncHandler(async (_req, res) => {
     const result = await query(
-      `SELECT i.*, a.email AS used_by_email, d.id AS delegation_id
-       FROM invite_codes i LEFT JOIN accounts a ON a.id = i.used_by_account_id LEFT JOIN delegations d ON d.invite_code_id = i.id
-       ORDER BY i.country_territory, i.created_at`,
+      `SELECT i.*, a.email AS used_by_email,
+         (SELECT d.id FROM delegations d WHERE d.invite_code_id = i.id AND NOT i.shared LIMIT 1) AS delegation_id,
+         (SELECT count(*)::int FROM delegations d WHERE d.invite_code_id = i.id) AS registrations
+       FROM invite_codes i LEFT JOIN accounts a ON a.id = i.used_by_account_id
+       ORDER BY i.shared, i.country_territory, i.created_at`,
     )
     res.json({ invites: camelizeRows(result.rows) })
   }))
 
   app.post('/api/admin/invites', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
+    // One code shared by all jury members, and one by all volunteers (IOL Board, 16 Nov 2026): each person who is given
+    // it creates their own account. Only one of each is active at a time.
+    if (['jury', 'volunteer'].includes(req.body.kind)) {
+      const kind = req.body.kind
+      const name = kind === 'jury' ? 'IOL 2027 jury' : 'IOL 2027 volunteers'
+      const created = await withTransaction(async (client) => {
+        const taken = await client.query(`SELECT 1 FROM invite_codes WHERE kind = $1 AND status = 'active'`, [kind])
+        if (taken.rowCount) throw new HttpError(409, `There is already an active ${kind} code. Revoke it first to make a new one.`)
+        let inserted
+        for (let attempt = 0; !inserted && attempt < 5; attempt++) {
+          inserted = (await client.query(
+            `INSERT INTO invite_codes (code, country_territory, status, created_by_account_id, fee_category, max_teams, kind, shared)
+             VALUES ($1, $2, 'active', $3, 'accredited', 1, $4, true) ON CONFLICT (code) DO NOTHING RETURNING *`,
+            [newInviteCode(kind === 'jury' ? 'Jury' : 'Volunteers'), name, req.user.id, kind],
+          )).rows[0]
+        }
+        if (!inserted) throw new HttpError(500, 'Could not create a unique code. Try again.')
+        await insertAudit(client, { actorAccountId: req.user.id, eventType: 'invite_created', entityType: 'invite_code', entityId: inserted.id, details: { kind } })
+        return inserted
+      })
+      return res.status(201).json({ invites: camelizeRows([created]) })
+    }
     const list = Array.isArray(req.body.invites) ? req.body.invites : [req.body]
     if (!list.length || list.length > 100) throw new HttpError(400, 'Add between 1 and 100 countries at a time.')
     const rows = list.map((item, index) => {
@@ -267,7 +291,7 @@ export function registerAdminRoutes(app, { signedIn }) {
     const repeated = names.filter((name, i) => names.indexOf(name) !== i)
     if (repeated.length) throw new HttpError(400, `Listed twice: ${[...new Set(repeated)].join(', ')}.`)
     const created = await withTransaction(async (client) => {
-      const taken = (await client.query(`SELECT country_territory FROM invite_codes WHERE status IN ('active', 'used') AND lower(country_territory) = ANY($1)`, [names])).rows
+      const taken = (await client.query(`SELECT country_territory FROM invite_codes WHERE status IN ('active', 'used') AND NOT shared AND lower(country_territory) = ANY($1)`, [names])).rows
       if (taken.length) throw new HttpError(409, `These already have a code: ${taken.map((t) => t.country_territory).join(', ')}. Revoke the old code first.`)
       const out = []
       for (const row of rows) {
@@ -315,8 +339,8 @@ export function registerAdminRoutes(app, { signedIn }) {
     const status = req.body.status ?? invite.status
     if (!['active', 'revoked'].includes(status)) throw new HttpError(400, 'Status must be active or revoked.')
     if (status === 'active' && invite.status === 'revoked') {
-      const other = await query(`SELECT 1 FROM invite_codes WHERE id <> $1 AND status IN ('active', 'used') AND lower(country_territory) = lower($2)`, [invite.id, invite.country_territory])
-      if (other.rowCount) throw new HttpError(409, 'This country already has another active or used code.')
+      const other = await query(`SELECT 1 FROM invite_codes WHERE id <> $1 AND status IN ('active', 'used') AND (lower(country_territory) = lower($2) OR (shared AND kind = $3))`, [invite.id, invite.country_territory, invite.kind])
+      if (other.rowCount) throw new HttpError(409, invite.shared ? `There is already another active ${invite.kind} code.` : 'This country already has another active or used code.')
     }
     const email = 'contactEmail' in req.body ? optionalString(req.body.contactEmail)?.toLowerCase() ?? null : invite.contact_email
     if (email && !isEmail(email)) throw new HttpError(400, 'Enter a valid contact email.')
@@ -327,6 +351,17 @@ export function registerAdminRoutes(app, { signedIn }) {
     )).rows[0]
     await insertAudit(requireDb(), { actorAccountId: req.user.id, eventType: status !== invite.status ? `invite_${status === 'revoked' ? 'revoked' : 'reactivated'}` : 'invite_updated', entityType: 'invite_code', entityId: invite.id })
     res.json({ invite: camelizeRow(row) })
+  }))
+
+  // "Registration is open" (IOL Board, 16 Nov 2026): every country's invitation not sent yet, to its official contact.
+  app.post('/api/admin/invites/send-all', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
+    const due = (await query(`SELECT * FROM invite_codes WHERE status = 'active' AND NOT shared AND contact_email IS NOT NULL AND sent_at IS NULL ORDER BY country_territory`)).rows
+    let sent = 0
+    const failed = []
+    for (const invite of due) {
+      try { if ((await sendInvite(invite, req.user.id)).emailSent) sent++ } catch (error) { failed.push(`${invite.country_territory}: ${error.message}`) }
+    }
+    res.json({ due: due.length, sent, failed })
   }))
 
   app.post('/api/admin/invites/:inviteId/send', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
@@ -344,19 +379,24 @@ export function registerAdminRoutes(app, { signedIn }) {
   const memberOrder = `CASE m.role WHEN 'team_leader' THEN 0 WHEN 'contestant' THEN 1 ELSE 2 END`
   const singleRoom = (row) => (row.role === 'contestant' ? '' : row.room_type_preference === 'single' ? 'yes' : row.room_type_preference ? 'no' : '')
   const singleRoomTotal = (row) => singleRoomCount(row.single_rooms)
-  const peopleBase = `SELECT m.*, d.country_territory, d.fee_category, d.declared_arrival_date, d.declared_departure_date, d.welfare_note, t.name AS team_name,
-      t.contest_language AS team_contest_language
+  // Each person's own arrival and departure dates, from the trips they are on (the stay dates were removed, 17 Nov 2026).
+  const peopleBase = `SELECT m.*, d.country_territory, d.fee_category, d.kind, d.welfare_note, d.needs_accommodation, t.name AS team_name,
+      t.contest_language AS team_contest_language,
+      (SELECT min(tr.local_date) FROM travel_records tr JOIN travel_record_people trp ON trp.travel_record_id = tr.id WHERE trp.member_id = m.id AND tr.direction = 'arrival') AS arrival_date,
+      (SELECT max(tr.local_date) FROM travel_records tr JOIN travel_record_people trp ON trp.travel_record_id = tr.id WHERE trp.member_id = m.id AND tr.direction = 'departure') AS departure_date
     FROM members m JOIN delegations d ON d.id = m.delegation_id LEFT JOIN teams t ON t.id = m.team_id`
+  const yesNo = (value) => (value === true ? 'yes' : value === false ? 'no' : '')
+  const dietText = (row) => (row.diet ?? []).join('; ')
 
   const exportsByKind = {
     people: {
       columns: [['country_territory', 'Country'], ['team_name', 'Team'], ['role', 'Role'], ['display_name', 'Display name'], ['badge_name', 'Badge name'],
         ['official_name', 'Official name'], ['passport_name', 'Passport name'], ['passport_number', 'Passport number'], ['passport_nationality', 'Nationality'],
         ['date_of_birth', 'Date of birth'], ['gender_for_room_allocation', 'Gender (rooming)'], ['exam_language', 'Individual contest language'], ['tshirt_size', 'T-shirt'],
-        ['polo_size', 'Polo'], ['email', 'Email'], ['single_room', 'Single room'], ['food_allergy_notes', 'Food and allergies'],
-        ['medical_accessibility_notes', 'Medical or accessibility'], ['emergency_contact', 'Emergency contact'], ['needs_guardian_consent', 'Needs guardian consent'],
-        ['has_guardian_consent', 'Guardian consent uploaded'], ['stage', 'Status'], ['missing_details', 'Missing details']],
-      rows: async () => (await peopleRows()).map((row) => ({ ...row, single_room: singleRoom(row) })),
+        ['polo_size', 'Polo'], ['email', 'Email'], ['single_room', 'Single room'], ['diet_text', 'Food'], ['food_allergy_notes', 'Food details'],
+        ['medical_accessibility_notes', 'Medical or accessibility'], ['emergency_contact', 'Emergency contact'], ['photo_consent_text', 'Photo and video consent'],
+        ['needs_guardian_consent', 'Needs guardian consent'], ['has_guardian_consent', 'Guardian consent uploaded'], ['stage', 'Status'], ['missing_details', 'Missing details']],
+      rows: async () => (await peopleRows()).map((row) => ({ ...row, single_room: singleRoom(row), diet_text: dietText(row), photo_consent_text: yesNo(row.photo_consent) })),
     },
     // Names and progress only: what Finance and the check-in desk see in People.
     people_status: {
@@ -365,20 +405,22 @@ export function registerAdminRoutes(app, { signedIn }) {
       rows: peopleRows,
     },
     delegations: {
-      columns: [['country_territory', 'Country'], ['accredited_organisation', 'Organisation'], ['fee_category', 'Fee rate'], ['national_representative_name', 'Team Leader'],
-        ['team_leader_email', 'Team Leader email'], ['mobile_whatsapp', 'Team Leader phone'], ['number_of_teams', 'Teams'], ['number_of_observers', 'Observers'],
-        ['single_room_total', 'Single rooms'], ['people', 'People entered'], ['registration_status', 'Registration'], ['payment_status', 'Payment'], ['travel_status', 'Travel'],
-        ['declared_arrival_date', 'Arrival'], ['declared_departure_date', 'Departure'], ['stay_window_note', 'Why extra nights'], ['welfare_note', 'Room and welfare requests'],
+      columns: [['country_territory', 'Country'], ['kind', 'Registration for'], ['accredited_organisation', 'Organisation'], ['fee_category', 'Fee rate'], ['national_representative_name', 'National representative'],
+        ['team_leader_email', 'Account email'], ['mobile_whatsapp', 'Phone'], ['representative_leads', 'Representative is Team Leader of'], ['number_of_teams', 'Teams'], ['number_of_observers', 'Observers'],
+        ['single_room_total', 'Single rooms'], ['needs_room', 'Needs a hotel room'], ['people', 'People entered'], ['registration_status', 'Registration'], ['payment_status', 'Payment'], ['travel_status', 'Travel'],
+        ['welfare_note', 'Room and welfare requests'], ['dress_code_acknowledged_at', 'Dress code confirmed at'], ['insurance_acknowledged_at', 'Insurance notice confirmed at'],
         ['submitted_at', 'Submitted at']],
-      rows: async () => (await query(`SELECT d.*, (SELECT count(*)::int FROM members m WHERE m.delegation_id = d.id) AS people FROM delegations d ORDER BY d.country_territory`))
-        .rows.map((row) => ({ ...row, single_room_total: singleRoomTotal(row) })),
+      rows: async () => (await query(`SELECT d.*, (SELECT count(*)::int FROM members m WHERE m.delegation_id = d.id) AS people,
+          (SELECT t.name FROM teams t WHERE t.delegation_id = d.id ORDER BY t.code OFFSET COALESCE(d.representative_team, 0) LIMIT 1) AS rep_team_name
+        FROM delegations d ORDER BY d.kind, d.country_territory`))
+        .rows.map((row) => ({ ...row, single_room_total: singleRoomTotal(row), needs_room: row.kind === 'country' ? 'yes' : yesNo(row.needs_accommodation), representative_leads: row.representative_team === null || row.representative_team === undefined ? '' : row.rep_team_name ?? '' })),
     },
     // Numbers only, no names or contacts: for committee members charting progress.
     summary: {
       columns: [['country_territory', 'Country'], ['fee_category', 'Fee rate'], ['number_of_teams', 'Teams'], ['number_of_observers', 'Observers declared'],
         ['single_room_total', 'Single rooms'], ['contestants', 'Contestants entered'], ['team_leaders', 'Team Leaders entered'], ['observers', 'Observers entered'],
         ['registration_status', 'Registration'], ['payment_status', 'Payment'], ['travel_status', 'Travel'], ['amount_due', 'Amount due (USD)'],
-        ['badges_issued', 'Badges issued'], ['checked_in', 'People checked in'], ['declared_arrival_date', 'Arrival'], ['declared_departure_date', 'Departure']],
+        ['badges_issued', 'Badges issued'], ['checked_in', 'People checked in']],
       rows: async () => (await query(
         `SELECT d.*,
            (SELECT count(*)::int FROM members m WHERE m.delegation_id = d.id AND m.role = 'contestant') AS contestants,
@@ -419,8 +461,8 @@ export function registerAdminRoutes(app, { signedIn }) {
       },
     },
     travel: {
-      columns: [['country_territory', 'Country'], ['direction', 'Direction'], ['local_date', 'Date'], ['local_time', 'Time'], ['travel_point', 'Arrival or departure point'],
-        ['flight_service_number', 'Flight or service'], ['terminal', 'Terminal'], ['people_count', 'Number of people'], ['people', 'People']],
+      columns: [['country_territory', 'Country'], ['direction', 'Direction'], ['local_date', 'Date'], ['local_time', 'Time'], ['transport', 'Transfer'], ['travel_point', 'Airport'],
+        ['flight_service_number', 'Flight'], ['people_count', 'Number of people'], ['people', 'People'], ['loc_pickup_time', 'Pickup time'], ['loc_transport_group', 'Bus group'], ['loc_meeting_point_note', 'Meeting point']],
       rows: async () => (await query(
         `SELECT tr.*, d.country_territory, COALESCE(array_agg(m.display_name ORDER BY m.display_name) FILTER (WHERE m.id IS NOT NULL), '{}') AS people,
            count(m.id)::int AS people_count
@@ -440,18 +482,19 @@ export function registerAdminRoutes(app, { signedIn }) {
       )).rows,
     },
     welfare: {
-      columns: [['country_territory', 'Country'], ['display_name', 'Person'], ['role', 'Role'], ['team_name', 'Team'], ['food_allergy_notes', 'Food and allergies'],
-        ['medical_accessibility_notes', 'Medical or accessibility'], ['emergency_contact', 'Emergency contact']],
-      rows: async () => (await query(`${peopleBase} ORDER BY d.country_territory, ${memberOrder}, m.display_name`)).rows,
+      columns: [['country_territory', 'Country'], ['display_name', 'Person'], ['role', 'Role'], ['team_name', 'Team'], ['diet_text', 'Food'], ['food_allergy_notes', 'Food details'],
+        ['medical_accessibility_notes', 'Medical or accessibility'], ['emergency_contact', 'Emergency contact'], ['photo_consent_text', 'Photo and video consent']],
+      rows: async () => (await query(`${peopleBase} ORDER BY d.country_territory, ${memberOrder}, m.display_name`)).rows.map((row) => ({ ...row, diet_text: dietText(row), photo_consent_text: yesNo(row.photo_consent) })),
     },
     // Who sleeps where: for the accommodation and welfare teams planning rooms.
     rooming: {
       columns: [['country_territory', 'Country'], ['display_name', 'Person'], ['role', 'Role'], ['team_name', 'Team'], ['gender_for_room_allocation', 'Gender (rooming)'],
         ['single_room', 'Single room'], ['under_18', 'Under 18 at the event'], ['welfare_note', 'Room and welfare requests (country)'],
-        ['declared_arrival_date', 'First night'], ['declared_departure_date', 'Leaves on']],
+        ['arrival_date', 'Arrives'], ['departure_date', 'Leaves']],
       rows: async () => {
         const { guardianConsent } = await loadSettings(requireDb())
-        return (await query(`${peopleBase} ORDER BY d.country_territory, ${memberOrder}, m.gender_for_room_allocation, m.display_name`)).rows.map((row) => ({
+        // Only people who need a room: a volunteer who said they do not is left out.
+        return (await query(`${peopleBase} WHERE d.needs_accommodation IS NOT FALSE ORDER BY d.country_territory, ${memberOrder}, m.gender_for_room_allocation, m.display_name`)).rows.map((row) => ({
           ...row, single_room: singleRoom(row),
           under_18: row.date_of_birth ? (ageOn(row.date_of_birth, guardianConsent.referenceDate) < 18 ? 'yes' : 'no') : '',
         }))
@@ -589,6 +632,71 @@ export function registerAdminRoutes(app, { signedIn }) {
       invoice: settings.invoice,
     })
     res.set('Content-Type', 'application/pdf').set('Content-Disposition', 'inline; filename="IOL2027-invoice-sample.pdf"').send(pdf)
+  }))
+
+  // Deadlines shown beside the steps, the hotel nights provided, the pickup times and the royal reception's dress code.
+  app.put('/api/admin/settings/event', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
+    let event
+    try { event = cleanEvent(req.body) } catch (error) { throw new HttpError(400, error.message) }
+    await saveSetting(req, 'event', event)
+    res.json(await loadSettings(requireDb()))
+  }))
+
+  /* Transport ------------------------------------------------------ */
+
+  // Every arrival or departure, by day and time, with who is on it: the transport team plans buses from it and sets
+  // each trip's pickup time, bus group and meeting point (IOL Board, 16 Nov 2026).
+  app.get('/api/admin/transport', ...signedIn, requireRole('registration_admin', 'welfare_staff', 'viewer'), asyncHandler(async (req, res) => {
+    const direction = req.query.direction === 'departure' ? 'departure' : 'arrival'
+    const rows = (await query(
+      `SELECT tr.id, tr.direction, tr.transport, tr.travel_point, tr.flight_service_number, tr.local_date, tr.local_time, tr.loc_pickup_time,
+         tr.loc_transport_group, tr.loc_meeting_point_note, d.id AS delegation_id, d.country_territory, d.kind, d.pickup_emailed_at,
+         COALESCE(array_agg(m.display_name ORDER BY m.display_name) FILTER (WHERE m.id IS NOT NULL), '{}') AS people
+       FROM travel_records tr JOIN delegations d ON d.id = tr.delegation_id
+       LEFT JOIN travel_record_people trp ON trp.travel_record_id = tr.id LEFT JOIN members m ON m.id = trp.member_id
+       WHERE tr.direction = $1 GROUP BY tr.id, d.id ORDER BY tr.local_date NULLS LAST, tr.local_time NULLS LAST, d.country_territory`,
+      [direction],
+    )).rows
+    res.json({ trips: camelizeRows(rows) })
+  }))
+
+  app.patch('/api/admin/travel/:travelRecordId', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
+    const time = optionalString(req.body.pickupTime)
+    if (time && !/^\d{2}:\d{2}$/.test(time)) throw new HttpError(400, 'Enter the pickup time as hours and minutes, such as 14:30.')
+    const row = (await query(
+      `UPDATE travel_records SET loc_pickup_time = $1, loc_transport_group = $2, loc_meeting_point_note = $3, updated_at = now() WHERE id = $4 RETURNING *`,
+      [time, optionalString(req.body.transportGroup), optionalString(req.body.meetingPoint), req.params.travelRecordId],
+    )).rows[0]
+    if (!row) throw new HttpError(404, 'Trip not found.')
+    await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: row.delegation_id, eventType: 'transport_planned', entityType: 'travel_record', entityId: row.id })
+    res.json({ trip: camelizeRow(row) })
+  }))
+
+  // Emails each delegation whose trips have a pickup time its transfers. Only those whose plan changed since their last
+  // email are sent again, so this can be pressed after every round of planning.
+  app.post('/api/admin/transport/send', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {
+    const due = (await query(
+      `SELECT d.* FROM delegations d WHERE EXISTS (SELECT 1 FROM travel_records tr WHERE tr.delegation_id = d.id AND tr.transport = 'organisers' AND tr.loc_pickup_time IS NOT NULL
+         AND (d.pickup_emailed_at IS NULL OR tr.updated_at > d.pickup_emailed_at)) ORDER BY d.country_territory`,
+    )).rows
+    let sent = 0
+    for (const d of due) {
+      const trips = (await query(
+        `SELECT tr.*, COALESCE(string_agg(m.display_name, ', ' ORDER BY m.display_name), '') AS people FROM travel_records tr
+         LEFT JOIN travel_record_people trp ON trp.travel_record_id = tr.id LEFT JOIN members m ON m.id = trp.member_id
+         WHERE tr.delegation_id = $1 AND tr.transport = 'organisers' GROUP BY tr.id ORDER BY tr.direction, tr.local_date, tr.local_time`,
+        [d.id],
+      )).rows.map((t) => ({
+        direction: t.direction, date: t.local_date ? new Date(t.local_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' }) : 'Date to follow',
+        flight: t.flight_service_number, pickupTime: t.loc_pickup_time?.slice(0, 5), group: t.loc_transport_group, meeting: t.loc_meeting_point_note, people: t.people,
+      }))
+      const { subject, html } = buildPickupEmail({ fullName: d.national_representative_name, countryTerritory: d.country_territory, trips, url: `${portalUrl}/?step=travel` })
+      await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'pickup_schedule', delegationId: d.id, retry: true })
+      await query('UPDATE delegations SET pickup_emailed_at = now() WHERE id = $1', [d.id])
+      sent++
+    }
+    await insertAudit(requireDb(), { actorAccountId: req.user.id, eventType: 'pickup_schedule_sent', entityType: 'transport', details: { sent } })
+    res.json({ sent })
   }))
 
   app.put('/api/admin/settings/guardian-consent', ...signedIn, requireRole('registration_admin'), asyncHandler(async (req, res) => {

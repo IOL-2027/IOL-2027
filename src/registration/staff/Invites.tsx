@@ -8,6 +8,8 @@ type Invite = {
   id: string; code: string; countryTerritory: string; accreditedOrganisation: string | null; contactEmail: string | null
   status: 'active' | 'used' | 'revoked'; usedAt: string | null; usedByEmail: string | null; sentAt: string | null; sendCount: number
   feeCategory: FeeCategory
+  /** A shared code (jury, volunteers) is never used up: everyone given it creates their own account. */
+  kind?: 'country' | 'jury' | 'volunteer'; shared?: boolean; registrations?: number
 }
 
 const feeCategories = Object.keys(feeCategoryLabel) as FeeCategory[]
@@ -84,16 +86,28 @@ export default function Invites() {
     await api(`/api/admin/invites/${invite.id}`, { method: 'PATCH', body: { feeCategory } })
     return `${invite.countryTerritory}: fee rate is now ${feeCategoryLabel[feeCategory].toLowerCase()}.${invite.status === 'used' ? ' An invoice not paid yet is worked out again.' : ''}`
   })
+  const makeShared = (kind: 'jury' | 'volunteer') => act({} as Invite, async () => {
+    const result = await api<{ invites: Invite[] }>('/api/admin/invites', { method: 'POST', body: { kind } })
+    return `${kind === 'jury' ? 'Jury' : 'Volunteer'} code ${result.invites[0].code} created. Give it only to the people the organisers have chosen.`
+  })
+  // "Registration is open": every country's invitation not sent yet.
+  const sendAll = () => act({} as Invite, async () => {
+    const result = await api<{ due: number; sent: number; failed: string[] }>('/api/admin/invites/send-all', { method: 'POST' })
+    return !result.due ? 'Every country with a contact email has had its invitation already.'
+      : `${result.sent} of ${result.due} invitations emailed.${result.due > result.sent ? ' The rest are test addresses, or email is off on this server.' : ''}${result.failed.length ? ` Not sent: ${result.failed.join('; ')}.` : ''}`
+  })
   const copy = (invite: Invite) => act(invite, async () => {
     await navigator.clipboard.writeText(invite.code)
     return `${invite.code} copied.`
   })
 
   const term = search.trim().toLowerCase()
-  const rows = (data?.invites ?? []).filter((i) => (show === 'all' || i.status === show) && (!term || `${i.countryTerritory} ${i.code} ${i.contactEmail ?? ''}`.toLowerCase().includes(term)))
+  const shared = (data?.invites ?? []).filter((i) => i.shared)
+  const rows = (data?.invites ?? []).filter((i) => !i.shared && (show === 'all' || i.status === show) && (!term || `${i.countryTerritory} ${i.code} ${i.contactEmail ?? ''}`.toLowerCase().includes(term)))
+  const unsent = (data?.invites ?? []).filter((i) => !i.shared && i.status === 'active' && i.contactEmail && !i.sentAt).length
 
   return (
-    <Panel id="invites" title="Invitation codes" intro="One code per country or territory. A code creates exactly one account, for the country’s national representative, which is then tied to that country.">
+    <Panel id="invites" title="Invitation codes" intro="One code per country or territory: it creates exactly one account, for the country’s national representative. Jury members and volunteers share one code each.">
       <form ref={formRef} className="reg-staff-form" onSubmit={create} noValidate>
         <div className="reg-switch reg-switch-small" role="group" aria-label="Add codes">
           <button type="button" aria-pressed={mode === 'one'} className={mode === 'one' ? 'active' : undefined} onClick={() => setMode('one')}>One country</button>
@@ -126,6 +140,32 @@ export default function Invites() {
         <div className="reg-staff-form-actions"><button type="submit" className="reg-btn reg-btn-primary" disabled={busy}><Plus size={18} aria-hidden="true" />{busy ? 'Creating…' : mode === 'one' ? 'Create code' : 'Create codes'}</button></div>
       </form>
 
+      <h3 className="reg-staff-subhead">Jury and volunteer codes</h3>
+      <p className="reg-hint">One code for all jury members and one for all volunteers. Each person given the code creates their own account. Give it only to the people the organisers have chosen (volunteers after the Google Form screening).</p>
+      <ul className="reg-shared-codes">
+        {(['jury', 'volunteer'] as const).map((kind) => {
+          const live = shared.find((i) => i.kind === kind && i.status === 'active')
+          return (
+            <li key={kind}>
+              <div><strong>{kind === 'jury' ? 'Jury' : 'Volunteers'}</strong>{live
+                ? <span><span className="reg-code">{live.code}</span> · {live.registrations ?? 0} {live.registrations === 1 ? 'registration' : 'registrations'}</span>
+                : <span className="reg-muted">No active code</span>}</div>
+              <div className="reg-row-actions">
+                {live ? <>
+                  <button type="button" className="reg-btn-link" onClick={() => copy(live)}><Copy size={15} aria-hidden="true" />Copy<span className="reg-visually-hidden"> {live.code}</span></button>
+                  <button type="button" className="reg-btn-link" onClick={() => setStatus(live, 'revoked')}><Ban size={15} aria-hidden="true" />Revoke<span className="reg-visually-hidden"> {live.code}</span></button>
+                </> : <button type="button" className="reg-btn-link" onClick={() => makeShared(kind)}><Plus size={15} aria-hidden="true" />Create a {kind} code</button>}
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+
+      <h3 className="reg-staff-subhead">Countries</h3>
+      <div className="reg-staff-form-actions">
+        <button type="button" className="reg-btn reg-btn-secondary" disabled={!unsent} onClick={sendAll}><Send size={16} aria-hidden="true" />Send every unsent invitation ({unsent})</button>
+        <span className="reg-hint">Registration is open: emails each country’s official contact its code, if not sent yet.</span>
+      </div>
       <div className="reg-filter-bar">
         <div className="reg-filter" role="group" aria-label="Show codes">
           {([['all', 'All'], ['active', 'Not used'], ['used', 'Used'], ['revoked', 'Revoked']] as const).map(([value, label]) => (
