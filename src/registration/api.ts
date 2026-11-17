@@ -14,7 +14,11 @@ export type User = {
   emailVerified: boolean
   delegationId?: string | null
   country?: string | null
+  /** A country's national representative, or a jury member or volunteer registering themselves. */
+  kind?: DelegationKind
 }
+/** Who a registration is for: a country's delegation, or one jury member or volunteer (with their own invitation code). */
+export type DelegationKind = 'country' | 'jury' | 'volunteer'
 
 export type FeeLine = { key: string; label: string; detail: string; amount: number | null }
 /** dueDate is when an invoice at this tier must be paid: the last early-bird day, or the last day of registration. */
@@ -32,8 +36,13 @@ export type FeeRules = { maxObserversPerTeam: number; singleRoomFee: number; obs
 export type InvoiceSplit = { recipientName: string; recipientAddress: string | null; recipientTin: string | null; amount: number }
 
 export type Team = { id: string; name: string; code: string; contestLanguage: string | null; status: string }
+export type MemberRole = 'contestant' | 'team_leader' | 'observer' | 'jury' | 'volunteer'
 export type Member = {
-  id: string; role: 'contestant' | 'team_leader' | 'observer'; teamId: string | null
+  id: string; role: MemberRole; teamId: string | null
+  /** Food options ticked in People; foodAllergyNotes holds the details for "Other" and allergies. */
+  diet?: string[]
+  /** Consent to appear in event photos and videos, confirmed by the national representative; null until answered. */
+  photoConsent?: boolean | null
   observerCategory: string | null; displayName: string; badgeName: string | null; officialName: string | null
   passportName?: string | null; passportNumber?: string | null; passportNationality: string | null; dateOfBirth?: string | null
   genderForRoomAllocation: string | null; examLanguage: string | null; tshirtSize: string | null; poloSize: string | null
@@ -45,6 +54,8 @@ export type Member = {
 export type TravelRecord = {
   id: string; direction: 'arrival' | 'departure'; travelPoint: string | null; flightServiceNumber: string | null
   localDate: string | null; localTime: string | null; terminal: string | null; memberIds: string[]; createdAt?: string
+  /** Picked up (or dropped off) at the airport by the organisers, or making their own way. */
+  transport?: 'organisers' | 'own'
 }
 export type Payment = {
   id: string; status: 'awaiting_proof' | 'awaiting_review' | 'approved' | 'rejected' | 'refunded'
@@ -57,8 +68,14 @@ export type Delegation = {
   id: string; countryTerritory: string; accreditedOrganisation: string | null; nationalRepresentativeName: string
   /** People, and Rooms and welfare, open before the proof of payment is in (the committee's review account). */
   peopleOpenEarly?: boolean
-  /** Whether the national representative (who uses this account) is also the first team's Team Leader; null until answered. */
+  /** Whether the national representative (who uses this account) is also a Team Leader; null until answered. */
   representativeIsTeamLeader?: boolean | null
+  /** The team the national representative leads: 0 for the first, 1 for the second, null for neither. */
+  representativeTeam?: number | null
+  kind?: DelegationKind
+  /** A jury member or volunteer who needs a hotel room (volunteers living in Bangkok may not). */
+  needsAccommodation?: boolean | null
+  dressCodeAcknowledgedAt?: string | null; insuranceAcknowledgedAt?: string | null
   teamLeaderEmail: string; numberOfTeams: number; numberOfObservers: number; registrationStatus: string
   paymentStatus: string; declaredArrivalDate: string | null; declaredDepartureDate: string | null
   stayWindowNote: string | null; welfareNote: string | null; contestantRoomType: string | null; completedSteps: string[]; submittedAt: string | null
@@ -81,9 +98,17 @@ export type FeeSettings = {
 /** The account invoices ask for. Null until Finance enters it in the back office. */
 export type BankDetails = { beneficiaryName: string; beneficiaryAddress: string; bankName: string; bankAddress: string; accountNumber: string; swiftCode: string }
 export type InvoiceSettings = { issuerName: string; issuerTin: string; issuerAddress: string; bank: BankDetails | null }
+/** Dates and wording the portal shows beside the steps, set by the organisers in the back office. */
+export type EventInfo = {
+  languageLock: string; peopleDeadline: string; travelDeadline: string; hotelFirstNight: string; hotelLastNight: string
+  pickup: string; dressCode: string; languagesLocked: boolean; travelLocked: boolean; peopleLocked: boolean
+  earlyBirdEnds: string; registrationEnds: string
+}
+export type FormOptions = { diets: string[]; airports: string[]; travelWindow: { first: string; last: string } }
 export type DelegationData = {
   delegation: Delegation; fees: Fees; teams: Team[]; members: Member[]; travelRecords: TravelRecord[]
   payments: Payment[]; attachments: Attachment[]; guardianConsent: GuardianConsentPolicy; bank: BankDetails | null; feeRules: FeeRules
+  event: EventInfo; options: FormOptions
 }
 
 export class ApiError extends Error {

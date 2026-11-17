@@ -540,11 +540,11 @@ function Registration() {
   // The portal is part of this site, so its address is this site's plus /portal.
   const portalHost = `${window.location.host}${portalUrl}`
   const stages = [
-    'Team and observer numbers, which set the fees',
+    'Team and observer numbers and each team’s Team Leader, which set the fees',
     'Invoice details, bank transfer and proof of payment',
     'Teams, their working language, and each person’s details',
     'Rooms and welfare',
-    'Travel: stay dates now, flights once they are booked',
+    'Travel: each person’s flights, once they are booked',
     'Review and submit',
   ]
   return <>
@@ -604,8 +604,8 @@ const registrationReady = [
   'How many teams (up to two for an accredited country, one otherwise) and observers you are bringing',
   'Invoice details: the organisation to invoice, and how many invoices',
   'A bank that can make an international transfer, with its charges paid by the sender',
-  'For each person: official and passport names, passport number and nationality, date of birth, shirt sizes',
-  'Everyone’s stay dates. Flight details can follow later.',
+  'For each person: official and passport names, passport number and nationality, date of birth, shirt sizes, food and photo consent',
+  'Everyone’s flights, once they are booked.',
 ]
 const registrationJourney: { phase: string; steps: { title: string; detail: string; tag?: string; href?: string }[] }[] = [
   { phase: 'Before the portal', steps: [
@@ -616,10 +616,10 @@ const registrationJourney: { phase: string; steps: { title: string; detail: stri
     { title: 'Team and observers', detail: 'How many teams (up to two for an accredited country or territory, one for any other) and how many observers, which set the fees, and who the national representative and each Team Leader are.', tag: 'Sets the fees' },
     { title: 'Payment', detail: 'Give the invoice details, transfer the full amount, then upload the bank’s proof of transfer. Finance checks it and issues an e-receipt.', tag: 'Bank transfer only' },
     { title: 'Teams', detail: 'Choose each team’s working language for the team contest.' },
-    { title: 'People', detail: 'Each contestant’s and observer’s details: names, passport details, exam language, shirt sizes, and any food, medical or accessibility notes. It can be filled in over several sittings.', tag: 'Opens after proof of payment' },
-    { title: 'Rooms and welfare', detail: 'A summary built from everyone’s details, to check that it reads correctly.' },
-    { title: 'Travel', detail: 'Stay dates now, because they set the hotel nights. Flights can be added once they are booked.', tag: 'Flights can wait' },
-    { title: 'Review and submit', detail: 'Check everything and submit. People and travel can still be updated afterwards.' },
+    { title: 'People', detail: 'Each contestant’s and observer’s details: names, passport details, contest language, shirt sizes, food, any medical or accessibility notes, and consent to photos. It can be filled in over several sittings.', tag: 'Opens after proof of payment' },
+    { title: 'Rooms and welfare', detail: 'A summary built from everyone’s details, and any room requests, which are handled privately.' },
+    { title: 'Travel', detail: 'Each person’s arrival and departure, once flights are booked. The organisers provide the hotel from the night of 21 July to the night of 27 July, and airport pickup at BKK and DMK.', tag: 'Flights can wait' },
+    { title: 'Review and submit', detail: 'Read the royal reception’s dress code and the travel insurance notice, tick both, and submit. People and travel can still be updated afterwards, until their deadlines.' },
   ] },
   { phase: 'Before the Olympiad', steps: [
     { title: 'Invitation letters', detail: 'Once the payment is confirmed, an invitation letter is sent for each person to support their visa application.', href: '/registration/visas' },
@@ -676,7 +676,7 @@ function Accommodation() {
   const [hotel] = venues
   const [active, setActive] = useState(0)
   const image = hotelImages[active]
-  return <><PageIntro eyebrow="Event guide / Accommodation" title="Our home base in Bangkok." body="Mandarin Hotel Bangkok, managed by Centre Point, is the home base for IOL 2027 teams, jury, volunteers and staff." /><section className="hotel-feature wrap"><figure className="hotel-gallery"><div className="hotel-gallery-frame">{active > 0 && <button className="carousel-arrow carousel-arrow-left" type="button" onClick={() => setActive(active - 1)} aria-label="Previous hotel image"><ChevronLeft /></button>}<img key={image.src} src={image.src} alt={image.alt} />{active < hotelImages.length - 1 && <button className="carousel-arrow carousel-arrow-right" type="button" onClick={() => setActive(active + 1)} aria-label="Next hotel image"><ChevronRight /></button>}</div><figcaption><span>{image.caption} · Official Mandarin Hotel Bangkok image</span><span>{active + 1} / {hotelImages.length}</span></figcaption></figure><div><p className="eyebrow">Home base</p><h2>{hotel.name}</h2><p>Located near MRT Sam Yan and within easy reach of Chulalongkorn University and central Bangkok.</p><dl className="hotel-details"><div><dt>Address</dt><dd>{hotel.address}</dd></div><div><dt>Managed by</dt><dd>Centre Point</dd></div></dl><div className="hotel-actions"><a className="pill" href="https://www.mandarin-bkk.com/" target="_blank" rel="noreferrer">Hotel website <span><ExternalLink size={16} /></span></a><a className="text-link" href="https://www.google.com/maps/search/?api=1&query=Mandarin+Hotel+Bangkok+662+Rama+IV+Road" target="_blank" rel="noreferrer"><MapPin size={16} /> Open in Google Maps</a></div></div></section><section className="hotel-map wrap"><iframe title="Mandarin Hotel Bangkok location" src="https://www.google.com/maps?q=Mandarin+Hotel+Bangkok+662+Rama+IV+Road&output=embed" loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" /></section></>
+  return <><PageIntro eyebrow="Event guide / Accommodation" title="Our home base in Bangkok." body="Mandarin Hotel Bangkok, managed by Centre Point, is the home base for IOL 2027 teams, jury, volunteers and staff." /><section className="hotel-feature wrap"><figure className="hotel-gallery"><div className="hotel-gallery-frame">{active > 0 && <button className="carousel-arrow carousel-arrow-left" type="button" onClick={() => setActive(active - 1)} aria-label="Previous hotel image"><ChevronLeft /></button>}<img key={image.src} src={image.src} alt={image.alt} />{active < hotelImages.length - 1 && <button className="carousel-arrow carousel-arrow-right" type="button" onClick={() => setActive(active + 1)} aria-label="Next hotel image"><ChevronRight /></button>}</div><figcaption><span>{image.caption} · Official Mandarin Hotel Bangkok image</span><span>{active + 1} / {hotelImages.length}</span></figcaption></figure><div><p className="eyebrow">Home base</p><h2>{hotel.name}</h2><p>Located near MRT Sam Yan and within easy reach of Chulalongkorn University and central Bangkok.</p><dl className="hotel-details"><div><dt>Address</dt><dd>{hotel.address}</dd></div><div><dt>Managed by</dt><dd>Centre Point</dd></div><div><dt>Nights provided</dt><dd>From the night of 21 July to the night of 27 July 2027. Other nights are booked and paid for by participants themselves.</dd></div></dl><div className="hotel-actions"><a className="pill" href="https://www.mandarin-bkk.com/" target="_blank" rel="noreferrer">Hotel website <span><ExternalLink size={16} /></span></a><a className="text-link" href="https://www.google.com/maps/search/?api=1&query=Mandarin+Hotel+Bangkok+662+Rama+IV+Road" target="_blank" rel="noreferrer"><MapPin size={16} /> Open in Google Maps</a></div></div></section><section className="hotel-map wrap"><iframe title="Mandarin Hotel Bangkok location" src="https://www.google.com/maps?q=Mandarin+Hotel+Bangkok+662+Rama+IV+Road&output=embed" loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" /></section></>
 }
 
 function Transportation() {
@@ -694,7 +694,7 @@ function Transportation() {
     <section className="transport-airports wrap">
       <article><span>BKK</span><h3>Suvarnabhumi Airport</h3><p>Bangkok’s main international airport.</p><p className="transport-service"><Check size={16} aria-hidden="true" />Pick-up and drop-off provided</p></article>
       <article><span>DMK</span><h3>Don Mueang International Airport</h3><p>Bangkok’s older airport, used by many regional and low-cost airlines.</p><p className="transport-service"><Check size={16} aria-hidden="true" />Pick-up and drop-off provided</p></article>
-      <article className="transport-flights"><h3>Share your flights</h3><p>National representatives add everyone’s stay dates in the registration portal, then their flights once they are booked. The organising team plans the pick-ups from them.</p><a className="text-link" href="/registration/how-to-register">How to register <ArrowRight size={15} /></a></article>
+      <article className="transport-flights"><h3>Share your flights</h3><p>National representatives add everyone’s flights in the registration portal once they are booked. The organising team plans the pick-ups from them. Arriving after 21 July may mean missing the opening ceremony.</p><a className="text-link" href="/registration/how-to-register">How to register <ArrowRight size={15} /></a></article>
     </section>
     <section className="transport-timetable wrap"><div><p className="transport-status">To be confirmed</p><h2>Airport pick-up timetable</h2><p>It will be published here once the transport plan is confirmed.</p></div>
       <ul>{['Pick-up windows', 'Airport meeting points', 'Who to contact on arrival', 'Coach departure times'].map((item) => <li key={item}><Clock size={16} aria-hidden="true" />{item}</li>)}</ul>

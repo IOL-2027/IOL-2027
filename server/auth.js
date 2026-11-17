@@ -146,7 +146,7 @@ export async function recordLogin(db, email, ip, succeeded) {
   if (succeeded) await db.query('DELETE FROM login_attempts WHERE lower(email) = lower($1) AND NOT succeeded', [email])
 }
 
-const SENSITIVE_HEALTH = ['food_allergy_notes', 'medical_accessibility_notes', 'emergency_contact']
+const SENSITIVE_HEALTH = ['food_allergy_notes', 'diet', 'medical_accessibility_notes', 'emergency_contact']
 const SENSITIVE_IDENTITY = ['passport_name', 'passport_number', 'date_of_birth']
 
 /** Removes member fields a role is not allowed to see. Team Leaders and admins see everything in scope. */

@@ -29,9 +29,13 @@ const groups = {
   contestant: { band: colour.plum, name: colour.white, fullName: colour.onPlum, place: colour.gold, strip: colour.gold, role: colour.plum },
   team_leader: { band: '#0f5c5a', name: colour.white, fullName: '#d2e9e6', place: '#f7c98c', strip: colour.gold, role: '#0f5c5a' },
   observer: { band: '#8f3222', name: colour.white, fullName: '#f3d9d1', place: '#f7c98c', strip: colour.gold, role: '#8f3222' },
+  // The jury, a deep blue (IOL Board, 16 Nov 2026: jury members register in the portal or are added as guests).
+  jury: { band: '#1f3a6b', name: colour.white, fullName: '#d6e0f2', place: '#f7c98c', strip: colour.gold, role: '#1f3a6b' },
   staff: { band: colour.gold, name: colour.ink, fullName: colour.onGold, place: colour.plum, strip: colour.plum, role: colour.plum },
 }
-const groupOf = (badge) => (badge.kind === 'staff' ? 'staff' : { 'Team Leader': 'team_leader', Observer: 'observer' }[badge.role] ?? 'contestant')
+// Jury members and observers have their own colours whether they registered or were added as guests; volunteers who
+// registered look like the event staff, as volunteers added in the back office do.
+const groupOf = (badge) => ({ Jury: 'jury', Observer: 'observer' }[badge.role] ?? (badge.kind === 'staff' || badge.role === 'Volunteer' ? 'staff' : badge.role === 'Team Leader' ? 'team_leader' : 'contestant'))
 // Top to bottom: the white header with the logo, the coloured band with the name, the QR area, the strip.
 const BAND_TOP = mm(36)
 const BAND_BOTTOM = mm(92)

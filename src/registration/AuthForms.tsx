@@ -161,7 +161,7 @@ function ResetPassword({ initialEmail, onDone, onBack }: { initialEmail: string;
   )
 }
 
-type Invite = { code: string; countryTerritory: string; accreditedOrganisation: string | null }
+type Invite = { code: string; countryTerritory: string; accreditedOrganisation: string | null; kind?: 'country' | 'jury' | 'volunteer' }
 type UsedCode = { country: string; accountHint: string | null }
 const codePattern = /^IOL2027-[A-Z]{3}-[A-Z0-9]{4}$/i
 
@@ -253,16 +253,25 @@ function SignUp({ onCreated, onSignIn, onForgot, initialCode }: {
           <h2 ref={headingRef} tabIndex={-1}>Enter your invitation code</h2>
           <p className="reg-lede">Each country or territory receives one code by email. It links your account to the right country and team allowance.</p>
           <TextField name="code" label="Invitation code" hint="Example: IOL2027-ABC-1234" error={errors.code} className="reg-control reg-control-code" autoComplete="off" spellCheck={false} defaultValue={invite?.code ?? initialCode} />
-          <p className="reg-reassure"><ShieldCheck size={18} aria-hidden="true" />Only the official contact for each country receives a code.</p>
+          <p className="reg-reassure"><ShieldCheck size={18} aria-hidden="true" />Codes are sent by the organisers: to each country’s official contact, and to invited jury members and volunteers.</p>
           <div className="reg-account-actions"><button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{busy ? 'Checking…' : 'Check code'} <ArrowRight size={18} aria-hidden="true" /></button></div>
         </>}
         {step === 1 && invite && <>
-          <h2 ref={headingRef} tabIndex={-1}>Create your country’s account</h2>
-          <p className="reg-lede">The national representative uses this account for the whole registration, so use an address your team can rely on. Names come later, in Team and observers.</p>
-          <div className="reg-confirmed">
-            <Check size={18} strokeWidth={3} aria-hidden="true" />
-            <div><strong>{invite.countryTerritory}</strong><span>{invite.accreditedOrganisation ? `${invite.accreditedOrganisation} · ` : ''}set by your invitation code</span></div>
-          </div>
+          {invite.kind && invite.kind !== 'country' ? <>
+            <h2 ref={headingRef} tabIndex={-1}>{invite.kind === 'jury' ? 'Create your jury account' : 'Create your volunteer account'}</h2>
+            <p className="reg-lede">This account is for you alone: each {invite.kind === 'jury' ? 'jury member' : 'volunteer'} registers with their own email address. Your name comes in the first step.</p>
+            <div className="reg-confirmed">
+              <Check size={18} strokeWidth={3} aria-hidden="true" />
+              <div><strong>{invite.kind === 'jury' ? 'IOL 2027 jury' : 'IOL 2027 volunteers'}</strong><span>set by your invitation code</span></div>
+            </div>
+          </> : <>
+            <h2 ref={headingRef} tabIndex={-1}>Create your country’s account</h2>
+            <p className="reg-lede">The national representative uses this account for the whole registration, so use an address your team can rely on. Names come later, in Team and observers.</p>
+            <div className="reg-confirmed">
+              <Check size={18} strokeWidth={3} aria-hidden="true" />
+              <div><strong>{invite.countryTerritory}</strong><span>{invite.accreditedOrganisation ? `${invite.accreditedOrganisation} · ` : ''}set by your invitation code</span></div>
+            </div>
+          </>}
           <TextField name="email" label="Email address" hint="For signing in and for official notices from the organisers." error={errors.email} type="email" autoComplete="email" />
           <TextField name="password" label="Password" hint="At least 12 characters." error={errors.password} type="password" autoComplete="new-password" />
           <TextField name="password2" label="Confirm password" error={errors.password2} type="password" autoComplete="new-password" />

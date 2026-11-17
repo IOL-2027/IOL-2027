@@ -4,14 +4,16 @@
 //   - sends the badges to any settled registration whose Team Leader has not had them yet (a safety net: they
 //     normally go the moment the registration settles);
 //   - from 8:00 Bangkok time, once a day: emails each Team Leader whose badges changed since their last badge email,
-//     then sends the registration admins a summary of badges to print, if it differs from the last one.
+//     then sends the registration admins a summary of badges to print, if it differs from the last one;
+//   - and, in the week before each deadline, reminds each registration that still has something to do (once each):
+//     the early bird rate, the last day of registration, People, travel and the contest languages.
 // Without JOBS_AUDIENCE and JOBS_INVOKER (local development) the endpoint answers 404; call runTick() instead.
 import { OAuth2Client } from 'google-auth-library'
 import { HttpError } from './auth.js'
 import { badgeCounts } from './badge-admin.js'
-import { bangkokDate, sendBadgesIfSettled } from './badges.js'
-import { buildSummaryEmail, retryDueEmails, sendEmail } from './email.js'
-import { loadSettings } from './fees.js'
+import { bangkokDate, missingTravel, sendBadgesIfSettled } from './badges.js'
+import { buildReminderEmail, buildSummaryEmail, retryDueEmails, sendEmail } from './email.js'
+import { delegationFees, loadSettings } from './fees.js'
 import { asyncHandler, portalUrl, query, requireDb } from './lib.js'
 
 const audience = process.env.JOBS_AUDIENCE
@@ -84,6 +86,54 @@ async function summary(now) {
   return send ? admins.rowCount : 0
 }
 
+// What still blocks a registration (index.js missingForSubmission), passed in by registerJobRoutes.
+let missingFor = async () => ({ missing: [] })
+const REMINDER_DAYS = 7
+const longDate = (iso) => new Date(`${iso}T12:00:00+07:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' })
+
+/**
+ * Reminders before each deadline (IOL Board, 16 Nov 2026), from seven days before it until the day itself, once to
+ * each registration that still has something to do for it. Whether one went is in the email log (its purpose).
+ */
+async function reminders(now) {
+  const { fees, event } = await loadSettings(requireDb())
+  const today = bangkokDate(now)
+  const inWindow = (deadline) => today <= deadline && Date.parse(deadline) - Date.parse(today) <= REMINDER_DAYS * 86_400_000
+  const delegations = (await query(`SELECT * FROM delegations WHERE registration_status <> 'cancelled' ORDER BY country_territory`)).rows
+  const already = async (purpose, id) => (await query('SELECT 1 FROM email_deliveries WHERE purpose = $1 AND delegation_id = $2 LIMIT 1', [purpose, id])).rowCount > 0
+  const paid = async (id) => (await query(`SELECT 1 FROM payments WHERE delegation_id = $1 AND status IN ('awaiting_review', 'approved') LIMIT 1`, [id])).rowCount > 0
+  const rules = [
+    { key: 'reminder_early_bird', deadline: fees.earlyBirdEnds, title: 'The early bird rate ends soon', lead: 'To keep the early bird rate, upload your proof of payment by', step: 'payment',
+      items: async (d) => ((d.kind === 'country' || delegationFees(fees, d).total > 0) && !(await paid(d.id)) ? ['Transfer the fees and upload the bank’s proof of transfer'] : []) },
+    { key: 'reminder_registration_end', deadline: fees.registrationEnds, title: 'Registration closes soon', lead: 'Please finish and submit your registration by', step: 'submit',
+      items: async (d) => (d.registration_status === 'draft' ? (await missingFor(d.id)).missing : []) },
+    { key: 'reminder_people', deadline: event.peopleDeadline, title: 'Everyone’s details are due soon', lead: 'Please complete everyone’s details in People by', step: 'people',
+      items: async (d) => (await missingFor(d.id)).missing.filter((item) => item.includes(':') && !/^Invoice/.test(item)) },
+    { key: 'reminder_travel', deadline: event.travelDeadline, title: 'Flight details are due soon', lead: 'Please add everyone’s arrival and departure in Travel by', step: 'travel',
+      items: async (d) => missingTravel(d.id) },
+    { key: 'reminder_languages', deadline: event.languageLock, title: 'Contest languages lock soon', lead: 'Contest languages can be chosen and changed until', step: 'teams',
+      items: async (d) => (d.kind !== 'country' ? [] : [
+        ...(await query('SELECT name FROM teams WHERE delegation_id = $1 AND contest_language IS NULL ORDER BY code', [d.id])).rows.map((t) => `${t.name}: team contest language`),
+        ...(await query(`SELECT display_name FROM members WHERE delegation_id = $1 AND role = 'contestant' AND exam_language IS NULL ORDER BY display_name`, [d.id])).rows.map((m) => `${m.display_name}: individual contest language`),
+      ]) },
+  ]
+  let sent = 0
+  for (const rule of rules.filter((r) => inWindow(r.deadline))) {
+    for (const d of delegations) {
+      if (await already(rule.key, d.id)) continue
+      const items = await rule.items(d).catch(logged(`${rule.key} for ${d.id}`))
+      if (!Array.isArray(items) || !items.length) continue
+      const { subject, html } = buildReminderEmail({
+        fullName: d.national_representative_name, countryTerritory: d.country_territory, title: rule.title, lead: rule.lead, deadline: longDate(rule.deadline),
+        items, buttonLabel: 'Continue your registration', url: `${portalUrl}/?step=${rule.step}`,
+      })
+      await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: rule.key, delegationId: d.id, retry: true }).catch(logged(rule.key))
+      sent++
+    }
+  }
+  return sent
+}
+
 /** One run of the scheduled work. Returns what it did. */
 export async function runTick(now = new Date()) {
   const pool = requireDb()
@@ -99,6 +149,10 @@ export async function runTick(now = new Date()) {
           await setState('badge_updates', { day })
         }
         if ((await getState('summary'))?.day !== day) report.summaryEmails = await summary(now)
+        if ((await getState('reminders'))?.day !== day) {
+          report.reminders = await reminders(now).catch(logged('reminders'))
+          await setState('reminders', { day })
+        }
       }
       return report
     } finally {
@@ -123,7 +177,8 @@ async function fromScheduler(req, _res, next) {
   next()
 }
 
-export function registerJobRoutes(app) {
+export function registerJobRoutes(app, { missingForSubmission } = {}) {
+  if (missingForSubmission) missingFor = missingForSubmission
   app.post('/api/jobs/tick', fromScheduler, asyncHandler(async (_req, res) => {
     const report = await runTick()
     console.log('tick', JSON.stringify(report))
