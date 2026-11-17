@@ -41,7 +41,6 @@ const navigation: NavItem[] = [
   { label: 'People', href: '/people', overview: 'People overview', children: [
     { label: 'Committee', href: '/people/committee' },
     { label: 'Jury', href: '/people/jury' },
-    { label: 'Problem Committee', href: '/people/problem-committee' },
     { label: 'Volunteers', href: '/people/volunteers' },
   ] },
   { label: 'Contact', href: '/contact' },
@@ -575,7 +574,7 @@ function Registration() {
       <a className="text-link" href="/registration/fees-deadlines">How payment works <ArrowRight size={16} /></a>
     </div><RegistrationDates /></section>
     <section className="two-col wrap registration-block" id="working-languages"><div><p className="eyebrow">Working languages</p><h2>Problems in your team’s language.</h2></div><div className="prose">
-      <p>Contestants read the problems and answer in a working language of their choice. A language that was not used at the previous Olympiad must be requested by 1 February 2027.</p>
+      <p>Contestants read the problems and answer in a working language of their choice.</p>
       <a className="text-link" href="https://ioling.org/upcoming/" target="_blank" rel="noreferrer">IOL 2027 dates on ioling.org <ExternalLink size={14} /></a>
     </div></section>
     <SectionLinks links={[{ href: '/registration/how-to-register', label: 'How to register', detail: 'Every step of the registration flow.' }, { href: '/registration/fees-deadlines', label: 'Fees & deadlines', detail: 'Registration periods and how payment works.' }, { href: '/registration/visas', label: 'Visa & invitation letters', detail: 'Check the requirements for your country.' }]} />
@@ -851,7 +850,7 @@ function Gallery() {
 }
 
 function People() {
-  return <><PageIntro eyebrow="People" title={'The people behind IOL\u00a02027.'} body="Committee, jury and volunteer information will be added when the approved names and roles are provided." /><SectionLinks links={[{ href: '/people/committee', label: 'Committee', detail: 'The full Thai-language roster of the organising committees and subcommittees.' }, { href: '/people/jury', label: 'Jury', detail: 'The international jury for the individual and team contests.' }, { href: '/people/problem-committee', label: 'Problem Committee', detail: 'The authors, translators and markers of the contest problems.' }, { href: '/people/volunteers', label: 'Volunteers', detail: 'The people who welcome and guide every team.' }]} /></>
+  return <><PageIntro eyebrow="People" title={'The people behind IOL\u00a02027.'} body="Committee, jury and volunteer information will be added when the approved names and roles are provided." /><SectionLinks links={[{ href: '/people/committee', label: 'Committee', detail: 'The full Thai-language roster of the organising committees and subcommittees.' }, { href: '/people/jury', label: 'Jury', detail: 'The international jury, who write, translate and mark the contest problems.' },{ href: '/people/volunteers', label: 'Volunteers', detail: 'The people who welcome and guide every team.' }]} /></>
 }
 
 function CommitteeRoster() {
@@ -888,11 +887,26 @@ function CommitteeRoster() {
   </section>
 }
 
-function PeopleSubpage({ kind }: { kind: 'committee' | 'jury' | 'problem-committee' | 'volunteers' }) {
-  const portraits = kind === 'jury' || kind === 'problem-committee'
-  const title = kind === 'committee' ? 'Committee' : kind === 'jury' ? 'Jury' : kind === 'problem-committee' ? 'Problem Committee' : 'Volunteers'
-  const body = kind === 'committee' ? 'The approved committee roster and role descriptions for IOL 2027.' : kind === 'jury' ? 'The jury responsible for moderation, marking standards and the final contest decisions will be introduced with photographs and approved biographies.' : kind === 'problem-committee' ? 'The problem authors, translators and markers who prepare the individual and team contest problems will be introduced with photographs and approved biographies.' : 'The approved volunteer information and responsibilities will be published here.'
-  return <><PageIntro eyebrow={`People / ${title}`} title={title} body={body} />{kind === 'committee' ? <CommitteeRoster /> : portraits ? <section className="portrait-grid wrap">{Array.from({ length: 6 }, (_, index) => <article key={index}><div className="portrait-placeholder"><span>PHOTO</span></div><h2>Name to be confirmed</h2><p>Role and biography will be added after approval.</p></article>)}</section> : <section className="two-col wrap"><div><p className="eyebrow">Roster pending</p><h2>Information will be added when the organising team confirms it.</h2></div><div className="prose"><p>This page intentionally does not show photo placeholders. Names, responsibilities and public contact details will be published only after approval.</p></div></section>}</>
+// The jury and the IOL Problem Committee are the same people, so the site has a Jury page only (IOL Board, 16 Nov 2026).
+function PeopleSubpage({ kind }: { kind: 'committee' | 'jury' | 'volunteers' }) {
+  if (kind === 'committee') return <><PageIntro eyebrow="People / Committee" title="Committee" body="The approved committee roster and role descriptions for IOL 2027." /><CommitteeRoster /></>
+  if (kind === 'jury') return <><PageIntro eyebrow="People / Jury" title="Jury" body="The international jury writes, translates and marks the problems of the individual and team contests." />
+    <section className="two-col wrap"><div><p className="eyebrow">Who serves</p><h2>Drawn from the IOL Problem Committee.</h2></div><div className="prose">
+      <p>The IOL 2027 jury is selected from the members of the IOL Problem Committee, listed on ioling.org.</p>
+      <p>Each jury member’s photo and role will appear on this page closer to the Olympiad.</p>
+      <OutLink href="https://ioling.org/pc/">The IOL Problem Committee</OutLink>
+    </div></section></>
+  return <><PageIntro eyebrow="People / Volunteers" title="Volunteers" body="Volunteers welcome every team, guide them around Bangkok and help the Olympiad run day to day." />
+    <section className="two-col wrap"><div><p className="eyebrow">Volunteer with us</p><h2>Interested in volunteering?</h2></div><div className="prose">
+      <p>Email <a className="inline-link" href="mailto:iol2027.th@gmail.com?subject=Volunteering%20at%20IOL%202027">iol2027.th@gmail.com</a> and tell us a little about yourself. We will send you a short application form, and volunteers are selected from the applications.</p>
+      <p>We look for volunteers who have:</p>
+      <ul>
+        <li>a good command of English;</li>
+        <li>familiarity with the IOL and its activities;</li>
+        <li>the maturity and sense of responsibility to assist Team Leaders and support contestants.</li>
+      </ul>
+      <p>Priority goes to adults based in Thailand, or otherwise available locally during the event. Selected volunteers receive an invitation code to register in the registration portal.</p>
+    </div></section></>
 }
 
 function Contact() {
@@ -938,7 +952,7 @@ function App() {
     '/logistics': <EventGuide />, '/logistics/accommodation': <Accommodation />, '/logistics/transportation': <Transportation />, '/logistics/important-dates': <ImportantDates />, '/logistics/guidebook': <Guidebook />,
     '/explore': <Thailand />, '/explore/excursions': <Thailand />, '/explore/culture': <Thailand />, '/explore/city-guide': <Thailand />,
     '/gallery': <Gallery />, '/media': <Gallery />, '/media/gallery': <Gallery />, '/media/press': <Contact />, '/news': <Home />,
-    '/people': <People />, '/people/committee': <PeopleSubpage kind="committee" />, '/people/jury': <PeopleSubpage kind="jury" />, '/people/problem-committee': <PeopleSubpage kind="problem-committee" />, '/people/volunteers': <PeopleSubpage kind="volunteers" />,
+    '/people': <People />, '/people/committee': <PeopleSubpage kind="committee" />, '/people/jury': <PeopleSubpage kind="jury" />, '/people/problem-committee': <PeopleSubpage kind="jury" />, '/people/volunteers': <PeopleSubpage kind="volunteers" />,
     '/results': <ExternalResultsRedirect />, '/results/individual': <ExternalResultsRedirect />, '/results/team': <ExternalResultsRedirect />,
     '/contact': <Contact />, '/privacy': <Privacy />,
   }
