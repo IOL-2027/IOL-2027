@@ -75,7 +75,7 @@ export type Delegation = {
   kind?: DelegationKind
   /** A jury member or volunteer who needs a hotel room (volunteers living in Bangkok may not). */
   needsAccommodation?: boolean | null
-  dressCodeAcknowledgedAt?: string | null; insuranceAcknowledgedAt?: string | null
+  dressCodeAcknowledgedAt?: string | null; insuranceAcknowledgedAt?: string | null; consentFormsEmailedAt?: string | null
   teamLeaderEmail: string; numberOfTeams: number; numberOfObservers: number; registrationStatus: string
   paymentStatus: string; declaredArrivalDate: string | null; declaredDepartureDate: string | null
   stayWindowNote: string | null; welfareNote: string | null; contestantRoomType: string | null; completedSteps: string[]; submittedAt: string | null

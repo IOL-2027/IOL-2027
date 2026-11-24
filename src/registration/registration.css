@@ -978,3 +978,57 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-shared-codes li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 14px 16px; border: 1px solid var(--reg-border); border-radius: var(--reg-radius); background: var(--reg-field-bg); }
 .reg-shared-codes li > div:first-child { display: grid; gap: 2px; }
 .reg-cell-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.45; }
+
+/* Meeting of 24 Nov 2026 ------------------------------------------------------------------------ */
+/* Main contact comes first on Team and observers, kept short so the teams below are in view: the three facts on one row,
+   then your name beside the question whether you are also a Team Leader. */
+#setup-delegation .reg-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0 0 8px; }
+.reg-main-contact { align-items: start; }
+.reg-main-contact > fieldset { grid-column: auto; }
+.reg-main-contact > fieldset legend { font-size: 15px; font-weight: 700; }
+@media (max-width: 720px) {
+  #setup-delegation .reg-facts { grid-template-columns: 1fr; }
+}
+
+/* People: with ten or more people the list scrolls on its own, beside the open record, instead of running down the page. */
+@media (min-width: 1081px) {
+  .reg-record-list { max-height: calc(100vh - var(--reg-header-offset) - 24px); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 4px; }
+}
+
+/* Review and requests: the summary in four short groups, two side by side on wide screens. */
+.reg-review { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.reg-review-group { min-width: 0; padding: clamp(18px, 2.2vw, 26px); border: 1px solid var(--reg-border); border-radius: var(--reg-radius-lg); background: var(--reg-surface); }
+.reg-review-group h3 { margin: 0 0 6px; font-size: 18px; }
+.reg-review-group dl { margin: 0; }
+.reg-review-group dl > div { padding: 12px 0; border-top: 1px solid var(--reg-border); }
+.reg-review-group dl > div:first-child { border-top: 0; }
+.reg-review-group dt { font-size: 14px; color: var(--reg-muted); }
+.reg-review-group dd { margin: 3px 0 0; font-size: 15.5px; font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
+.reg-review-group dd ul { margin: 2px 0 0; padding-left: 18px; font-weight: 600; }
+.reg-review-group dd li + li { margin-top: 3px; }
+.reg-review-group dd small { display: block; margin-top: 4px; font-size: 13.5px; font-weight: 500; color: var(--reg-muted); }
+.reg-review-foot { grid-column: 1 / -1; margin: 0; }
+.reg-review + .reg-card { margin-top: 16px; }
+.reg-requests-text p { margin: 0 0 10px; }
+.reg-requests-text ul { margin: 0 0 4px; padding-left: 20px; }
+.reg-requests-text li + li { margin-top: 4px; }
+@media (max-width: 720px) { .reg-review { grid-template-columns: 1fr; } }
+
+/* Consent forms. */
+.reg-consent-status { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 10px; margin: 0 0 18px; padding: 14px 16px; border-radius: var(--reg-radius); background: var(--reg-tint); font-size: 15px; line-height: 1.5; }
+.reg-consent-status > span { flex: 1 1 280px; }
+.reg-consent-status svg { flex: none; margin-top: 2px; }
+.reg-consent-people { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.reg-consent-people li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid var(--reg-border); }
+.reg-consent-people li > span:first-child { display: grid; gap: 2px; min-width: 0; }
+.reg-consent-people small { font-size: 14px; color: var(--reg-muted); }
+.reg-consent-people a { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.reg-consent-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.reg-consent-table th, .reg-consent-table td { padding: 12px 8px; border-top: 1px solid var(--reg-border); text-align: left; vertical-align: middle; }
+.reg-consent-table thead th { border-top: 0; font-size: 14px; font-weight: 600; color: var(--reg-muted); }
+.reg-consent-table thead th:not(:first-child), .reg-consent-table td { width: 9.5em; text-align: center; }
+.reg-consent-table tbody th { font-weight: 700; }
+.reg-consent-table tbody th small { display: block; font-size: 13.5px; font-weight: 500; color: var(--reg-muted); }
+.reg-consent-choice { display: inline-grid; place-items: center; width: 44px; height: 44px; cursor: pointer; }
+.reg-consent-choice input { width: 20px; height: 20px; accent-color: var(--reg-accent); cursor: pointer; }
+@media (max-width: 560px) { .reg-consent-table thead th:not(:first-child), .reg-consent-table td { width: auto; } }

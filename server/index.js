@@ -8,8 +8,10 @@ import {
   buildProofReceivedEmail,
   buildFinanceAlertEmail,
   buildRegistrationSubmittedEmail,
+  buildConsentFormsEmail,
   sendEmail,
 } from './email.js'
+import { consentFileName, consentFormKind, consentPdf } from './consent-pdf.js'
 import { readUpload, saveUpload } from './storage.js'
 import { invoicePdf } from './invoice-pdf.js'
 import { badgeQrDataUrl, findBadge, issueBadge, missingTravel, sendBadgesIfSettled } from './badges.js'
@@ -854,6 +856,7 @@ app.post('/api/registration/delegations/:delegationId/members', ...signedIn, del
   )
   await syncSingleRooms(requireDb(), req.params.delegationId)
   await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.params.delegationId, eventType: 'member_added', entityType: 'member', entityId: result.rows[0].id })
+  consentFormsWhenReady(req.params.delegationId)
   res.status(201).json({ member: camelizeRow((await query('SELECT * FROM members WHERE id = $1', [result.rows[0].id])).rows[0]) })
 }))
 
@@ -882,6 +885,7 @@ app.patch('/api/registration/members/:memberId', ...signedIn, childAccess('membe
   await query(`UPDATE members SET ${sets.join(', ')} WHERE id = $${values.length}`, values)
   if (body.role) await syncSingleRooms(requireDb(), req.delegationId)
   await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'member_updated', entityType: 'member', entityId: req.params.memberId, details: { fields: Object.keys(req.body) } })
+  consentFormsWhenReady(req.delegationId)
   res.json({ member: camelizeRow((await query('SELECT * FROM members WHERE id = $1', [req.params.memberId])).rows[0]) })
 }))
 
@@ -933,6 +937,123 @@ app.post('/api/registration/members/:memberId/guardian-consent', ...signedIn, ch
     return row
   })
   res.status(201).json({ attachment: camelizeRow(attachment) })
+}))
+
+// ── Consent forms (meeting of 24 Nov 2026) ───────────────────────────────────────────────────────────────────────────
+// The national representative gets everyone's form (by email once People is complete, and here to download), has them
+// signed, uploads the signed forms (one file for everyone or several) and ticks for each person whether they consent.
+// The organisers go by the ticks and keep the files as evidence; nobody reads the files.
+const consentCountry = (d) => (d.kind === 'jury' ? 'IOL 2027 jury' : d.kind === 'volunteer' ? 'IOL 2027 volunteers' : d.country_territory)
+const MAX_CONSENT_FILES = 30
+
+app.get('/api/registration/members/:memberId/consent-form', ...signedIn, childAccess('members', 'memberId', 'read'), asyncHandler(async (req, res) => {
+  const member = (await query('SELECT * FROM members WHERE id = $1', [req.params.memberId])).rows[0]
+  const d = (await query('SELECT kind, country_territory FROM delegations WHERE id = $1', [member.delegation_id])).rows[0]
+  if (!consentFormKind(member)) throw new HttpError(409, `Enter ${member.display_name}’s date of birth in People first: it decides which form they sign.`)
+  const pdf = await consentPdf(member, consentCountry(d))
+  res.set('Content-Type', 'application/pdf')
+  res.set('Content-Disposition', `${req.query.inline === '1' ? 'inline' : 'attachment'}; filename="${consentFileName(member, consentCountry(d))}"`)
+  res.send(pdf)
+}))
+
+/** Everyone's forms as email attachments; people whose date of birth is not in yet are left out. */
+async function consentAttachments(delegationId) {
+  const d = (await query('SELECT * FROM delegations WHERE id = $1', [delegationId])).rows[0]
+  const members = (await query(`SELECT * FROM members WHERE delegation_id = $1 ORDER BY CASE role WHEN 'team_leader' THEN 0 WHEN 'contestant' THEN 1 ELSE 2 END, created_at`, [delegationId])).rows
+  const people = []
+  const attachments = []
+  for (const member of members) {
+    const form = consentFormKind(member)
+    if (!form) continue
+    people.push({ name: member.display_name, form })
+    attachments.push({ filename: consentFileName(member, consentCountry(d)), content: await consentPdf(member, consentCountry(d)), contentType: 'application/pdf' })
+  }
+  return { d, people, attachments }
+}
+
+async function emailConsentForms(delegationId, again = false) {
+  const { d, people, attachments } = await consentAttachments(delegationId)
+  if (!people.length) throw new HttpError(409, 'Enter everyone’s date of birth in People first: it decides which form each person signs.')
+  await query('UPDATE delegations SET consent_forms_emailed_at = now() WHERE id = $1', [delegationId])
+  await sendEmail({
+    pool: requireDb(), to: d.team_leader_email, purpose: again ? 'consent_forms_again' : 'consent_forms', delegationId, retry: true, attachments,
+    ...buildConsentFormsEmail({ fullName: d.national_representative_name, countryTerritory: consentCountry(d), people, url: `${portalUrl}/?step=consent`, again }),
+  })
+  return people.length
+}
+
+/** Once every person in People is complete, their forms go out by themselves, once. */
+async function emailConsentFormsWhenReady(delegationId) {
+  const d = (await query('SELECT * FROM delegations WHERE id = $1', [delegationId])).rows[0]
+  if (!d || d.consent_forms_emailed_at) return
+  const members = (await query('SELECT * FROM members WHERE delegation_id = $1', [delegationId])).rows
+  const expected = d.kind === 'country' ? 5 * d.number_of_teams + d.number_of_observers : 1 + d.number_of_observers
+  if (members.length < expected || members.some((m) => missingMemberDetails(m).length)) return
+  await emailConsentForms(delegationId)
+}
+const consentFormsWhenReady = (delegationId) => { emailConsentFormsWhenReady(delegationId).catch((e) => console.error(`consent forms: ${e.message}`)) }
+
+app.post('/api/registration/delegations/:delegationId/consent-forms/email', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
+  const sent = await emailConsentForms(req.params.delegationId, true)
+  res.json({ sent, emailedAt: (await query('SELECT consent_forms_emailed_at FROM delegations WHERE id = $1', [req.params.delegationId])).rows[0].consent_forms_emailed_at })
+}))
+
+// Whether each person consents, as on their signed form: { answers: [{ memberId, consents: true | false | null }] }.
+app.put('/api/registration/delegations/:delegationId/consents', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
+  await requirePeopleOpen(req, req.params.delegationId)
+  const answers = req.body?.answers
+  if (!Array.isArray(answers) || answers.some((a) => typeof a?.memberId !== 'string' || (a.consents !== null && typeof a.consents !== 'boolean'))) {
+    throw new HttpError(400, 'Tick, for each person, whether they consent or not.')
+  }
+  await withTransaction(async (client) => {
+    for (const { memberId, consents } of answers) {
+      const updated = await client.query('UPDATE members SET photo_consent = $1, updated_at = now() WHERE id = $2 AND delegation_id = $3', [consents, memberId, req.params.delegationId])
+      if (!updated.rowCount) throw new HttpError(400, 'A person in this list belongs to another registration.')
+    }
+    await insertAudit(client, { actorAccountId: req.user.id, delegationId: req.params.delegationId, eventType: 'consents_saved', entityType: 'delegation', entityId: req.params.delegationId, details: { answers: answers.length } })
+  })
+  res.json({ members: camelizeRows((await query('SELECT id, photo_consent FROM members WHERE delegation_id = $1', [req.params.delegationId])).rows) })
+}))
+
+// The signed forms: one PDF for everyone, or a file for each person, or photos of printed forms. Each upload adds to them.
+app.post('/api/registration/delegations/:delegationId/consent-files', ...signedIn, delegationAccess('write'), upload.array('files', MAX_CONSENT_FILES), asyncHandler(async (req, res) => {
+  await requirePeopleOpen(req, req.params.delegationId)
+  const files = req.files ?? []
+  if (!files.length) throw new HttpError(400, 'Choose the signed consent forms to upload.')
+  const already = (await query(`SELECT count(*)::int AS n FROM attachments WHERE delegation_id = $1 AND kind = 'consent_form'`, [req.params.delegationId])).rows[0].n
+  if (already + files.length > MAX_CONSENT_FILES) throw new HttpError(400, `Up to ${MAX_CONSENT_FILES} files. Put several forms in one PDF, or remove files you no longer need.`)
+  const stored = []
+  for (const file of files) stored.push(await saveUpload(`${req.params.delegationId}/consent-${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase() || '.bin'}`, file))
+  const attachments = await withTransaction(async (client) => {
+    const rows = []
+    for (const [i, file] of files.entries()) {
+      rows.push((await client.query(
+        `INSERT INTO attachments (delegation_id, kind, original_filename, stored_path, mime_type, size_bytes, uploaded_by_account_id)
+         VALUES ($1, 'consent_form', $2, $3, $4, $5, $6)
+         RETURNING id, delegation_id, member_id, kind, original_filename, mime_type, size_bytes, created_at`,
+        [req.params.delegationId, file.originalname, stored[i], file.mimetype, file.size, req.user.id],
+      )).rows[0])
+    }
+    await insertAudit(client, { actorAccountId: req.user.id, delegationId: req.params.delegationId, eventType: 'consent_forms_uploaded', entityType: 'delegation', entityId: req.params.delegationId, details: { originalFilenames: files.map((f) => f.originalname) } })
+    return rows
+  })
+  res.status(201).json({ attachments: camelizeRows(attachments) })
+}))
+
+// A signed form uploaded by mistake. Once the registration is submitted, one file must stay.
+app.delete('/api/registration/attachments/:attachmentId/consent', ...signedIn, asyncHandler(async (req, res) => {
+  const attachment = (await query(`SELECT * FROM attachments WHERE id = $1 AND kind = 'consent_form'`, [req.params.attachmentId])).rows[0]
+  if (!attachment) throw new HttpError(404, 'File not found.')
+  await authorizeDelegation(req, attachment.delegation_id, 'write')
+  await requirePeopleOpen(req, attachment.delegation_id)
+  const d = (await query('SELECT registration_status FROM delegations WHERE id = $1', [attachment.delegation_id])).rows[0]
+  const others = (await query(`SELECT count(*)::int AS n FROM attachments WHERE delegation_id = $1 AND kind = 'consent_form' AND id <> $2`, [attachment.delegation_id, attachment.id])).rows[0].n
+  if (d.registration_status !== 'draft' && !others) throw new HttpError(409, 'Your registration is submitted, so one file of signed forms must stay. Upload the right one first, then remove this one.')
+  await withTransaction(async (client) => {
+    await client.query('DELETE FROM attachments WHERE id = $1', [attachment.id])
+    await insertAudit(client, { actorAccountId: req.user.id, delegationId: attachment.delegation_id, eventType: 'consent_form_removed', entityType: 'attachment', entityId: attachment.id, details: { originalFilename: attachment.original_filename } })
+  })
+  res.json({ ok: true })
 }))
 
 async function setTripPeople(db, travelRecordId, delegationId, peopleIds) {
@@ -1111,8 +1232,8 @@ async function missingForSubmission(delegationId) {
   const settings = await loadSettings(requireDb())
   const missing = []
   const steps = country
-    ? [['setup', 'Team and observers'], ['teams', 'Teams'], ['people', 'People'], ['welfare', 'Rooms and welfare'], ['travel', 'Travel']]
-    : [['setup', 'About you'], ['people', 'Your details'], ['welfare', 'Rooms and welfare'], ['travel', 'Travel']]
+    ? [['setup', 'Team and observers'], ['teams', 'Teams'], ['people', 'People'], ['travel', 'Travel'], ['welfare', 'Review and requests']]
+    : [['setup', 'About you'], ['people', 'Your details'], ['travel', 'Travel'], ['welfare', 'Review and requests']]
   for (const [step, label] of steps) {
     if (!d.completed_steps.includes(step)) missing.push(`Finish “${label}”`)
   }
@@ -1147,6 +1268,13 @@ async function missingForSubmission(delegationId) {
   } else if (!members.rows.some((m) => m.role === d.kind)) missing.push('Your details: enter your name in the first step')
   const observers = members.rows.filter((m) => m.role === 'observer').length
   if (observers !== d.number_of_observers) missing.push(`Observers: ${d.number_of_observers} in ${country ? 'Team and observers' : 'the first step'}, ${observers} in People`)
+  // Everyone is on an arrival and a departure, those who make their own way too (meeting of 24 Nov 2026).
+  if (members.rows.length) for (const gap of await missingTravel(delegationId)) missing.push(`Travel: ${gap}`)
+  // Consent forms (meeting of 24 Nov 2026): the signed forms uploaded, and a tick for each person.
+  const unanswered = members.rows.filter((m) => m.photo_consent === null || m.photo_consent === undefined)
+  if (unanswered.length) missing.push(`Consent forms: tick whether ${unanswered.map((m) => m.display_name).join(', ')} ${unanswered.length === 1 ? 'consents' : 'consent'}`)
+  const consentFiles = (await query(`SELECT 1 FROM attachments WHERE delegation_id = $1 AND kind = 'consent_form' LIMIT 1`, [delegationId])).rowCount
+  if (!consentFiles) missing.push('Consent forms: upload the signed forms')
   const payment = (await query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC LIMIT 1', [delegationId])).rows[0]
   if (await splitsOutOfStep(d, payment)) missing.push('Invoice amounts: update them in Payment, the total has changed')
   return { delegation: d, missing }

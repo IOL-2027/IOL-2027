@@ -192,8 +192,8 @@ export function TeamSetup({ data, locked, busy, error, dirty, onTouched, onSave,
     for (const i of range(teams)) {
       if (i !== repTeam && !leaderNames[i].trim()) missing[`setup-leader-${i}`] = teams > 1 ? `Enter the Team Leader of ${shownNames[i]}. Each team has its own Team Leader.` : 'Enter the Team Leader’s full name.'
     }
-    if (!repName.trim()) missing['setup-rep-name'] = 'Enter the national representative’s full name.'
-    if (repTeam === undefined) missing['setup-rep-team'] = 'Say whether the national representative is also a Team Leader.'
+    if (!repName.trim()) missing['setup-rep-name'] = 'Enter your full name.'
+    if (repTeam === undefined) missing['setup-rep-team'] = 'Say whether you are also a Team Leader.'
     if (!locked) for (const r of rooms) if (!r.value) missing[r.id] = 'Choose yes or no.'
     setErrors(missing)
     if (Object.keys(missing).length) {
@@ -215,8 +215,8 @@ export function TeamSetup({ data, locked, busy, error, dirty, onTouched, onSave,
     })
   }
   const repChoices: { value: number | null; label: string }[] = [
-    ...range(teams).map((i) => ({ value: i, label: teams > 1 ? `Yes, the Team Leader of ${shownNames[i]}` : 'Yes, they are the Team Leader' })),
-    { value: null, label: 'No, they are the main contact only' },
+    ...range(teams).map((i) => ({ value: i, label: teams > 1 ? `Yes, I am the Team Leader of ${shownNames[i]}` : 'Yes, I am the Team Leader' })),
+    { value: null, label: 'No, I am the main contact only' },
   ]
 
   return (
@@ -227,6 +227,33 @@ export function TeamSetup({ data, locked, busy, error, dirty, onTouched, onSave,
             <span>Teams, observers and single rooms are locked, because your proof of payment is uploaded and they set the amount you paid. To change them, email the organisers at <a href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a>. The names can still change.</span>
           </p>
         )}
+        <Card id="setup-delegation" title="Main contact"
+          intro={`You are the national representative: your country’s one main contact for the organisers, even with two teams. The country and fee rate come from your invitation code; if they look wrong, email the organisers.`}>
+          <Facts compact items={[
+            { label: 'Country or territory', value: d.countryTerritory },
+            { label: 'Fee rate', value: data.fees.categoryLabel, help: d.feeCategory === 'previous_host' ? 'Countries that have hosted the IOL pay a lower team fee.' : d.feeCategory === 'non_accredited' ? 'Not yet accredited: one team.' : undefined },
+            { label: 'Account email', value: d.teamLeaderEmail },
+          ]} />
+          <div className="reg-grid reg-names reg-main-contact">
+            <NameField id="setup-rep-name" label="Your full name" value={repName} error={errors['setup-rep-name']}
+              help="As the national representative, who uses this account."
+              onChange={(v) => { setRepName(v); onTouched(); clearError('setup-rep-name') }} />
+            <fieldset className={`reg-field reg-field-wide${errors['setup-rep-team'] ? ' has-error' : ''}`} aria-describedby={errors['setup-rep-team'] ? 'setup-rep-team-error' : undefined}>
+              <legend>Are you also a Team Leader?</legend>
+              {errors['setup-rep-team'] && <p className="reg-error" id="setup-rep-team-error"><CircleAlert size={16} aria-hidden="true" />{errors['setup-rep-team']}</p>}
+              <div className="reg-radios">
+                {repChoices.map((c, i) => (
+                  <label key={String(c.value)} className="reg-check">
+                    <input type="radio" id={`setup-rep-team-${i}`} name="setup-rep-team" checked={repTeam === c.value}
+                      onChange={() => { setRepTeam(c.value); onTouched(); clearError('setup-rep-team'); if (c.value !== null) clearError(`setup-leader-${c.value}`) }} />
+                    <span>{c.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          </div>
+        </Card>
+
         <Card id="setup-numbers" title="Teams"
           intro={`Each team is four contestants and a Team Leader, whose place is in the team fee.${perTeam ? ` A team may also bring ${perTeam === 1 ? 'an observer' : `up to ${perTeam} observers`}, for example a parent or someone from your national olympiad.` : ''} You name the contestants and observers later, in People.`}>
           <div className="reg-grid">
@@ -245,7 +272,7 @@ export function TeamSetup({ data, locked, busy, error, dirty, onTouched, onSave,
                   </div>
                   <p className="reg-team-box-who">{off ? 'Choose 2 teams above to register a second team.' : 'Four contestants and their Team Leader'}</p>
                   {t === repTeam && !off
-                    ? <p className="reg-team-box-leader"><span>Team Leader</span><strong>{repName.trim() || 'The national representative'}</strong><small>The national representative, as chosen under Main contact.</small></p>
+                    ? <p className="reg-team-box-leader"><span>Team Leader</span><strong>{repName.trim() || 'You'}</strong><small>You, the national representative, as chosen under Main contact above.</small></p>
                     : <NameField id={`setup-leader-${t}`} label="Team Leader" value={off ? '' : leaderNames[t]} disabled={off}
                       help={off ? undefined : 'Full name. Each team has its own Team Leader, who travels with the team.'} error={off ? undefined : errors[`setup-leader-${t}`]}
                       onChange={(v) => { setLeaderNames((l) => l.map((n, j) => (j === t ? v : n))); onTouched(); clearError(`setup-leader-${t}`) }} />}
@@ -280,33 +307,6 @@ export function TeamSetup({ data, locked, busy, error, dirty, onTouched, onSave,
             </p>
           )}
           <span className="reg-visually-hidden" role="status">{announce}</span>
-        </Card>
-
-        <Card id="setup-delegation" title="Main contact"
-          intro={`Your country has one main contact for the organisers${teams > 1 ? ', even with two teams' : ''}: the national representative, who uses this account. The country and fee rate come from your invitation code; if they look wrong, email the organisers.`}>
-          <Facts items={[
-            { label: 'Country or territory', value: d.countryTerritory },
-            { label: 'Fee rate', value: data.fees.categoryLabel, help: d.feeCategory === 'previous_host' ? 'Countries that have hosted the IOL pay a lower team fee.' : d.feeCategory === 'non_accredited' ? 'Not yet accredited: one team.' : undefined },
-            { label: 'Account email', value: d.teamLeaderEmail },
-          ]} />
-          <div className="reg-grid reg-names">
-            <NameField id="setup-rep-name" label="National representative" value={repName} error={errors['setup-rep-name']}
-              help="Full name of the person registering your country, who uses this account."
-              onChange={(v) => { setRepName(v); onTouched(); clearError('setup-rep-name') }} />
-            <fieldset className={`reg-field reg-field-wide${errors['setup-rep-team'] ? ' has-error' : ''}`} aria-describedby={errors['setup-rep-team'] ? 'setup-rep-team-error' : undefined}>
-              <legend>Is the national representative also a Team Leader?</legend>
-              {errors['setup-rep-team'] && <p className="reg-error" id="setup-rep-team-error"><CircleAlert size={16} aria-hidden="true" />{errors['setup-rep-team']}</p>}
-              <div className="reg-radios">
-                {repChoices.map((c, i) => (
-                  <label key={String(c.value)} className="reg-check">
-                    <input type="radio" id={`setup-rep-team-${i}`} name="setup-rep-team" checked={repTeam === c.value}
-                      onChange={() => { setRepTeam(c.value); onTouched(); clearError('setup-rep-team'); if (c.value !== null) clearError(`setup-leader-${c.value}`) }} />
-                    <span>{c.label}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          </div>
         </Card>
 
         <Card id="setup-rooms" title="Single rooms" intro={`Team Leaders and observers share twin rooms. Anyone who would rather have a room to themselves can ask for a single room, at ${usd(rules.singleRoomFee)} more. Contestants share with a teammate of the same gender.`}>

@@ -39,7 +39,7 @@ export type PortalRecord = {
   facts?: Fact[]
 }
 
-export type SectionId = 'start' | 'setup' | 'payment' | 'teams' | 'people' | 'welfare' | 'travel' | 'submit' | 'badges'
+export type SectionId = 'start' | 'setup' | 'payment' | 'teams' | 'people' | 'travel' | 'welfare' | 'consent' | 'submit' | 'badges'
 
 export type Section = {
   id: SectionId
@@ -64,7 +64,6 @@ export const selectOptions: Record<string, string[]> = {
   'Polo shirt size': ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'],
   'Single room': ['No, share a room', 'Yes, a single room'],
   'T-shirt style': ['Unisex (standard)', 'Ladies fit'],
-  'Observer category': ['Regular observer', 'Guest observer', 'Observer pending approval'],
   // Airport pickup and drop-off are from these two airports only (IOL Board, 16 Nov 2026).
   'Arrival airport': ['Suvarnabhumi Airport (BKK)', 'Don Mueang Airport (DMK)'],
   'Departure airport': ['Suvarnabhumi Airport (BKK)', 'Don Mueang Airport (DMK)'],
@@ -72,12 +71,11 @@ export const selectOptions: Record<string, string[]> = {
 
 /** People fields are shown in these groups, in this order. Unlisted fields go last. */
 export const personFieldGroups: { legend: string; note?: string; labels: string[] }[] = [
-  { legend: 'Role and names', labels: ['Role', 'Team assignment', 'Observer category', 'Display name', 'Badge name', 'Official name', 'Email'] },
+  { legend: 'Role and names', labels: ['Role', 'Team assignment', 'Display name', 'Badge name', 'Official name', 'Email'] },
   { legend: 'Passport', note: 'Only used to match travel and hotel records.', labels: ['Passport name', 'Passport number', 'Passport nationality', 'Date of birth'] },
   { legend: 'Contest and stay', labels: ['Individual contest language', 'Gender for room allocation', 'T-shirt size', 'Polo shirt size', 'T-shirt style'] },
   { legend: 'Food', note: 'Seen only by the organising team and the caterers.', labels: ['Food', 'Food details'] },
   { legend: 'Welfare and safety', note: 'Seen only by the organising team, to keep everyone safe.', labels: ['Medical or accessibility notes', 'Emergency contact'] },
-  { legend: 'Photos and videos', labels: ['Photos and videos'] },
 ]
 
 export const sections: Section[] = [
@@ -86,9 +84,11 @@ export const sections: Section[] = [
   { id: 'payment', title: 'Payment', required: true, intro: 'Four parts, in this order. Your invoice details are kept once saved, so you can transfer later and come back to upload the proof.' },
   { id: 'teams', title: 'Teams', required: true, intro: 'Each team needs its team contest language. Contestants are put in a team on their own record in People.', records: { noun: 'team', plural: 'teams' } },
   { id: 'people', title: 'People', required: true, intro: 'Everyone coming with your delegation. Each person is saved on their own, so you can fill this in stages. Opens once the proof of payment is uploaded.', records: { noun: 'person', plural: 'people' } },
-  { id: 'welfare', title: 'Rooms and welfare', required: true, intro: 'Check what the welfare team will see about your delegation, and tell them about any room requests.' },
-  { id: 'travel', title: 'Travel', required: true, intro: 'Each person’s arrival and departure, added once flights are booked. Once everyone’s are in and the payment is confirmed, we email you everyone’s badges.', records: { noun: 'trip', plural: 'trips' } },
-  { id: 'submit', title: 'Submit', required: false, intro: 'Where every step stands, and anything still missing. Once steps 1 to 6 are done, you submit your registration here.' },
+  { id: 'travel', title: 'Travel', required: true, intro: 'Each person’s arrival and departure, added once flights are booked. Everyone needs both, those who make their own way too. Once everyone’s are in and the payment is confirmed, we email you everyone’s badges.', records: { noun: 'trip', plural: 'trips' } },
+  // Was "Rooms and welfare", before People and Travel were summed up here (meeting of 24 Nov 2026).
+  { id: 'welfare', title: 'Review and requests', required: true, intro: 'Check what the organisers will work from, built from People and Travel, and tell the welfare team about any room requests.' },
+  { id: 'consent', title: 'Consent forms', required: true, intro: 'A signed form for each person about the photos, videos and personal data of IOL 2027, then a tick for each person’s answer.' },
+  { id: 'submit', title: 'Submit', required: false, intro: 'Where every step stands, and anything still missing. Once the steps above are done, you submit your registration here.' },
   {
     id: 'badges', title: 'Badges and check-in', required: false, afterSubmission: true,
     intro: 'Every registered person gets their own QR badge. Staff scan it on arrival and at event checkpoints.',

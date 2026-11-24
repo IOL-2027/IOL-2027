@@ -165,13 +165,27 @@ check('a fifth contestant in a team is refused (400)', (await tl.post(`/api/regi
 check('food must come from the list (400)', (await tl.patch(`/api/registration/members/${thaiLeaders[0].id}`, { diet: ['Pizza only'] })).status === 400)
 check('“No special diet” stands alone (400)', (await tl.patch(`/api/registration/members/${thaiLeaders[0].id}`, { diet: ['No special diet', 'Vegan'] })).status === 400)
 const snapshot = (await tl.get(`/api/registration/delegations/${thaiId}`)).json
-const details = { badgeName: 'Test', officialName: 'Test Person', passportName: 'TEST PERSON', passportNumber: 'T1234567', passportNationality: 'Thai', dateOfBirth: '2008-01-01', genderForRoomAllocation: 'Male', tshirtSize: 'M', poloSize: 'M', emergencyContact: 'Test Contact +66 80 000 0000', diet: ['No special diet'], photoConsent: true, medicalAccessibilityNotes: 'None' }
+const details = { badgeName: 'Test', officialName: 'Test Person', passportName: 'TEST PERSON', passportNumber: 'T1234567', passportNationality: 'Thai', dateOfBirth: '2008-01-01', genderForRoomAllocation: 'Male', tshirtSize: 'M', poloSize: 'M', emergencyContact: 'Test Contact +66 80 000 0000', diet: ['No special diet'], medicalAccessibilityNotes: 'None' }
 for (const m of snapshot.members) await tl.patch(`/api/registration/members/${m.id}`, { ...details, ...(m.role === 'contestant' ? { teamId: m.teamId ?? snapshot.teams[0].id, examLanguage: 'English' } : {}) })
 for (const t of snapshot.teams) await tl.patch(`/api/registration/teams/${t.id}`, { contestLanguage: t.contestLanguage ?? 'English' })
 const noTicks = await tl.post(`/api/registration/delegations/${thaiId}/submit`)
 check('submitting needs the dress code and insurance boxes ticked (400)', noTicks.status === 400, JSON.stringify(noTicks.json))
-const submitted = await tl.post(`/api/registration/delegations/${thaiId}/submit`, { acknowledgeDressCode: true, acknowledgeInsurance: true })
-check('submit when complete -> 200', submitted.status === 200 && Boolean(submitted.json.delegation?.dressCodeAcknowledgedAt), JSON.stringify(submitted.json))
+const early = await tl.post(`/api/registration/delegations/${thaiId}/submit`, { acknowledgeDressCode: true, acknowledgeInsurance: true })
+check('submit lists the consent forms and travel still missing (409)', early.status === 409 && early.json.missing.some((m) => m.startsWith('Consent forms: upload')) && early.json.missing.some((m) => m.startsWith('Consent forms: tick')) && early.json.missing.some((m) => m.startsWith('Travel:')), JSON.stringify(early.json))
+
+// --- consent forms (24 Nov 2026): a filled-in PDF per person, signed files uploaded, a tick for each person
+const formPdf = await tl.req('GET', `/api/registration/members/${thaiLeaders[0].id}/consent-form`)
+check('each person’s consent form downloads as a PDF', formPdf.status === 200, String(formPdf.status))
+const signed = new FormData()
+signed.append('files', new Blob(['%PDF-1.4 signed forms'], { type: 'application/pdf' }), 'thailand-signed.pdf')
+signed.append('files', new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], { type: 'image/jpeg' }), 'one-more.jpg')
+const upSigned = await tl.post(`/api/registration/delegations/${thaiId}/consent-files`, undefined, { form: signed })
+check('signed consent forms upload, several at once', upSigned.status === 201 && upSigned.json.attachments.length === 2, JSON.stringify(upSigned.json))
+check('a signed form uploaded by mistake can be removed', (await tl.req('DELETE', `/api/registration/attachments/${upSigned.json.attachments[1].id}/consent`)).status === 200)
+const thaiPeople = (await tl.get(`/api/registration/delegations/${thaiId}`)).json.members
+check('a consent answer must be yes, no or blank (400)', (await tl.req('PUT', `/api/registration/delegations/${thaiId}/consents`, { answers: [{ memberId: thaiPeople[0].id, consents: 'maybe' }] })).status === 400)
+const answers = await tl.req('PUT', `/api/registration/delegations/${thaiId}/consents`, { answers: thaiPeople.map((m, i) => ({ memberId: m.id, consents: i !== 1 })) })
+check('each person’s consent is ticked', answers.status === 200 && answers.json.members.every((m) => m.photoConsent !== null), JSON.stringify(answers.json))
 
 // --- travel: the two airports, dates around the programme, one arrival per person
 const trip = (body) => tl.post(`/api/registration/delegations/${thaiId}/travel`, { direction: 'arrival', ...body })
@@ -182,6 +196,15 @@ check('an arrival at BKK saves', firstArrival.status === 201 && firstArrival.jso
 check('the same person on a second arrival is refused (400)', (await trip({ transport: 'own', localDate: '2027-07-21', localTime: '18:00', peopleIds: [thaiLeaders[0].id] })).status === 400)
 const ownWay = await trip({ transport: 'own', travelPoint: 'Suvarnabhumi Airport (BKK)', localDate: '2027-07-21', localTime: '18:00', peopleIds: [thaiLeaders[1].id] })
 check('making their own way to the hotel saves, without an airport', ownWay.status === 201 && ownWay.json.travelRecord.transport === 'own' && ownWay.json.travelRecord.travelPoint === null, JSON.stringify(ownWay.json))
+// Everyone on an arrival and a departure, those who make their own way too (24 Nov 2026).
+const rest = thaiPeople.filter((m) => m.id !== thaiLeaders[0].id && m.id !== thaiLeaders[1].id).map((m) => m.id)
+await trip({ travelPoint: 'Don Mueang Airport (DMK)', flightServiceNumber: 'FD 3011', localDate: '2027-07-21', localTime: '11:00', peopleIds: rest })
+const halfway = await tl.post(`/api/registration/delegations/${thaiId}/submit`, { acknowledgeDressCode: true, acknowledgeInsurance: true })
+check('submit names the people without a departure (409)', halfway.status === 409 && halfway.json.missing.some((m) => m.startsWith('Travel:') && m.includes('departure')), JSON.stringify(halfway.json))
+await tl.post(`/api/registration/delegations/${thaiId}/travel`, { direction: 'departure', transport: 'organisers', travelPoint: 'Suvarnabhumi Airport (BKK)', flightServiceNumber: 'TG 662', localDate: '2027-07-28', localTime: '20:00', peopleIds: thaiPeople.map((m) => m.id) })
+const submitted = await tl.post(`/api/registration/delegations/${thaiId}/submit`, { acknowledgeDressCode: true, acknowledgeInsurance: true })
+check('submit when complete -> 200', submitted.status === 200 && Boolean(submitted.json.delegation?.dressCodeAcknowledgedAt), JSON.stringify(submitted.json))
+check('once submitted, the last signed-form file cannot be removed (409)', (await tl.req('DELETE', `/api/registration/attachments/${upSigned.json.attachments[0].id}/consent`)).status === 409)
 check('submit twice -> 409', (await tl.post(`/api/registration/delegations/${thaiId}/submit`)).status === 409)
 
 // --- finance review
@@ -275,6 +298,10 @@ const badPhoto = new FormData(); badPhoto.append('photo', new Blob(['%PDF'], { t
 check('a photo must be a JPG or PNG (400)', (await volunteer.c.post(`/api/registration/members/${vSelf.id}/photo`, undefined, { form: badPhoto })).status === 400)
 await volunteer.c.patch(`/api/registration/members/${vSelf.id}`, { ...details })
 await volunteer.c.patch(`/api/registration/delegations/${volunteer.id}`, { completedSteps: ['start', 'setup', 'people', 'welfare', 'travel'] })
+for (const direction of ['arrival', 'departure']) await volunteer.c.post(`/api/registration/delegations/${volunteer.id}/travel`, { direction, transport: 'own', localDate: direction === 'arrival' ? '2027-07-20' : '2027-07-29', localTime: '10:00', peopleIds: [vSelf.id] })
+const volForm = new FormData(); volForm.append('files', new Blob(['%PDF-1.4 signed'], { type: 'application/pdf' }), 'my-form.pdf')
+await volunteer.c.post(`/api/registration/delegations/${volunteer.id}/consent-files`, undefined, { form: volForm })
+await volunteer.c.req('PUT', `/api/registration/delegations/${volunteer.id}/consents`, { answers: [{ memberId: vSelf.id, consents: true }] })
 const volSubmit = await volunteer.c.post(`/api/registration/delegations/${volunteer.id}/submit`, { acknowledgeDressCode: true, acknowledgeInsurance: true })
 check('a volunteer submits without any payment', volSubmit.status === 200, JSON.stringify(volSubmit.json))
 check('the incomplete list shows the jury member, not the submitted volunteer', await (async () => {

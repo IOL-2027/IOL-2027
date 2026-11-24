@@ -23,3 +23,8 @@ server/uploads/
 
 # Python bytecode from scripts/
 __pycache__/
+
+# The consent form templates the server fills in (24 Nov 2026).
+!server/assets/consent/*.pdf
+# Worktrees that Claude Code makes for helper agents.
+.claude/worktrees/

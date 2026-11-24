@@ -394,7 +394,7 @@ export function registerAdminRoutes(app, { signedIn }) {
         ['official_name', 'Official name'], ['passport_name', 'Passport name'], ['passport_number', 'Passport number'], ['passport_nationality', 'Nationality'],
         ['date_of_birth', 'Date of birth'], ['gender_for_room_allocation', 'Gender (rooming)'], ['exam_language', 'Individual contest language'], ['tshirt_size', 'T-shirt'],
         ['polo_size', 'Polo'], ['email', 'Email'], ['single_room', 'Single room'], ['diet_text', 'Food'], ['food_allergy_notes', 'Food details'],
-        ['medical_accessibility_notes', 'Medical or accessibility'], ['emergency_contact', 'Emergency contact'], ['photo_consent_text', 'Photo and video consent'],
+        ['medical_accessibility_notes', 'Medical or accessibility'], ['emergency_contact', 'Emergency contact'], ['photo_consent_text', 'Consents (signed form)'],
         ['needs_guardian_consent', 'Needs guardian consent'], ['has_guardian_consent', 'Guardian consent uploaded'], ['stage', 'Status'], ['missing_details', 'Missing details']],
       rows: async () => (await peopleRows()).map((row) => ({ ...row, single_room: singleRoom(row), diet_text: dietText(row), photo_consent_text: yesNo(row.photo_consent) })),
     },
@@ -483,7 +483,7 @@ export function registerAdminRoutes(app, { signedIn }) {
     },
     welfare: {
       columns: [['country_territory', 'Country'], ['display_name', 'Person'], ['role', 'Role'], ['team_name', 'Team'], ['diet_text', 'Food'], ['food_allergy_notes', 'Food details'],
-        ['medical_accessibility_notes', 'Medical or accessibility'], ['emergency_contact', 'Emergency contact'], ['photo_consent_text', 'Photo and video consent']],
+        ['medical_accessibility_notes', 'Medical or accessibility'], ['emergency_contact', 'Emergency contact'], ['photo_consent_text', 'Consents (signed form)']],
       rows: async () => (await query(`${peopleBase} ORDER BY d.country_territory, ${memberOrder}, m.display_name`)).rows.map((row) => ({ ...row, diet_text: dietText(row), photo_consent_text: yesNo(row.photo_consent) })),
     },
     // Who sleeps where: for the accommodation and welfare teams planning rooms.
