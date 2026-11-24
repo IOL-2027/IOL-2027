@@ -581,7 +581,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
   /* submit: where every step stands ----------------------------------- */
   const paymentStatus = payment?.status
-  const peopleCount = data.members.filter((m) => country ? m.role !== 'team_leader' : true).length
+  // Everyone in People, the Team Leaders named in Team and observers among them.
+  const peopleCount = data.members.length
   const peopleToFinish = (records.people ?? []).filter((r) => r.status === 'attention' && r.id !== NEW_PERSON).length
   const flightsIn = data.travelRecords.filter((t) => tripComplete(t)).length
   // Who is not on any arrival or departure yet: their badges wait for it.
