@@ -1032,3 +1032,4 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-consent-choice { display: inline-grid; place-items: center; width: 44px; height: 44px; cursor: pointer; }
 .reg-consent-choice input { width: 20px; height: 20px; accent-color: var(--reg-accent); cursor: pointer; }
 @media (max-width: 560px) { .reg-consent-table thead th:not(:first-child), .reg-consent-table td { width: auto; } }
+.reg-files + .reg-field { margin-top: 20px; }
