@@ -1,11 +1,12 @@
 // The national representative's registration workspace: a step rail on the left and one step at a time on the right. The last
 // step, Submit, shows where every step stands and is where the registration is submitted.
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, FileText, Info, Lock, Plus, Send, Upload, UserPlus } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BedDouble, Bus, CalendarClock, Check, CircleAlert, Clock, Copy, Download, FileText, Info, Lock, Plus, Send, Upload, UserPlus } from 'lucide-react'
 import { api, ApiError, type DelegationData, type DelegationKind, type Member, type TravelRecord } from './api'
 import { personFieldGroups, sections, type Field, type PortalRecord, type Section, type SectionId } from './portalData'
 import { ConsentStep, consentDone, consentFiles, consentUnanswered } from './ConsentStep'
-import { consentFor, needsFoodDetails, personFields, personPayload, personRecord, photoFor, teamRecord, transportChoices, transportLabel, tripComplete, tripPayload, tripRecord, reviewGroups } from './live'
+import { ReviewSummary } from './ReviewStep'
+import { consentFor, needsFoodDetails, personFields, personPayload, personRecord, photoFor, teamRecord, transportChoices, transportLabel, tripComplete, tripPayload, tripRecord } from './live'
 import { FeeTable, InvoiceDetails, SelfSetup, TeamSetup, UnsavedNote, invoiceProblems, readInvoices, usd, type SetupBody } from './SetupForms'
 import { openReceipt } from './invoice'
 import { PhotoField } from './PhotoField'
@@ -39,7 +40,27 @@ function recordChip(record: PortalRecord) {
   return <span className="reg-chip is-attention"><CircleAlert size={13} aria-hidden="true" />{record.issue ?? 'Needs attention'}</span>
 }
 
-const NEW_PERSON = 'new-person'
+/** Records not saved yet have ids starting "new-": a new person, a new trip, or the empty first trip of a direction. */
+const isNew = (id: string) => id.startsWith('new-')
+/** A form's text values (files left out), kept for a record whose changes are not saved yet. */
+type Draft = [string, string][]
+const formOf = (entries: Draft) => { const form = new FormData(); entries.forEach(([k, v]) => form.append(k, v)); return form }
+/** A record's fields as last typed in, before they are saved. */
+function withDraft(record: PortalRecord, entries: Draft | undefined, people: boolean): PortalRecord {
+  if (!entries) return record
+  const form = formOf(entries)
+  const fields = record.fields.map((f) => {
+    if (f.label === 'Food details') return { ...f, disabled: !needsFoodDetails(form.getAll('Food').map(String)), value: form.has(f.label) ? String(form.get(f.label)) : f.value }
+    if (f.disabled) return f
+    if (f.kind === 'checkboxes') return { ...f, value: form.getAll(f.label).map(String).join(', ') }
+    if (f.kind === 'radio') return { ...f, value: String(form.get(f.label) ?? f.value) }
+    return form.has(f.label) ? { ...f, value: String(form.get(f.label)) } : f
+  })
+  const name = people ? String(form.get('Display name') ?? '').trim() : ''
+  return { ...record, fields, label: name || record.label }
+}
+/** A save that failed for a reason the person can fix in the form, shown on the field. */
+class SaveProblem extends Error { constructor(message: string, readonly field?: string) { super(message) } }
 const dayOf = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })
 // Trips in date and time order; undated ones last, and trips at the same time in the order they were added.
 const tripOrder = (t: TravelRecord) => `${t.localDate ?? '9999'}${t.localTime ?? ''}${t.createdAt ?? ''}`
@@ -77,7 +98,6 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const [loadError, setLoadError] = useState('')
   const [activeId, setActiveId] = useState<SectionId>('start')
   const [selected, setSelected] = useState<Partial<Record<SectionId, string>>>({})
-  const [draftOpen, setDraftOpen] = useState(false)
   const [recordOpen, setRecordOpen] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [sectionError, setSectionError] = useState<ReactNode>(null)
@@ -85,15 +105,21 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const [busy, setBusy] = useState(false)
   // Said at the top of the step just opened: a step saved (ok), or one left unfinished (warn).
   const [infoNote, setInfoNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null)
-  // The transport chosen in the open trip form, which decides whether its airport and flight are asked.
-  const [tripMode, setTripMode] = useState<'organisers' | 'own' | null>(null)
+  // The transport chosen in each trip form, which decides whether its airport and flight are asked.
+  const [tripModes, setTripModes] = useState<Record<string, 'organisers' | 'own'>>({})
+  // People, Teams and Travel keep each record's changes until "Save changes" saves the whole step (25 Nov 2026), so
+  // records can be filled in any order and several people or trips added before saving. Keys are "step:record id".
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({})
+  const [edited, setEdited] = useState<string[]>([])
+  const [newPeople, setNewPeople] = useState<string[]>([])
+  const [newTrips, setNewTrips] = useState<{ id: string; direction: 'arrival' | 'departure' }[]>([])
+  const newCount = useRef(0)
+  const editorRef = useRef<HTMLFormElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
   // The two notices ticked on Submit: the royal reception's dress code and protocol, and travel insurance.
   const [acks, setAcks] = useState({ dressCode: false, insurance: false })
   const [navOpen, setNavOpen] = useState(false)
   const [copied, setCopied] = useState('')
-  const [draftTrip, setDraftTrip] = useState<'arrival' | 'departure' | null>(null)
-  // "Add another" pressed before the first flight that way is saved: that first one opens, with a word on what to do.
-  const [firstTripHint, setFirstTripHint] = useState<'arrival' | 'departure' | null>(null)
   // Forms with changes that are not saved yet, by their data-dirty-key: setup, invoice, welfare, record (the person,
   // team or trip being edited) and stay-note. Leaving one of them asks first, and so does closing the tab.
   const [dirty, setDirty] = useState<Record<string, true>>({})
@@ -181,25 +207,43 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       contestant: country ? 4 * d.numberOfTeams - data.members.filter((m) => m.role === 'contestant').length : 0,
       observer: d.numberOfObservers - data.members.filter((m) => m.role === 'observer').length,
     }
-    const draftRole = placesLeft.contestant > 0 ? 'contestant' as const : 'observer' as const
-    const draftMember = { role: draftRole, teamId: draftRole === 'contestant' ? data.teams.find((t) => data.members.filter((m) => m.role === 'contestant' && m.teamId === t.id).length < 4)?.id ?? null : null }
+    // New people fill the places left in order: contestants first, team by team, then observers.
+    const teamCounts = new Map(data.teams.map((t) => [t.id, data.members.filter((m) => m.role === 'contestant' && m.teamId === t.id).length]))
+    const newPersonRecords = newPeople.map((id, i): PortalRecord => {
+      const role = i < placesLeft.contestant ? 'contestant' as const : 'observer' as const
+      const team = role === 'contestant' ? data.teams.find((t) => (teamCounts.get(t.id) ?? 0) < 4) : undefined
+      if (team) teamCounts.set(team.id, (teamCounts.get(team.id) ?? 0) + 1)
+      return withDraft({ id, label: 'New person', meta: 'Not saved yet', status: 'attention', issue: 'Not saved yet', fields: personFields({ role, teamId: team?.id ?? null }, data) }, drafts[`people:${id}`], true)
+    })
+    // The trips as they stand with unsaved changes, so someone ticked on one trip shows as taken on the others.
+    const ticked = (key: string, saved: string[]) => {
+      const entries = drafts[key]
+      if (!entries) return saved
+      const names = formOf(entries).getAll('People on this trip').map(String)
+      return data.members.filter((m) => names.includes(m.displayName)).map((m) => m.id)
+    }
+    const tripData: DelegationData = { ...data, travelRecords: [
+      ...data.travelRecords.map((t) => ({ ...t, memberIds: ticked(`travel:${t.id}`, t.memberIds) })),
+      ...newTrips.map((t): TravelRecord => ({ id: t.id, direction: t.direction, memberIds: ticked(`travel:${t.id}`, []), travelPoint: null, flightServiceNumber: null, localDate: null, localTime: null, terminal: null })),
+    ] }
     const records: Partial<Record<SectionId, PortalRecord[]>> = {
-      teams: data.teams.map((t) => teamRecord(t, data)),
-      people: [
-        ...data.members.map((m) => personRecord(m, data)),
-        ...(draftOpen ? [{ id: NEW_PERSON, label: 'New person', meta: 'Not saved yet', status: 'attention' as const, issue: 'Not saved yet', fields: personFields(draftMember, data) }] : []),
-      ],
-      // Every arrival and departure saved, by date, with an empty one to fill when there is none yet or one is being added.
+      teams: data.teams.map((t) => withDraft(teamRecord(t, data), drafts[`teams:${t.id}`], false)),
+      people: [...data.members.map((m) => withDraft(personRecord(m, data), drafts[`people:${m.id}`], true)), ...newPersonRecords],
+      // Every arrival and departure saved, by date, then those added and not saved yet; an empty one to fill when a
+      // direction has none.
       travel: (['arrival', 'departure'] as const).flatMap((dir) => {
         const trips = data.travelRecords.filter((t) => t.direction === dir).sort((a, b) => tripOrder(a).localeCompare(tripOrder(b)))
-        const adding = !trips.length || draftTrip === dir
-        const several = trips.length + (adding && trips.length ? 1 : 0) > 1
-        const mode = (id: string) => (selected.travel === id && tripMode ? tripMode : undefined)
-        return [...trips.map((t, i) => tripRecord(dir, t, data, several ? i + 1 : undefined, mode(t.id))), ...(adding ? [tripRecord(dir, undefined, data, several ? trips.length + 1 : undefined, mode(`new-${dir}`))] : [])]
+        const added = newTrips.filter((t) => t.direction === dir).map((t) => t.id)
+        const fresh = added.length || trips.length ? added : [`new-${dir}`]
+        const several = trips.length + fresh.length > 1
+        return [
+          ...trips.map((t, i) => withDraft(tripRecord(dir, t, tripData, several ? i + 1 : undefined, tripModes[t.id], t.id), drafts[`travel:${t.id}`], false)),
+          ...fresh.map((id, j) => withDraft(tripRecord(dir, undefined, tripData, several ? trips.length + j + 1 : undefined, tripModes[id], id), drafts[`travel:${id}`], false)),
+        ]
       }),
     }
     return { d, kind, country, flow, steps, payment, paymentDone, proofIn, peopleOpen, submitted, records, placesLeft }
-  }, [data, draftOpen, draftTrip, tripMode, selected.travel])
+  }, [data, drafts, newPeople, newTrips, tripModes])
 
   const kindOfData = data?.delegation.kind ?? 'country'
   const eyebrow = staff ? `Back office · ${staff.roleLabel}` : kindOfData === 'jury' ? 'Jury registration' : kindOfData === 'volunteer' ? 'Volunteer registration' : 'National representative portal'
@@ -237,7 +281,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     }
   } else if (!data.members.some((m) => m.role === kind)) needs('setup', 'Enter your name')
   for (const id of ['teams', 'people'] as const) {
-    (records[id] ?? []).filter((r) => r.status === 'attention' && r.id !== NEW_PERSON).forEach((r) => needs(id, `${r.label}: ${r.issue?.toLowerCase()}`))
+    (records[id] ?? []).filter((r) => r.status === 'attention' && !isNew(r.id)).forEach((r) => needs(id, `${r.label}: ${r.issue?.toLowerCase()}`))
   }
   const namedObservers = data.members.filter((m) => m.role === 'observer').length
   if (namedObservers !== d.numberOfObservers) {
@@ -297,6 +341,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     : id === 'people' ? `By ${longDate(ev.peopleDeadline)}`
     : id === 'travel' ? (ev.travelLocked ? `Closed on ${longDate(ev.travelDeadline)}` : `Flights until ${longDate(ev.travelDeadline)}`)
     : null)
+  // Under "Early bird rate until" in the step list, the last day of the regular rate too (25 Nov 2026).
+  const regularRateLine = (id: SectionId) => (id === 'payment' && country && data.fees.tier === 'early_bird' && (!payment || payment.status === 'awaiting_proof')
+    ? `Regular rate until ${longDate(ev.registrationEnds)}` : null)
   const stepsDone = numbered.filter((s) => statusOf(s) === 'done').length
   // Steps can be done in any order, so after one comes the next one along that still needs something, and once there is
   // none, Submit, which shows anything left from earlier.
@@ -334,7 +381,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const go = (id: SectionId) => {
     navigated.current = true
     setActiveId(id); setNavOpen(false); setRecordOpen(false)
-    setFieldErrors({}); setSectionError(null); setSavedNote(''); setInfoNote(null); setDraftTrip(null)
+    setFieldErrors({}); setSectionError(null); setSavedNote(''); setInfoNote(null)
+    setDrafts({}); setEdited([]); setNewPeople([]); setNewTrips([]); setTripModes({})
   }
   const open = (id: SectionId) => guard(() => go(id))
 
@@ -369,76 +417,130 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   /* records ------------------------------------------------------- */
   const sectionRecords = records[activeId] ?? []
   const currentRecord = sectionRecords.find((r) => r.id === selected[activeId]) ?? sectionRecords[0]
-  // Opening another record (or a new person) replaces the editor, so unsaved changes in it are asked about first.
-  const chooseRecord = (id: string) => guard(() => {
-    setTripMode(null)
+  const keyOf = (id: string) => `${activeId}:${id}`
+  const sectionEdited = edited.filter((k) => k.startsWith(`${activeId}:`))
+  /** Keeps what is typed in the open record, so moving to another one loses nothing. Returns every unsaved change. */
+  const snapshot = (): Record<string, Draft> => {
+    const form = editorRef.current
+    if (!form || !currentRecord || !edited.includes(keyOf(currentRecord.id))) return drafts
+    const entries = [...new FormData(form).entries()].filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    const next = { ...drafts, [keyOf(currentRecord.id)]: entries }
+    setDrafts(next)
+    return next
+  }
+  const touch = (id: string) => { const key = keyOf(id); setEdited((e) => (e.includes(key) ? e : [...e, key])); markDirty('record') }
+  /** Shows a record in the list (a person just added, say) and opens it. */
+  const reveal = (id: string) => window.setTimeout(() => listRef.current?.querySelector<HTMLElement>(`[data-record="${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }), 0)
+  const chooseRecord = (id: string) => {
+    snapshot()
     setSelected((s) => ({ ...s, [activeId]: id }))
-    setRecordOpen(true); setFieldErrors({}); setSavedNote(''); clean('record')
-  }, id === currentRecord?.id ? [] : ['record'])
+    setRecordOpen(true); setFieldErrors({}); setSavedNote('')
+  }
 
-  const saveRecord = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!currentRecord) return
-    const form = new FormData(event.currentTarget)
-    run(async () => {
-      if (activeId === 'teams') {
-        await api(`/api/registration/teams/${currentRecord.id}`, { method: 'PATCH', body: { name: String(form.get('Team name') ?? '').trim() || currentRecord.label, contestLanguage: String(form.get('Team contest language') ?? '') || null } })
-        await load()
-        clean('record')
-        setSavedNote('Saved.')
-      } else if (activeId === 'travel') {
-        const isNew = currentRecord.id.startsWith('new-')
-        const direction = isNew ? (currentRecord.id.slice(4) as 'arrival' | 'departure') : data.travelRecords.find((t) => t.id === currentRecord.id)!.direction
-        const body = tripPayload(form, direction, data.members)
-        const before = new Set(data.travelRecords.map((t) => t.id))
-        if (isNew) await api(`/api/registration/delegations/${d.id}/travel`, { method: 'POST', body })
-        else await api(`/api/registration/travel/${currentRecord.id}`, { method: 'PATCH', body })
-        const fresh = await load()
-        const saved = isNew ? fresh.travelRecords.find((t) => !before.has(t.id)) : fresh.travelRecords.find((t) => t.id === currentRecord.id)
-        if (saved) setSelected((s) => ({ ...s, travel: saved.id }))
-        setDraftTrip(null)
-        clean('record')
-        setTripMode(null)
-        setSavedNote(tripComplete({ ...body, id: '', terminal: null, memberIds: [] } as TravelRecord) ? 'Saved.' : 'Saved. Finish this trip once flights are booked.')
-      } else if (activeId === 'people') {
-        const member = data.members.find((m) => m.id === currentRecord.id)
-        const role = member?.role ?? 'contestant'
-        const payload = personPayload(form, role, data)
-        if (!payload.displayName) { setFieldErrors({ 'Display name': 'Enter a name so we can save this person.' }); focusFirstError(panelRef.current); return }
-        let id = currentRecord.id
-        if (currentRecord.id === NEW_PERSON) {
-          id = (await api<{ member: Member }>(`/api/registration/delegations/${d.id}/members`, { method: 'POST', body: payload })).member.id
-          setDraftOpen(false)
-          setSelected((s) => ({ ...s, people: id }))
-        } else {
-          await api(`/api/registration/members/${id}`, { method: 'PATCH', body: payload })
-        }
-        await load()
-        setFieldErrors({})
-        clean('record')
-        // What is still missing shows above the form, in "Still needed".
-        setSavedNote('Saved.')
+  /** Saves one record from its form values. */
+  const saveOne = async (step: SectionId, id: string, form: FormData) => {
+    if (step === 'teams') {
+      const team = data.teams.find((t) => t.id === id)
+      await api(`/api/registration/teams/${id}`, { method: 'PATCH', body: { name: String(form.get('Team name') ?? '').trim() || team?.name, contestLanguage: String(form.get('Team contest language') ?? '') || null } })
+    } else if (step === 'travel') {
+      const direction = isNew(id) ? (id.split('-')[1] as 'arrival' | 'departure') : data.travelRecords.find((t) => t.id === id)!.direction
+      const body = tripPayload(form, direction, data.members)
+      // A trip added and left empty is dropped rather than saved.
+      if (isNew(id) && !body.localDate && !body.localTime && !body.flightServiceNumber && !body.peopleIds.length) return
+      if (isNew(id)) await api(`/api/registration/delegations/${d.id}/travel`, { method: 'POST', body })
+      else await api(`/api/registration/travel/${id}`, { method: 'PATCH', body })
+    } else if (step === 'people') {
+      const member = data.members.find((m) => m.id === id)
+      const role = member?.role ?? (String(form.get('Role') ?? '') === 'Observer' ? 'observer' : 'contestant')
+      const payload = personPayload(form, role, data)
+      if (!payload.displayName) throw new SaveProblem('Enter a name so we can save this person.', 'Display name')
+      if (isNew(id)) await api(`/api/registration/delegations/${d.id}/members`, { method: 'POST', body: payload })
+      else await api(`/api/registration/members/${id}`, { method: 'PATCH', body: payload })
+    }
+  }
+  /**
+   * Saves every change in this step: records already saved first (so a person taken off one trip is free for another),
+   * then new ones. Stops at the first problem, opens that record and says what to fix; whatever saved stays saved.
+   * Returns the fresh data, or null if something could not be saved.
+   */
+  const saveAll = async (): Promise<DelegationData | null> => {
+    const all = snapshot()
+    const step = activeId
+    const keys = [...new Set([...Object.keys(all), ...edited])].filter((k) => k.startsWith(`${step}:`))
+      .sort((a, b) => Number(isNew(a.slice(step.length + 1))) - Number(isNew(b.slice(step.length + 1))))
+    if (!keys.length) return data
+    const left = { ...all }
+    let stillEdited = [...edited]
+    const savedNew: string[] = []
+    let done = 0
+    let problem: { id: string; message: string; field?: string } | null = null
+    for (const key of keys) {
+      const id = key.slice(step.length + 1)
+      try {
+        await saveOne(step, id, formOf(all[key] ?? []))
+        delete left[key]
+        stillEdited = stillEdited.filter((k) => k !== key)
+        if (isNew(id)) savedNew.push(id)
+        done++
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 401) { onSessionEnd(); return null }
+        problem = { id, message: e instanceof Error && !(e instanceof ApiError) ? e.message : messageOf(e), field: e instanceof SaveProblem ? e.field : undefined }
+        break
       }
-    })
+    }
+    setDrafts(left); setEdited(stillEdited)
+    setNewPeople((p) => p.filter((id) => !savedNew.includes(id)))
+    setNewTrips((t) => t.filter((x) => !savedNew.includes(x.id)))
+    const fresh = await load()
+    if (problem) {
+      const failed = problem
+      const name = sectionRecords.find((r) => r.id === failed.id)?.label ?? 'One record'
+      setSelected((s) => ({ ...s, [step]: failed.id })); setRecordOpen(true)
+      setFieldErrors(failed.field ? { [failed.field]: failed.message } : {})
+      setSectionError(`${done ? `${done} saved. ` : ''}${name} is not saved yet: ${failed.message}`)
+      focusFirstError(panelRef.current)
+      return null
+    }
+    if (savedNew.includes(selected[step] ?? '')) setSelected((s) => ({ ...s, [step]: undefined }))
+    clean('record'); setFieldErrors({}); setTripModes({})
+    setSavedNote(done === 1 ? 'Saved.' : `${done} saved.`)
+    return fresh
+  }
+  const saveRecords = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    run(async () => { await saveAll() })
   }
 
-  const addPerson = () => guard(() => {
-    setDraftOpen(true)
-    setSelected((s) => ({ ...s, people: NEW_PERSON }))
-    setRecordOpen(true); setFieldErrors({}); setSavedNote(''); clean('record')
-  }, ['record'])
-  const cancelNewPerson = () => {
-    setDraftOpen(false); setSelected((s) => ({ ...s, people: undefined })); clean('record')
+  const addPerson = () => {
+    snapshot()
+    const id = `new-person-${++newCount.current}`
+    setNewPeople((p) => [...p, id])
+    setSelected((s) => ({ ...s, people: id }))
+    setRecordOpen(true); setFieldErrors({}); setSavedNote('')
+    touch(id)
+    reveal(id)
   }
-  const addTrip = (direction: 'arrival' | 'departure') => guard(() => {
-    const first = !data!.travelRecords.some((t) => t.direction === direction)
-    setFirstTripHint(first ? direction : null)
-    if (!first) setDraftTrip(direction)
-    setSelected((s) => ({ ...s, travel: `new-${direction}` }))
-    setRecordOpen(true); setFieldErrors({}); setSavedNote(''); clean('record')
-  }, ['record'])
-  const cancelNewTrip = () => {
-    setDraftTrip(null); setSelected((s) => ({ ...s, travel: undefined })); clean('record')
+  const addTrip = (direction: 'arrival' | 'departure') => {
+    snapshot()
+    // The empty first trip of a direction, if it is still untouched, is the one to fill in.
+    const first = !data.travelRecords.some((t) => t.direction === direction) && !newTrips.some((t) => t.direction === direction)
+    const id = first && !edited.includes(`travel:new-${direction}`) ? `new-${direction}` : `new-${direction}-${++newCount.current}`
+    setNewTrips((t) => [...t, ...(first && id !== `new-${direction}` ? [{ id: `new-${direction}`, direction }] : []), ...(id === `new-${direction}` ? [] : [{ id, direction }])])
+    setSelected((s) => ({ ...s, travel: id }))
+    setRecordOpen(true); setFieldErrors({}); setSavedNote('')
+    touch(id)
+    reveal(id)
+  }
+  /** Drops a person or trip added and not saved yet. */
+  const discardNew = (id: string) => {
+    const key = keyOf(id)
+    setNewPeople((p) => p.filter((x) => x !== id))
+    setNewTrips((t) => t.filter((x) => x.id !== id))
+    setDrafts(({ [key]: _gone, ...rest }) => rest)
+    const stillEdited = edited.filter((k) => k !== key)
+    setEdited(stillEdited)
+    if (!stillEdited.some((k) => k.startsWith(`${activeId}:`))) clean('record')
+    setSelected((s) => ({ ...s, [activeId]: undefined })); setFieldErrors({})
   }
   /** Removing a person or a trip asks first: it cannot be undone. */
   const remove = (what: 'person' | 'trip', id: string, name: string) => setAsk({
@@ -446,7 +548,11 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     text: what === 'person' ? `${name}’s details are deleted from your registration. This cannot be undone.` : `This ${name.toLowerCase()} is deleted from your registration. This cannot be undone.`,
     onGo: () => run(async () => {
       await api(what === 'person' ? `/api/registration/members/${id}` : `/api/registration/travel/${id}`, { method: 'DELETE' })
-      clean('record')
+      const key = keyOf(id)
+      setDrafts(({ [key]: _gone, ...rest }) => rest)
+      const stillEdited = edited.filter((k) => k !== key)
+      setEdited(stillEdited)
+      if (!stillEdited.some((k) => k.startsWith(`${activeId}:`))) clean('record')
       setSelected((s) => ({ ...s, [activeId]: undefined }))
       setRecordOpen(false); setSavedNote('')
       await load()
@@ -454,14 +560,18 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     }),
   })
 
-  const finishRecords = () => guard(() => {
-    const pending = sectionRecords.filter((r) => r.status === 'attention' && r.id !== NEW_PERSON)
+  // Continue saves everything first, then moves on; a step with something unfinished stays on the list.
+  const finishRecords = () => run(async () => {
+    const fresh = await saveAll()
+    if (!fresh) return
+    const pending = activeId === 'people' ? fresh.members.map((m) => personRecord(m, fresh)).filter((r) => r.status === 'attention')
+      : activeId === 'teams' ? fresh.teams.map((t) => teamRecord(t, fresh)).filter((r) => r.status === 'attention') : []
     if (pending.length) {
       moveOn(`${section.title} is not finished yet, so it stays on your list: ${pending.map((r) => `${r.label} (${r.issue?.toLowerCase()})`).join(', ')}.`)
       return
     }
-    run(() => finishStep(activeId))
-  }, ['record'])
+    await finishStep(activeId)
+  })
 
   /* setup, payment, welfare --------------------------------------- */
   const saveSetup = (body: SetupBody) => run(() => finishStep('setup', body))
@@ -620,7 +730,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const singleRoomsChosen = [...d.singleRooms.teamLeaders, ...d.singleRooms.observers].filter(Boolean).length
   const unsavedNames: Record<string, string> = {
     setup: country ? 'Team and observers' : 'About you', invoice: 'the invoice details', welfare: 'the note for the welfare team', consent: 'the consent answers',
-    record: currentRecord?.id === NEW_PERSON ? 'the new person' : currentRecord?.label ?? 'this record',
+    record: `${sectionEdited.length === 1 ? 'one record' : `${sectionEdited.length} records`} in ${section.title}`,
   }
   const consentMember = activeId === 'people' ? data.members.find((m) => m.id === currentRecord?.id && m.needsGuardianConsent) : undefined
   const consent = consentMember ? consentFor(consentMember, data.attachments) : undefined
@@ -631,7 +741,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const paymentStatus = payment?.status
   // Everyone in People, the Team Leaders named in Team and observers among them.
   const peopleCount = data.members.length
-  const peopleToFinish = (records.people ?? []).filter((r) => r.status === 'attention' && r.id !== NEW_PERSON).length
+  const peopleToFinish = (records.people ?? []).filter((r) => r.status === 'attention' && !isNew(r.id)).length
   const flightsIn = data.travelRecords.filter((t) => tripComplete(t)).length
   // Who is not on any arrival or departure yet: their badges wait for it.
   const offTrips = (direction: 'arrival' | 'departure') => data.members
@@ -798,29 +908,29 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   }
   // Team Leaders are named in Team and observers, and a jury member's or volunteer's own record comes from About you.
   const fixedRecord = (id: string) => ['team_leader', 'jury', 'volunteer'].includes(data.members.find((m) => m.id === id)?.role ?? '')
-  const canAdd = placesLeft.contestant > 0 || placesLeft.observer > 0
+  const canAdd = newPeople.length < placesLeft.contestant + placesLeft.observer
 
   const recordsCard = section.records && !locked && (
     <div className={`reg-card reg-records${recordOpen ? ' is-open' : ''}`}>
       <div className="reg-record-list">
         <div className="reg-record-list-head">
-          <h3>{activeId === 'travel' ? 'Flights' : `${sectionRecords.filter((r) => r.id !== NEW_PERSON).length} ${section.records.plural}`}</h3>
-          {activeId === 'people' && !draftOpen && canAdd && <button type="button" className="reg-btn-link" onClick={addPerson}><UserPlus size={16} aria-hidden="true" />{country ? 'Add person' : 'Add your observer'}</button>}
+          <h3>{activeId === 'travel' ? 'Flights' : `${sectionRecords.filter((r) => !isNew(r.id)).length} ${section.records.plural}`}</h3>
+          {activeId === 'people' && canAdd && <button type="button" className="reg-btn-link" onClick={addPerson}><UserPlus size={16} aria-hidden="true" />{country ? 'Add person' : 'Add your observer'}</button>}
         </div>
         {activeId === 'people' && !canAdd && kind !== 'volunteer' && <p className="reg-hint">Everyone is in: {country ? `four contestants for each team, the Team Leaders and ${d.numberOfObservers === 1 ? 'the observer' : d.numberOfObservers ? `the ${d.numberOfObservers} observers` : 'no observers'} chosen in Team and observers` : 'you, and your observer if you bring one'}. To add someone, change {country ? 'Team and observers' : 'About you'} (before the proof of payment), or email the organisers.</p>}
         {activeId === 'people' && canAdd && country && <p className="reg-hint">Still to add: {[placesLeft.contestant > 0 && `${placesLeft.contestant} ${placesLeft.contestant === 1 ? 'contestant' : 'contestants'}`, placesLeft.observer > 0 && `${placesLeft.observer} ${placesLeft.observer === 1 ? 'observer' : 'observers'}`].filter(Boolean).join(' and ')}.</p>}
         {activeId === 'travel' && <p className="reg-hint">Add each flight once it is booked. People on different flights? Add an arrival or departure for each flight, and tick who is on it.</p>}
-        <ul>
+        <ul ref={listRef}>
           {sectionRecords.map((record) => (
-            <li key={record.id}>
+            <li key={record.id} data-record={record.id}>
               <button type="button" className={`reg-record${record.id === currentRecord?.id ? ' is-current' : ''}`} aria-current={record.id === currentRecord?.id ? 'true' : undefined} onClick={() => chooseRecord(record.id)}>
                 <span className="reg-record-name"><strong>{record.label}</strong><small>{record.meta}</small></span>
-                {recordChip(record)}
+                {edited.includes(keyOf(record.id)) ? <span className="reg-chip is-unsaved">Unsaved</span> : recordChip(record)}
               </button>
             </li>
           ))}
         </ul>
-        {activeId === 'travel' && !draftTrip && (
+        {activeId === 'travel' && (
           <div className="reg-record-adds">
             {(['arrival', 'departure'] as const).map((dir) => (
               <button key={dir} type="button" className="reg-btn-link reg-add-link" onClick={() => addTrip(dir)}><Plus size={16} aria-hidden="true" />Add another {dir}</button>
@@ -834,21 +944,21 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       </div>
 
       {currentRecord && (
-        <form className="reg-record-editor" onSubmit={saveRecord} noValidate key={currentRecord.id} data-dirty-key="record"
+        <form ref={editorRef} className="reg-record-editor" onSubmit={saveRecords} noValidate key={currentRecord.id} data-dirty-key="record"
           onChange={(e) => {
             const target = e.target as unknown as HTMLInputElement
+            if (target.type === 'file') return
+            touch(currentRecord.id)
             if (activeId === 'travel' && (target.name === transportLabel('arrival') || target.name === transportLabel('departure'))) {
-              setTripMode(target.value === transportChoices.arrival[1] || target.value === transportChoices.departure[1] ? 'own' : 'organisers')
+              const own = target.value === transportChoices.arrival[1] || target.value === transportChoices.departure[1]
+              setTripModes((m) => ({ ...m, [currentRecord.id]: own ? 'own' : 'organisers' }))
             }
           }}>
-          <button type="button" className="reg-btn-link reg-back-to-list" onClick={() => guard(() => { setRecordOpen(false); clean('record') }, ['record'])}><ArrowLeft size={16} aria-hidden="true" />All {section.records.plural}</button>
+          <button type="button" className="reg-btn-link reg-back-to-list" onClick={() => { snapshot(); setRecordOpen(false) }}><ArrowLeft size={16} aria-hidden="true" />All {section.records.plural}</button>
           <div className="reg-editor-head">
             <h3>{currentRecord.label}</h3>
             {recordChip(currentRecord)}
           </div>
-          {activeId === 'travel' && firstTripHint && currentRecord.id === `new-${firstTripHint}` && !data.travelRecords.some((t) => t.direction === firstTripHint) && (
-            <p className="reg-aside" role="status"><Info size={18} aria-hidden="true" /><span>Fill in this first {firstTripHint} and tick who is on it, then save it. After that, “Add another {firstTripHint}” adds the next flight, for anyone on a different one.</span></p>
-          )}
           {currentRecord.missing && currentRecord.missing.length > 0 && (
             <p className="reg-aside reg-aside-warn reg-still"><CircleAlert size={18} aria-hidden="true" /><span><strong>Still needed:</strong> {currentRecord.missing.map((label) => label.toLowerCase()).join(', ')}.</span></p>
           )}
@@ -879,16 +989,17 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
             </div>
           )}
           <div className="reg-editor-actions">
-            <button type="submit" className="reg-btn reg-btn-secondary" disabled={busy}>{busy ? 'Saving…' : `Save ${section.records.noun}`}</button>
-            {currentRecord.id === NEW_PERSON && <button type="button" className="reg-btn-link" onClick={cancelNewPerson}>Cancel</button>}
-            {draftTrip && currentRecord.id === `new-${draftTrip}` && <button type="button" className="reg-btn-link" onClick={cancelNewTrip}>Cancel</button>}
-            {activeId === 'people' && currentRecord.id !== NEW_PERSON && !fixedRecord(currentRecord.id) && (
+            <button type="submit" className="reg-btn reg-btn-secondary" disabled={busy}>{busy ? 'Saving…' : sectionEdited.length > 1 ? `Save changes (${sectionEdited.length})` : 'Save changes'}</button>
+            {isNew(currentRecord.id) && (activeId === 'people' || newTrips.some((t) => t.id === currentRecord.id)) && (
+              <button type="button" className="reg-btn-link" onClick={() => discardNew(currentRecord.id)}>{activeId === 'people' ? 'Remove this new person' : 'Remove this new trip'}</button>
+            )}
+            {activeId === 'people' && !isNew(currentRecord.id) && !fixedRecord(currentRecord.id) && (
               <button type="button" className="reg-btn-link reg-btn-remove" onClick={() => remove('person', currentRecord.id, currentRecord.label)}>Remove this person</button>
             )}
             {activeId === 'travel' && !currentRecord.id.startsWith('new-') && (
               <button type="button" className="reg-btn-link reg-btn-remove" onClick={() => remove('trip', currentRecord.id, currentRecord.label)}>Remove this trip</button>
             )}
-            {dirty.record ? <UnsavedNote show /> : <span className="reg-saved" role="status">{savedNote && <><Check size={15} strokeWidth={3} aria-hidden="true" />{savedNote}</>}</span>}
+            {sectionEdited.length ? <span className="reg-unsaved-note">{sectionEdited.length === 1 ? 'Unsaved changes' : `Unsaved changes in ${sectionEdited.length} ${section.records.plural}`}. Save changes saves them all.</span> : <span className="reg-saved" role="status">{savedNote && <><Check size={15} strokeWidth={3} aria-hidden="true" />{savedNote}</>}</span>}
           </div>
         </form>
       )}
@@ -942,7 +1053,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                 <li key={s.id}>
                   <button type="button" className={`reg-rail-item is-${st}${s.id === activeId ? ' is-current' : ''}`} aria-current={s.id === activeId ? 'step' : undefined} onClick={() => open(s.id)}>
                     <StatusMark status={st} number={stepNumber(s)} />
-                    <span className="reg-rail-text"><span>{s.title}</span><small>{stepLabel(s, st)}</small>{!submitted && st !== 'done' && deadlineOf(s.id) && <small className="reg-rail-deadline">{deadlineOf(s.id)}</small>}</span>
+                    <span className="reg-rail-text"><span>{s.title}</span><small>{stepLabel(s, st)}</small>{!submitted && st !== 'done' && deadlineOf(s.id) && <small className="reg-rail-deadline">{deadlineOf(s.id)}</small>}{!submitted && st !== 'done' && regularRateLine(s.id) && <small className="reg-rail-deadline">{regularRateLine(s.id)}</small>}</span>
                   </button>
                 </li>
               )
@@ -1037,23 +1148,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
           {activeId === 'welfare' && !locked && (
             <form onSubmit={saveWelfare} noValidate data-dirty-key="welfare">
               <div className="reg-cards">
-                <div className="reg-review">
-                  {reviewGroups(data).map((group) => (
-                    <section key={group.id} id={group.id} className="reg-review-group" aria-labelledby={`${group.id}-title`}>
-                      <h3 id={`${group.id}-title`}>{group.title}</h3>
-                      <dl>
-                        {group.facts.map((f) => (
-                          <div key={f.label}>
-                            <dt>{f.label}</dt>
-                            <dd>{Array.isArray(f.value) ? <ul>{f.value.map((v) => <li key={v}>{v}</li>)}</ul> : f.value}{f.help && <small>{f.help}</small>}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </section>
-                  ))}
-                  <p className="reg-hint reg-review-foot">Built from {country ? 'People' : 'Your details'} and Travel. To change something, change it there.</p>
-                </div>
-                <Card id="welfare-requests" title="Room requests">
+                <ReviewSummary data={data} />
+                <Card id="welfare-requests" title="Requests">
                   {/* The IOL Board's wording, word for word (16 Nov 2026), set out as a list to read more easily (24 Nov 2026). */}
                   <div className="reg-card-lead reg-requests-text">
                     <p>We are committed to ensuring that all participants, including trans and non-binary contestants, feel safe, comfortable, and welcome in their accommodation arrangements. Therefore, if any of the participants has specific justifiable accommodation requests or access requirements, please outline them below.</p>
@@ -1218,14 +1314,36 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
           {activeId === 'travel' && (
             <Card id="travel-info" title="Hotel nights and airport transfers">
-              <dl className="reg-ref reg-travel-info">
-                <div><dt>Hotel nights</dt><dd>{d.needsAccommodation === false
-                  ? 'You said you do not need a hotel room, so none is booked for you.'
-                  : <>We provide accommodation from the night of {longDate(ev.hotelFirstNight)} to the night of {longDate(ev.hotelLastNight)}, checking out on the morning after. If you arrive earlier or leave later, please book and pay for those nights yourself: they are outside the official programme and not the organisers’ responsibility.</>}</dd></div>
-                <div><dt>Airport pickup and drop-off</dt><dd>We will provide pickup and drop-off at Suvarnabhumi (BKK) and Don Mueang (DMK) airports only. {ev.pickup} Outside these times, or from anywhere else, please make your own way to and from the hotel.</dd></div>
-                <div><dt>Arriving late</dt><dd>The opening ceremony is on the morning of 22 July. If you arrive after 21 July, you may miss it.</dd></div>
-                <div><dt>Deadline</dt><dd>{ev.travelLocked ? `Travel details closed on ${longDate(ev.travelDeadline)}. To change a flight now, email the organisers.` : `Add and change flights until ${longDate(ev.travelDeadline)}, so the transport team can plan pickups and buses.`}</dd></div>
-              </dl>
+              <ul className="reg-info-tiles">
+                <li>
+                  <BedDouble size={20} aria-hidden="true" />
+                  <p className="reg-info-label">Hotel nights</p>
+                  {d.needsAccommodation === false
+                    ? <><p className="reg-info-fact">No hotel room</p><p>You said you do not need a hotel room, so none is booked for you.</p></>
+                    : <><p className="reg-info-fact">From the night of {longDate(ev.hotelFirstNight)} to the night of {longDate(ev.hotelLastNight)}</p>
+                      <p>Checking out on the morning after.</p>
+                      <p>Arriving earlier or leaving later? Please book and pay for those nights yourself: they are outside the official programme and not the organisers’ responsibility.</p></>}
+                </li>
+                <li>
+                  <Bus size={20} aria-hidden="true" />
+                  <p className="reg-info-label">Airport pickup and drop-off</p>
+                  <p className="reg-info-fact">Suvarnabhumi (BKK) and Don Mueang (DMK) only</p>
+                  <p>{ev.pickup}</p>
+                  <p>Outside these times, or from anywhere else, please make your own way to and from the hotel.</p>
+                </li>
+                <li>
+                  <CalendarClock size={20} aria-hidden="true" />
+                  <p className="reg-info-label">Opening ceremony</p>
+                  <p className="reg-info-fact">The morning of 22 July</p>
+                  <p>If you arrive after 21 July, you may miss it.</p>
+                </li>
+                <li>
+                  <Clock size={20} aria-hidden="true" />
+                  <p className="reg-info-label">Flights deadline</p>
+                  <p className="reg-info-fact">{ev.travelLocked ? `Closed on ${longDate(ev.travelDeadline)}` : `Until ${longDate(ev.travelDeadline)}`}</p>
+                  <p>{ev.travelLocked ? 'To change a flight now, email the organisers.' : 'Add and change flights until then, so the transport team can plan pickups and buses.'}</p>
+                </li>
+              </ul>
             </Card>
           )}
 

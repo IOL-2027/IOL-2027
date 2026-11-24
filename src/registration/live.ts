@@ -171,12 +171,13 @@ export const tripComplete = (trip?: TravelRecord) => Boolean(trip && trip.localD
  * One arrival or departure. `number` tells several trips in the same direction apart (Arrival 1, Arrival 2), and
  * `mode` is the transport chosen in the open form, which decides whether the airport and flight are asked.
  */
-export function tripRecord(direction: 'arrival' | 'departure', trip: TravelRecord | undefined, data: DelegationData, number?: number, mode?: 'organisers' | 'own'): PortalRecord {
+export function tripRecord(direction: 'arrival' | 'departure', trip: TravelRecord | undefined, data: DelegationData, number?: number, mode?: 'organisers' | 'own', id?: string): PortalRecord {
+  const selfId = trip?.id ?? id ?? `new-${direction}`
   const { members, event, options } = data
   const transport = mode ?? trip?.transport ?? 'organisers'
   const chosen = (trip?.memberIds ?? []).map((id) => members.find((m) => m.id === id)?.displayName).filter(Boolean)
   // Each person arrives once and leaves once: anyone already on another trip this way cannot be ticked here.
-  const sameWay = data.travelRecords.filter((t) => t.direction === direction && t.id !== trip?.id).sort((a, b) => `${a.localDate}${a.localTime}${a.createdAt}`.localeCompare(`${b.localDate}${b.localTime}${b.createdAt}`))
+  const sameWay = data.travelRecords.filter((t) => t.direction === direction && t.id !== selfId).sort((a, b) => `${a.localDate}${a.localTime}${a.createdAt}`.localeCompare(`${b.localDate}${b.localTime}${b.createdAt}`))
   const unavailable: Record<string, string> = {}
   for (const m of members) {
     const other = sameWay.find((t) => t.memberIds.includes(m.id))
@@ -186,7 +187,7 @@ export function tripRecord(direction: 'arrival' | 'departure', trip: TravelRecor
   const changes = event.travelLocked ? `Closed on ${longDate(event.travelDeadline)}: email the organisers to change a flight` : `Open until ${longDate(event.travelDeadline)}`
   const own = transport === 'own'
   return {
-    id: trip?.id ?? `new-${direction}`,
+    id: selfId,
     label: `${direction === 'arrival' ? 'Arrival' : 'Departure'}${number ? ` ${number}` : ''}`,
     meta: complete ? `${trip!.transport === 'own' ? 'Own way' : trip!.flightServiceNumber} · ${trip!.localDate}` : 'Add after booking',
     status: complete ? 'complete' : 'later',
@@ -230,71 +231,4 @@ export function tripPayload(form: FormData, direction: 'arrival' | 'departure', 
     localTime: String(form.get('Time') ?? '') || null,
     peopleIds: members.filter((m) => names.includes(m.displayName)).map((m) => m.id),
   }
-}
-
-/** "Name: diet (details)" for everyone with a diet worth knowing, so the representative can check whose it is. */
-const dietsOf = (members: Member[]) => members
-  .filter((m) => (m.diet ?? []).some((d) => d !== 'No special diet'))
-  .map((m) => `${m.badgeName || m.displayName}: ${m.diet!.join(', ')}${m.foodAllergyNotes?.trim() ? ` (${m.foodAllergyNotes.trim()})` : ''}`)
-const medicalOf = (members: Member[]) => members
-  .filter((m) => m.medicalAccessibilityNotes && !/^(none|no|n\/a|-|no restrictions|no special requirements)\.?$/i.test(m.medicalAccessibilityNotes.trim()))
-  .map((m) => `${m.badgeName || m.displayName}: ${m.medicalAccessibilityNotes!.trim()}`)
-
-/** One line of the review: a value, or a list when there are several (one diet per person, one trip per line). */
-export type ReviewFact = { label: string; value: string | string[]; help?: string }
-
-/** "21 July, 09:30 · TG 661 · Suvarnabhumi (BKK) · 5 people", or the people who make their own way. */
-function tripLines(data: DelegationData, direction: 'arrival' | 'departure') {
-  const nameOf = (id: string) => { const m = data.members.find((x) => x.id === id); return m ? m.badgeName || m.displayName : '' }
-  return data.travelRecords
-    .filter((t) => t.direction === direction)
-    .sort((a, b) => `${a.localDate ?? '9999'}${a.localTime ?? ''}`.localeCompare(`${b.localDate ?? '9999'}${b.localTime ?? ''}`))
-    .map((t) => {
-      const when = t.localDate ? `${new Date(`${t.localDate}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}${t.localTime ? `, ${t.localTime.slice(0, 5)}` : ''}` : 'Date to come'
-      const how = t.transport === 'own' ? 'own way' : t.travelPoint ?? 'airport to come'
-      const who = t.memberIds.map(nameOf).filter(Boolean)
-      return `${when} · ${[t.flightServiceNumber, how].filter(Boolean).join(' · ')} · ${who.length ? who.join(', ') : 'nobody ticked yet'}`
-    })
-}
-
-/**
- * Review and requests (meeting of 24 Nov 2026): everything the organisers will work from, built from People and
- * Travel so nobody retypes it, in groups: rooms, food and health, travel, and who sees it.
- */
-export function reviewGroups(data: DelegationData): { id: string; title: string; facts: ReviewFact[] }[] {
-  const { members, feeRules, event, delegation } = data
-  const contestants = members.filter((m) => m.role === 'contestant')
-  const male = contestants.filter((m) => m.genderForRoomAllocation === 'Male').length
-  const female = contestants.filter((m) => m.genderForRoomAllocation === 'Female').length
-  const others = contestants.length - male - female
-  const singles = members.filter((m) => m.role !== 'contestant' && m.roomTypePreference === 'single').map((m) => m.displayName)
-  const diets = dietsOf(members)
-  const medical = medicalOf(members)
-  const country = (delegation.kind ?? 'country') === 'country'
-  const noRoom = delegation.needsAccommodation === false
-  const arrivals = tripLines(data, 'arrival')
-  const departures = tripLines(data, 'departure')
-  const onTrip = (direction: 'arrival' | 'departure') => new Set(data.travelRecords.filter((t) => t.direction === direction).flatMap((t) => t.memberIds))
-  const missingTrip = members.filter((m) => !onTrip('arrival').has(m.id) || !onTrip('departure').has(m.id)).map((m) => m.badgeName || m.displayName)
-  return [
-    { id: 'review-rooms', title: 'Rooms', facts: [
-      { label: 'Hotel nights', value: noRoom ? 'No hotel room needed' : `From the night of ${longDate(event.hotelFirstNight)} to the night of ${longDate(event.hotelLastNight)}`,
-        help: noRoom ? 'You said you do not need a room. Change it in About you.' : 'Provided by the organisers. Other nights are yours to book and pay for.' },
-      ...(country ? [{ label: 'Contestants’ rooms', value: `${male} male, ${female} female${others ? `, ${others} other or not given` : ''}`, help: 'Contestants share twin rooms with someone of the same gender, from their own country where possible.' }] : []),
-      { label: 'Single rooms', value: singles.length ? singles : 'None', help: `USD ${feeRules.singleRoomFee.toLocaleString('en-US')} each. Chosen in ${country ? 'Team and observers' : 'About you'}.` },
-    ] },
-    { id: 'review-health', title: 'Food and health', facts: [
-      { label: 'Food', value: diets.length ? diets : 'Nothing reported', help: `From each person’s food options in ${country ? 'People' : 'Your details'}.` },
-      { label: 'Medical and accessibility', value: medical.length ? medical : 'Nothing reported', help: 'From each person’s medical or accessibility notes.' },
-    ] },
-    { id: 'review-travel', title: 'Travel', facts: [
-      { label: 'Arrivals', value: arrivals.length ? arrivals : 'None added yet' },
-      { label: 'Departures', value: departures.length ? departures : 'None added yet' },
-      ...(missingTrip.length ? [{ label: 'Not on an arrival and a departure yet', value: missingTrip, help: 'Everyone needs both, those who make their own way too. Add them in Travel.' }] : []),
-    ] },
-    { id: 'review-privacy', title: 'Who sees this', facts: [
-      { label: 'Who can see it', value: 'The organising team only', help: 'Handled under Thailand’s Personal Data Protection Act (PDPA) and the GDPR; every download is logged.' },
-      { label: 'How long it is kept', value: '5 years after IOL 2027, then securely deleted', help: 'As set out on the consent forms.' },
-    ] },
-  ]
 }
