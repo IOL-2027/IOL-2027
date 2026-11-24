@@ -234,7 +234,7 @@ export function registerAdminRoutes(app, { signedIn }) {
          m.medical_accessibility_notes, m.emergency_contact, m.room_type_preference
        FROM members m JOIN delegations d ON d.id = m.delegation_id ORDER BY d.country_territory, m.display_name`,
     )
-    // The Team Leaders' room and welfare requests (Rooms and welfare), one per country.
+    // The Team Leaders' room and welfare requests (Review and requests), one per country.
     const requests = await query(`SELECT country_territory, welfare_note FROM delegations WHERE coalesce(trim(welfare_note), '') <> '' ORDER BY country_territory`)
     res.json({ people: camelizeRows(result.rows.map((m) => filterMember(m, req.user.role))), requests: camelizeRows(requests.rows) })
   }))

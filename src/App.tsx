@@ -543,9 +543,9 @@ function Registration() {
     'Team and observer numbers and each team’s Team Leader, which set the fees',
     'Invoice details, bank transfer and proof of payment',
     'Teams, their working language, and each person’s details',
-    'Rooms and welfare',
     'Travel: each person’s flights, once they are booked',
-    'Review and submit',
+    'Review and requests, then everyone’s signed consent forms',
+    'Submit',
   ]
   return <>
     <section className="coming-soon grain"><div className="coming-mark"><img src="/assets/iol-mark-light.png" alt="IOL 2027 Thailand mark" /></div><div>
@@ -616,9 +616,10 @@ const registrationJourney: { phase: string; steps: { title: string; detail: stri
     { title: 'Team and observers', detail: 'How many teams (up to two for an accredited country or territory, one for any other) and how many observers, which set the fees, and who the national representative and each Team Leader are.', tag: 'Sets the fees' },
     { title: 'Payment', detail: 'Give the invoice details, transfer the full amount, then upload the bank’s proof of transfer. Finance checks it and issues an e-receipt.', tag: 'Bank transfer only' },
     { title: 'Teams', detail: 'Choose each team’s working language for the team contest.' },
-    { title: 'People', detail: 'Each contestant’s and observer’s details: names, passport details, contest language, shirt sizes, food, any medical or accessibility notes, and consent to photos. It can be filled in over several sittings.', tag: 'Opens after proof of payment' },
-    { title: 'Rooms and welfare', detail: 'A summary built from everyone’s details, and any room requests, which are handled privately.' },
-    { title: 'Travel', detail: 'Each person’s arrival and departure, once flights are booked. The organisers provide the hotel from the night of 21 July to the night of 27 July, and airport pickup at BKK and DMK.', tag: 'Flights can wait' },
+    { title: 'People', detail: 'Each contestant’s and observer’s details: names, passport details, contest language, shirt sizes, food, and any medical or accessibility notes. It can be filled in over several sittings.', tag: 'Opens after proof of payment' },
+    { title: 'Travel', detail: 'Each person’s arrival and departure, once flights are booked, those who make their own way included. The organisers provide the hotel from the night of 21 July to the night of 27 July, and airport pickup at BKK and DMK.', tag: 'Flights can wait' },
+    { title: 'Review and requests', detail: 'A summary built from People and Travel, and any room requests, which are handled privately.' },
+    { title: 'Consent forms', detail: 'A consent form for each person about photos, videos and personal data, sent filled in with their name. Anyone under 18 on 21 July 2027 needs a parent or guardian to sign. The signed forms are uploaded, with a tick for each person’s answer.', tag: 'Allow time for signatures' },
     { title: 'Review and submit', detail: 'Read the royal reception’s dress code and the travel insurance notice, tick both, and submit. People and travel can still be updated afterwards, until their deadlines.' },
   ] },
   { phase: 'Before the Olympiad', steps: [

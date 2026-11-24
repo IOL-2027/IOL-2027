@@ -183,7 +183,7 @@ export function EventSettingsPanel({ canEdit }: { canEdit: boolean }) {
         <form onSubmit={save} noValidate key={JSON.stringify(ev)}>
           <div className="reg-grid">
             {dateField('languageLock', 'Contest languages lock after', 'Team and individual contest languages can change until the end of this day.')}
-            {dateField('peopleDeadline', 'People details due', 'Shown beside People and Rooms and welfare; a reminder goes a week before.')}
+            {dateField('peopleDeadline', 'People details due', 'Shown beside People; a reminder goes a week before.')}
             {dateField('travelDeadline', 'Flights can change until', 'After this day only the organisers can change a flight.')}
             {dateField('hotelFirstNight', 'First hotel night provided', 'The organisers provide rooms from this night…')}
             {dateField('hotelLastNight', 'Last hotel night provided', '…to this night. Other nights are the participants’ own.')}
