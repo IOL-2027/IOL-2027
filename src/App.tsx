@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowRight, ArrowUpRight, Building2, Bus, Camera, Car, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Compass, ExternalLink, Footprints, Hotel, Landmark, Languages, Mail, MapPin, Maximize2, Menu, PenTool, PlaneLanding, PlaneTakeoff, Scale, Search, Sparkles, Stamp, Trophy, User, Users, Volume2, X } from 'lucide-react'
+import { ArrowDown, ArrowRight, ArrowUpRight, Building2, Bus, Camera, Car, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Compass, ExternalLink, Footprints, Hotel, Landmark, Languages, Mail, MapPin, Maximize2, Menu, Pause, PenTool, PlaneLanding, PlaneTakeoff, Play, Scale, Search, Sparkles, Stamp, Trophy, User, Users, Volume2, X } from 'lucide-react'
 import { event, homeBaseRoute, schedule, venues, type ScheduleVenue } from './siteData'
 import { committeeHeading, committees, royalPatron } from './committeeData'
 import thaiPhrases from './thaiPhrases.json'
@@ -774,12 +774,94 @@ const galleryPlaces: { id: string; venue: string; when: string; about: { href: s
     { src: '/assets/gallery/chula-maha-chakri-sirindhorn.jpg', thumb: '/assets/gallery/thumbs/chula-maha-chakri-sirindhorn.jpg', alt: 'Maha Chakri Sirindhorn Building, the Faculty of Arts’ nine-storey teaching building, behind trees', caption: 'Maha Chakri Sirindhorn Building, Faculty of Arts', credit: 'Faculty of Arts, Chulalongkorn University', creditUrl: 'https://www.arts.chula.ac.th/06about/tour-en.html' },
   ] },
 ]
-const galleryPhotos = galleryPlaces.flatMap((place) => place.photos.map((photo) => ({ ...photo, venue: place.venue })))
+// One album per day of the Olympiad, in the programme's order. Its photographs go in that day's list after July 2027:
+// a day with no photos shows an empty album, a day with photos shows them as a grid, like the venues further down.
+const dayAlbumPhotos: Record<string, GalleryPhoto[]> = {
+  'Day 01': [],
+  'Day 02': [],
+  'Day 03': [],
+  'Day 04': [],
+  'Day 05': [],
+  'Day 06': [],
+  'Day 07': [],
+  'Day 08': [],
+}
+const galleryDays = schedule.map((item) => ({ ...item, id: `day-${item.day.split(' ')[1]}`, photos: dayAlbumPhotos[item.day] ?? [] }))
+
+// Every photo on the page, in page order, for the full-screen viewer; album names the day or venue it belongs to.
+const galleryPhotos = [
+  ...galleryDays.flatMap((day) => day.photos.map((photo) => ({ ...photo, album: `${day.day} · ${day.title}` }))),
+  ...galleryPlaces.flatMap((place) => place.photos.map((photo) => ({ ...photo, album: place.venue }))),
+]
+// The header's slideshow: the venues for now, taking turns between the hotel and the two campuses.
+const slideshowPicks = ['/assets/hotel-gallery/01-lobby-atrium.jpg', '/assets/venues/kasetsart-main-auditorium.jpg', '/assets/gallery/chula-maha-vajiravudh.jpg', '/assets/hotel-gallery/05-grand-ballroom.jpg', '/assets/gallery/ku-sign.jpg', '/assets/gallery/chula-arts-courtyard.jpg', '/assets/gallery/ku-pond.jpg', '/assets/gallery/chula-sala-phra-kieo-hall.jpg']
+const slideshowPhotos = slideshowPicks.flatMap((src) => galleryPhotos.filter((photo) => photo.src === src))
+
 function GalleryCredits({ photos }: { photos: GalleryPhoto[] }) {
   const [first] = photos
   if (photos.every((photo) => photo.creditUrl === first.creditUrl)) return <p className="gallery-credits">Photos: <a href={first.creditUrl} target="_blank" rel="noreferrer">{first.credit}</a></p>
   const fromCommons = photos.every((photo) => photo.creditUrl.startsWith('https://commons.wikimedia.org/'))
   return <p className="gallery-credits">{fromCommons ? 'Photos from Wikimedia Commons' : 'Photos'}: {photos.map((photo, index) => <span key={photo.src}>{index > 0 && ' · '}{photo.caption}, <a href={photo.creditUrl} target="_blank" rel="noreferrer">{photo.credit}</a></span>)}</p>
+}
+
+function GalleryPhotoGrid({ photos, onOpen }: { photos: GalleryPhoto[]; onOpen: (index: number) => void }) {
+  return <div className="gallery-photos">{photos.map((photo) => <button key={photo.src} type="button" className={`gallery-photo${photo.size ? ` gallery-photo-${photo.size}` : ''}`} aria-haspopup="dialog" aria-label={`View photo: ${photo.caption}`} onClick={() => onOpen(galleryPhotos.findIndex((item) => item.src === photo.src))}>
+    <img src={photo.thumb} alt="" loading="lazy" decoding="async" /><span className="gallery-photo-caption">{photo.caption}</span><span className="gallery-photo-zoom" aria-hidden="true"><Maximize2 size={16} /></span>
+  </button>)}</div>
+}
+
+function useReducedMotion() {
+  const query = '(prefers-reduced-motion: reduce)'
+  const [reduced, setReduced] = useState(() => window.matchMedia(query).matches)
+  useEffect(() => {
+    const list = window.matchMedia(query)
+    const update = () => setReduced(list.matches)
+    list.addEventListener('change', update)
+    return () => list.removeEventListener('change', update)
+  }, [])
+  return reduced
+}
+
+// Crossfades to the next photo every 5 seconds. It holds still while the pointer is over it or focus is inside it, after
+// its pause button is pressed, and always for people who ask for reduced motion. A photo is only loaded once it is
+// shown or about to be.
+function GallerySlideshow({ photos }: { photos: typeof galleryPhotos }) {
+  const [active, setActive] = useState(0)
+  const [loaded, setLoaded] = useState(() => new Set([0, 1 % photos.length]))
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const [stopped, setStopped] = useState(false)
+  const reduced = useReducedMotion()
+  const playing = !reduced && !stopped && !hovered && !focused
+  const show = (index: number) => {
+    const next = (index + photos.length) % photos.length
+    setActive(next)
+    setLoaded((current) => new Set([...current, next, (next + 1) % photos.length]))
+  }
+  useEffect(() => {
+    if (!playing) return
+    const timer = window.setTimeout(() => show(active + 1), 5000)
+    return () => window.clearTimeout(timer)
+  })
+  const photo = photos[active]
+  return <section className="gallery-show" aria-roledescription="carousel" aria-label="Photos of the venues"
+    onPointerEnter={(event) => { if (event.pointerType === 'mouse') setHovered(true) }} onPointerLeave={() => setHovered(false)}
+    onFocus={() => setFocused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false) }}>
+    <div className="gallery-show-frame">
+      {photos.map((item, index) => <div key={item.src} className={`gallery-show-slide${index === active ? ' active' : ''}`} role="group" aria-roledescription="slide" aria-label={`${index + 1} of ${photos.length}`} aria-hidden={index !== active}>
+        {loaded.has(index) && <img src={item.src} alt={item.alt} decoding="async" />}
+      </div>)}
+      <button className="carousel-arrow carousel-arrow-left" type="button" onClick={() => show(active - 1)} aria-label="Previous photo"><ChevronLeft /></button>
+      <button className="carousel-arrow carousel-arrow-right" type="button" onClick={() => show(active + 1)} aria-label="Next photo"><ChevronRight /></button>
+    </div>
+    <div className="gallery-show-bar">
+      <p className="gallery-show-caption" aria-live={playing ? 'off' : 'polite'}><span>{photo.album}</span>{photo.caption} · <a href={photo.creditUrl} target="_blank" rel="noreferrer">Photo: {photo.credit}</a></p>
+      <div className="gallery-show-controls">
+        {!reduced && <button type="button" className="gallery-show-pause" onClick={() => setStopped(!stopped)} aria-label={stopped ? 'Play slideshow' : 'Pause slideshow'}>{stopped ? <Play size={15} /> : <Pause size={15} />}</button>}
+        <div className="gallery-show-dots">{photos.map((item, index) => <button key={item.src} type="button" className={index === active ? 'active' : undefined} aria-current={index === active ? 'true' : undefined} onClick={() => show(index)} aria-label={`Show photo ${index + 1}: ${item.caption}`} />)}</div>
+      </div>
+    </div>
+  </section>
 }
 
 function GalleryViewer({ index, onIndex }: { index: number; onIndex: (index: number | null) => void }) {
@@ -807,7 +889,7 @@ function GalleryViewer({ index, onIndex }: { index: number; onIndex: (index: num
     <figure onTouchStart={(event) => { touchStart.current = { x: event.touches[0].clientX, y: event.touches[0].clientY } }} onTouchEnd={(event) => swipe(event.changedTouches[0].clientX, event.changedTouches[0].clientY)}>
       <img key={photo.src} src={photo.src} alt={photo.alt} />
       <figcaption aria-live="polite">
-        <div><span>{photo.venue}</span><strong>{photo.caption}</strong></div>
+        <div><span>{photo.album}</span><strong>{photo.caption}</strong></div>
         <div><a href={photo.creditUrl} target="_blank" rel="noreferrer">Photo: {photo.credit}</a><span className="gallery-viewer-count">{index + 1} / {galleryPhotos.length}</span></div>
       </figcaption>
     </figure>
@@ -818,11 +900,35 @@ function GalleryViewer({ index, onIndex }: { index: number; onIndex: (index: num
 
 function Gallery() {
   const [open, setOpen] = useState<number | null>(null)
-  return <><PageIntro eyebrow="Gallery" title="The week in pictures." body="Photographs from IOL 2027 will be added after the July 2027 programme. Until then, look around the hotel and the two campuses where the week takes place." />
-    <nav className="gallery-jump wrap" aria-label="Gallery sections">
-      {galleryPlaces.map((place) => <a key={place.id} href={`#${place.id}`}><img src={place.photos[0].thumb} alt="" /><span><strong>{place.venue}</strong>{place.photos.length} photos</span></a>)}
-      <a href="#albums" className="gallery-jump-albums"><span className="gallery-jump-icon"><Camera size={22} aria-hidden="true" /></span><span><strong>July 2027</strong>{schedule.length} albums, one for each day</span></a>
-    </nav>
+  return <>
+    <section className="page-intro gallery-intro grain">
+      <div className="gallery-intro-copy"><p className="eyebrow">Gallery</p><h1>The week in pictures.</h1><p className="lede">Photographs from IOL 2027 will be added after the July 2027 programme, one album for each day. Until then, look around the hotel and the two campuses where the week takes place.</p></div>
+      <GallerySlideshow photos={slideshowPhotos} />
+    </section>
+    <section id="albums" className="gallery-days wrap" aria-labelledby="gallery-days-title">
+      <header className="gallery-days-head"><div><p className="eyebrow">21–28 July 2027</p><h2 id="gallery-days-title">One album for every day.</h2></div><p>Photographs from the Olympiad will be added after the week, sorted by day to match the <a href="/programme">programme</a>, from the first arrivals to the last departures.</p></header>
+      <ol className="gallery-days-list">{galleryDays.map((day) => {
+        const Icon = dayIcons[day.day] ?? Camera
+        const [dayOfMonth, month] = day.date.split(' ')
+        const filled = day.photos.length > 0
+        return <li key={day.id} id={day.id} data-venue={day.venue} className={`gallery-day${filled ? ' gallery-day-filled' : ''}`}>
+          <div className="gallery-day-text">
+            <p className="gallery-day-no">{filled ? `${day.day} · ${day.date} · ${day.photos.length} photos` : day.day}</p>
+            <h3>{day.title}</h3>
+            {!filled && <p className="gallery-day-later">Photos from this day will appear here after the Olympiad.</p>}
+          </div>
+          {filled
+            ? <><GalleryPhotoGrid photos={day.photos} onOpen={setOpen} /><GalleryCredits photos={day.photos} /></>
+            : <div className="gallery-day-cover" aria-hidden="true"><span className="gallery-day-icon"><Icon size={20} /></span><strong>{dayOfMonth}<small>{month}</small></strong></div>}
+        </li>
+      })}</ol>
+    </section>
+    <section id="venues" className="gallery-venues"><div className="wrap">
+      <header className="gallery-venues-head"><div><p className="eyebrow">Before the Olympiad</p><h2>See where it happens.</h2></div><p>The week moves between a hotel in central Bangkok and two university campuses. Take a look around them before you arrive.</p></header>
+      <nav className="gallery-jump" aria-label="Venues">
+        {galleryPlaces.map((place) => <a key={place.id} href={`#${place.id}`}><img src={place.photos[0].thumb} alt="" /><span><strong>{place.venue}</strong>{place.photos.length} photos</span><ArrowDown size={18} aria-hidden="true" /></a>)}
+      </nav>
+    </div></section>
     {galleryPlaces.map((place, index) => {
       const venue = venues.find((item) => item.name === place.venue)
       return <section key={place.id} id={place.id} className="gallery-place wrap">
@@ -831,19 +937,10 @@ function Gallery() {
           <div><p className="eyebrow">{venue?.role} · <span className="nowrap">{place.when}</span></p><h2>{place.venue}</h2></div>
           <div><p>{venue?.detail}</p><a className="text-link" href={place.about.href}>{place.about.label} <ArrowRight size={15} /></a></div>
         </header>
-        <div className="gallery-photos">{place.photos.map((photo) => <button key={photo.src} type="button" className={`gallery-photo${photo.size ? ` gallery-photo-${photo.size}` : ''}`} aria-haspopup="dialog" aria-label={`View photo: ${photo.caption}`} onClick={() => setOpen(galleryPhotos.findIndex((item) => item.src === photo.src))}>
-          <img src={photo.thumb} alt="" loading="lazy" decoding="async" /><span className="gallery-photo-caption">{photo.caption}</span><span className="gallery-photo-zoom" aria-hidden="true"><Maximize2 size={16} /></span>
-        </button>)}</div>
+        <GalleryPhotoGrid photos={place.photos} onOpen={setOpen} />
         <GalleryCredits photos={place.photos} />
       </section>
     })}
-    <section id="albums" className="gallery-albums"><div className="wrap">
-      <header className="gallery-albums-head"><div><p className="eyebrow">July 2027</p><h2 className="mixed-heading">One album <em>for every day.</em></h2></div><p>Photographs from the Olympiad will be added after the July 2027 programme, sorted by day, from the first arrivals to the last departures.</p></header>
-      <ol className="gallery-albums-list">{schedule.map((item) => {
-        const Icon = dayIcons[item.day] ?? Camera
-        return <li key={item.day}><div className="gallery-album-cover" aria-hidden="true"><Icon size={24} /><strong>{item.date.split(' ')[0]}<small>{item.date.split(' ')[1]}</small></strong></div><p>{item.day}</p><h3>{item.title}</h3></li>
-      })}</ol>
-    </div></section>
     <SectionLinks links={[{ href: '/programme', label: 'Schedule & venues', detail: 'What happens on each day, and where.' }, { href: '/event-guide/accommodation', label: 'Accommodation', detail: 'Mandarin Hotel Bangkok, the home base for the week.' }, { href: '/hosts', label: 'Hosts', detail: 'POSN, Chulalongkorn University and Kasetsart University.' }]} />
     {open !== null && <GalleryViewer index={open} onIndex={setOpen} />}
   </>
