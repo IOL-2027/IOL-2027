@@ -50,7 +50,7 @@ const guides: Record<Door, GuideItem[]> = {
     },
     {
       icon: MailQuestion, title: 'No invitation code?',
-      body: <>Codes go by email from iol2027.th@gmail.com to the official contact of each accredited country or territory. Check the spam folder, or ask that contact. Still nothing? <a href="mailto:iol2027.th@gmail.com">Write to us</a>. Not accredited yet? Write to the IOL Board at <a href="mailto:contact@ioling.org">contact@ioling.org</a>.</>,
+      body: <>Codes go by email from iol2027.th@gmail.com to the official contact of each accredited country or territory. Check the spam folder, or ask that contact. Still nothing? <a href="mailto:iol2027.th@gmail.com">Write to us</a>.</>,
     },
   ],
   staff: [
