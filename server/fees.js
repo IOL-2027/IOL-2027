@@ -82,6 +82,19 @@ export const defaultSettings = {
   // Badges changed after this day are printed at the registration desk rather than by the print shop.
   // A placeholder until the organisers plan the printing.
   badges: { printCutoff: '2027-07-01' },
+  // Dates and wording the portal shows beside the steps (IOL Board, 16 Nov 2026). Contest languages lock 10 weeks
+  // before the Olympiad; the other deadlines and the pickup times are placeholders until the organisers confirm
+  // them, and the registration admin changes them in the back office.
+  event: {
+    languageLock: '2027-05-12',
+    peopleDeadline: '2027-05-31',
+    travelDeadline: '2027-06-30',
+    // The hotel nights the organisers provide: the night of the first date to the night of the last.
+    hotelFirstNight: '2027-07-21',
+    hotelLastNight: '2027-07-27',
+    pickup: 'Times to be confirmed. We will add them here once the transport plan is ready.',
+    dressCode: 'The opening ceremony is attended by a member of the Thai royal family. The dress code and protocol for the reception will be published here before registration opens.',
+  },
   // The contacts on the back of every badge (format in badge-pdf.js parseBack). Numbers are from each place's own
   // website, October 2026; the hotel's still needs confirming with the hotel.
   badgeBack: {
@@ -129,6 +142,7 @@ export async function loadSettings(db) {
     invoice: { ...defaultSettings.invoice, ...stored.invoice },
     badges: { ...defaultSettings.badges, ...stored.badges },
     badgeBack: { ...defaultSettings.badgeBack, ...stored.badgeBack },
+    event: { ...defaultSettings.event, ...stored.event },
   }
 }
 
@@ -225,6 +239,37 @@ export function feeTier(fees, on = new Date()) {
   return on <= cutoff ? 'early_bird' : 'normal'
 }
 
+// An early-bird invoice still waiting for its proof moves to the regular fee this many days after the last early-bird
+// day, not straight away: a transfer from abroad can take a day or two to arrive (the professor, 17 Nov 2026). Not
+// said on the site, which still gives 12 March.
+export const EARLY_BIRD_GRACE_DAYS = 2
+
+/** Whether an early-bird invoice with no proof yet has run past the grace days, and so moves to the regular fee. */
+export function pastEarlyBirdGrace(fees, on = new Date()) {
+  const cutoff = new Date(`${fees.earlyBirdEnds}T23:59:59+07:00`)
+  return on.getTime() > cutoff.getTime() + EARLY_BIRD_GRACE_DAYS * 24 * 60 * 60 * 1000
+}
+
+const isoDate = (value, name) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value ?? ''))) throw new Error(`${name} must be a date.`)
+  return value
+}
+
+/** Checks the event dates and wording from the back office. */
+export function cleanEvent(input) {
+  const event = {
+    languageLock: isoDate(input.languageLock, 'Language lock date'),
+    peopleDeadline: isoDate(input.peopleDeadline, 'People deadline'),
+    travelDeadline: isoDate(input.travelDeadline, 'Travel deadline'),
+    hotelFirstNight: isoDate(input.hotelFirstNight, 'First hotel night'),
+    hotelLastNight: isoDate(input.hotelLastNight, 'Last hotel night'),
+    pickup: text(input.pickup, 'Airport pickup times', { required: true, max: 1000 }),
+    dressCode: text(input.dressCode, 'Dress code and protocol', { required: true, max: 3000 }),
+  }
+  if (event.hotelLastNight < event.hotelFirstNight) throw new Error('The last hotel night must be on or after the first.')
+  return event
+}
+
 /** How many single rooms a delegation asked for in Team and observers: { teamLeaders: [bool], observers: [bool] }. */
 export const singleRoomCount = (singleRooms) => [...(singleRooms?.teamLeaders ?? []), ...(singleRooms?.observers ?? [])].filter(Boolean).length
 
@@ -235,16 +280,23 @@ export const maxObservers = (fees, numberOfTeams) => fees.maxObserversPerTeam * 
  * Fee lines and total for a delegation: its fee category, teams, observers and single rooms. `tier` defaults to the
  * rate on the given day; an invoice already issued passes its own tier so its amounts and due date stay put.
  */
-export function calculateFees(fees, { numberOfTeams = 1, numberOfObservers = 0, category = 'accredited', singleRooms = 0 }, on = new Date(), tier = feeTier(fees, on)) {
+export function calculateFees(fees, { numberOfTeams = 1, numberOfObservers = 0, category = 'accredited', singleRooms = 0, kind = 'country' }, on = new Date(), tier = feeTier(fees, on)) {
   const rates = fees.teamFees[tier][category] ?? fees.teamFees[tier].accredited
-  const teams = Math.min(Number(numberOfTeams) || 1, rates.length)
+  // Jury members and volunteers bring no team: they pay only for an observer (a jury member may bring one) and a single room.
+  const teams = kind === 'country' ? Math.min(Number(numberOfTeams) || 1, rates.length) : 0
   const observers = Number(numberOfObservers) || 0
   const singles = Number(singleRooms) || 0
   const amount = (n) => `${fees.currency} ${n.toLocaleString('en-US')}`
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
   const observerRate = fees.observerFee
   const rate = `${tierLabels[tier]} rate, ${(feeCategoryLabel[category] ?? feeCategoryLabel.accredited).toLowerCase()}`
-  const lines = [
+  const lines = kind === 'volunteer' ? [
+    {
+      key: 'singleRooms', label: 'Single room', quantity: singles, unit: fees.singleRoomFee,
+      detail: singles ? `A room of your own × ${amount(fees.singleRoomFee)}` : 'None requested: you share a room with another volunteer',
+      amount: singles * fees.singleRoomFee,
+    },
+  ] : [
     // quantity and unit let the invoice word each item ("2 observers (2 × 600.00 USD)").
     ...rates.slice(0, teams).map((unit, i) => ({
       key: i === 0 ? 'team1' : 'team2', label: category === 'non_accredited' ? 'Team' : i === 0 ? 'First team' : 'Second team',
@@ -272,6 +324,7 @@ export function calculateFees(fees, { numberOfTeams = 1, numberOfObservers = 0, 
 /** A delegation's fees from its row. `tier` is the invoice's own once one exists, so its amounts stay put. */
 export const delegationFees = (fees, d, tier = undefined) => calculateFees(fees, {
   numberOfTeams: d.number_of_teams, numberOfObservers: d.number_of_observers, category: d.fee_category, singleRooms: singleRoomCount(d.single_rooms),
+  kind: d.kind ?? 'country',
 }, new Date(), tier ?? feeTier(fees))
 
 /** Whole years of age on a given date. */

@@ -1,7 +1,7 @@
 // Static content for the national representative portal: section copy, select options and field shapes.
 // Live data (people, teams, fees, payments) comes from the registration API; see live.ts.
 
-export type FieldKind = 'text' | 'email' | 'tel' | 'number' | 'date' | 'time' | 'textarea' | 'select' | 'checkboxes' | 'upload'
+export type FieldKind = 'text' | 'email' | 'tel' | 'number' | 'date' | 'time' | 'textarea' | 'select' | 'checkboxes' | 'radio' | 'upload'
 
 export type Field = {
   label: string
@@ -12,6 +12,13 @@ export type Field = {
   optional?: boolean
   /** A select whose "Other" asks which, in words (languages beyond the list). */
   other?: boolean
+  /** Shown but not changed: a field locked by a deadline. */
+  disabled?: boolean
+  /** Earliest and latest dates a date field takes. */
+  min?: string
+  max?: string
+  /** Checkbox options that cannot be ticked here, with why (someone already on another flight). */
+  unavailable?: Record<string, string>
 }
 
 /** Something the system already knows. Shown as text, never as an input. */
@@ -58,9 +65,9 @@ export const selectOptions: Record<string, string[]> = {
   'Single room': ['No, share a room', 'Yes, a single room'],
   'T-shirt style': ['Unisex (standard)', 'Ladies fit'],
   'Observer category': ['Regular observer', 'Guest observer', 'Observer pending approval'],
-  'Arrival point': ['Suvarnabhumi Airport (BKK)', 'Don Mueang Airport (DMK)', 'Bangkok railway station', 'Other'],
-  'Departure point': ['Suvarnabhumi Airport (BKK)', 'Don Mueang Airport (DMK)', 'Bangkok railway station', 'Other'],
-  'Airport terminal': ['Main terminal', 'Domestic terminal', 'International terminal', 'Not sure'],
+  // Airport pickup and drop-off are from these two airports only (IOL Board, 16 Nov 2026).
+  'Arrival airport': ['Suvarnabhumi Airport (BKK)', 'Don Mueang Airport (DMK)'],
+  'Departure airport': ['Suvarnabhumi Airport (BKK)', 'Don Mueang Airport (DMK)'],
 }
 
 /** People fields are shown in these groups, in this order. Unlisted fields go last. */
@@ -68,7 +75,9 @@ export const personFieldGroups: { legend: string; note?: string; labels: string[
   { legend: 'Role and names', labels: ['Role', 'Team assignment', 'Observer category', 'Display name', 'Badge name', 'Official name', 'Email'] },
   { legend: 'Passport', note: 'Only used to match travel and hotel records.', labels: ['Passport name', 'Passport number', 'Passport nationality', 'Date of birth'] },
   { legend: 'Contest and stay', labels: ['Individual contest language', 'Gender for room allocation', 'T-shirt size', 'Polo shirt size', 'T-shirt style'] },
-  { legend: 'Welfare and safety', note: 'Seen only by the organising team, to keep everyone safe and fed.', labels: ['Food and allergy notes', 'Medical or accessibility notes', 'Emergency contact'] },
+  { legend: 'Food', note: 'Seen only by the organising team and the caterers.', labels: ['Food', 'Food details'] },
+  { legend: 'Welfare and safety', note: 'Seen only by the organising team, to keep everyone safe.', labels: ['Medical or accessibility notes', 'Emergency contact'] },
+  { legend: 'Photos and videos', labels: ['Photos and videos'] },
 ]
 
 export const sections: Section[] = [
@@ -78,7 +87,7 @@ export const sections: Section[] = [
   { id: 'teams', title: 'Teams', required: true, intro: 'Each team needs its team contest language. Contestants are put in a team on their own record in People.', records: { noun: 'team', plural: 'teams' } },
   { id: 'people', title: 'People', required: true, intro: 'Everyone coming with your delegation. Each person is saved on their own, so you can fill this in stages. Opens once the proof of payment is uploaded.', records: { noun: 'person', plural: 'people' } },
   { id: 'welfare', title: 'Rooms and welfare', required: true, intro: 'Check what the welfare team will see about your delegation, and tell them about any room requests.' },
-  { id: 'travel', title: 'Travel', required: true, intro: 'Your stay dates set the hotel nights we reserve, so they are needed now. Flights can wait until they are booked. Once everyone’s arrival and departure are in and the payment is confirmed, we email you everyone’s badges.', records: { noun: 'trip', plural: 'trips' } },
+  { id: 'travel', title: 'Travel', required: true, intro: 'Each person’s arrival and departure, added once flights are booked. Once everyone’s are in and the payment is confirmed, we email you everyone’s badges.', records: { noun: 'trip', plural: 'trips' } },
   { id: 'submit', title: 'Submit', required: false, intro: 'Where every step stands, and anything still missing. Once steps 1 to 6 are done, you submit your registration here.' },
   {
     id: 'badges', title: 'Badges and check-in', required: false, afterSubmission: true,

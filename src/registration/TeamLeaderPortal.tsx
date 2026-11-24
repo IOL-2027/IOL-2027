@@ -20,7 +20,7 @@ const heroCopy: Record<Door, { eyebrow: string; title: ReactNode; lede: string }
   team: {
     eyebrow: 'National representative portal',
     title: <>Register your country for <em>IOL&nbsp;2027.</em></>,
-    lede: 'One national representative registers the whole delegation: teams, payment, people and travel. Everything you save is kept, so it can be done over several sittings.',
+    lede: 'One national representative registers the whole delegation: teams, payment, people and travel. Everything you save is kept, so it can be done over several sittings. Invited jury members and volunteers register here too, each with their own code.',
   },
   staff: {
     eyebrow: 'Organisers',

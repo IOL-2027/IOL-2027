@@ -18,7 +18,7 @@ import {
   checkPasswordRules, createSession, destroySession, filterMember, hashPassword, loginBlocked, recordLogin,
   requireAuth, requireRequestHeader, requireRole, requireVerified, sessionMiddleware, verifyPassword,
 } from './auth.js'
-import { delegationFees, feeTier, loadSettings, maxObservers, needsGuardianConsent } from './fees.js'
+import { delegationFees, feeTier, loadSettings, maxObservers, needsGuardianConsent, pastEarlyBirdGrace } from './fees.js'
 import {
   asyncHandler, buildUpdate, camelizeRow, camelizeRows, hashToken, insertAudit, isEmail, missingMemberDetails,
   exposeDevCodes, optionalNumber, optionalString, pool, query, requireDb, requiredString, portalUrl, withTransaction,
@@ -41,7 +41,7 @@ if (corsOrigins?.length) app.use(cors({ origin: corsOrigins, credentials: true }
 app.use(express.json({ limit: '1mb' }))
 app.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next() })
 // Scheduled work signs in with a Google token, not a session (jobs.js).
-registerJobRoutes(app)
+registerJobRoutes(app, { missingForSubmission })
 app.use(sessionMiddleware(requireDb))
 app.use(requireRequestHeader)
 
@@ -63,9 +63,21 @@ const MAX_PROOF_FILES = 10
 
 function normalizeRole(role) {
   const value = requiredString(role, 'role').toLowerCase().replaceAll(' ', '_')
-  if (!['contestant', 'team_leader', 'observer'].includes(value)) throw new HttpError(400, 'Invalid member role.')
+  if (!['contestant', 'team_leader', 'observer', 'jury', 'volunteer'].includes(value)) throw new HttpError(400, 'Invalid member role.')
   return value
 }
+
+// Food options people tick in People, several at once (IOL Board, 16 Nov 2026). A starting list until catering
+// confirms what they offer; "Other" asks for details in the food notes.
+const DIET_OPTIONS = ['No special diet', 'Vegetarian', 'Vegan', 'Halal', 'Kosher', 'No pork', 'No beef', 'Gluten-free', 'Lactose-free', 'Nut allergy', 'Seafood or shellfish allergy', 'Other']
+// Airport pickup and drop-off are from these two airports only.
+const AIRPORTS = ['Suvarnabhumi Airport (BKK)', 'Don Mueang Airport (DMK)']
+// Flights are checked against a window around the programme (21 to 28 July 2027).
+const TRAVEL_WINDOW = { first: '2027-07-07', last: '2027-08-11' }
+const longDate = (iso) => new Date(`${iso}T12:00:00+07:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' })
+/** True once the end of this day (Bangkok time) has passed. */
+const pastDay = (iso, now = new Date()) => now > new Date(`${iso}T23:59:59+07:00`)
+const isAdmin = (req) => DELEGATION_ADMINS.includes(req.user.role)
 
 function normalizeDirection(direction) {
   const value = requiredString(direction, 'direction').toLowerCase()
@@ -145,21 +157,21 @@ const maskEmail = (email) => `${email[0]}•••••${email.slice(email.inde
 app.post('/api/registration/invite/verify', asyncHandler(async (req, res) => {
   const code = requiredString(req.body.code, 'invite code').toUpperCase()
   const invite = (await query(
-    `SELECT i.code, i.country_territory, i.accredited_organisation, i.max_teams, i.status, i.used_by_account_id, a.email AS used_by_email
+    `SELECT i.code, i.country_territory, i.accredited_organisation, i.max_teams, i.status, i.used_by_account_id, i.kind, i.shared, a.email AS used_by_email
      FROM invite_codes i LEFT JOIN accounts a ON a.id = i.used_by_account_id WHERE i.code = $1`,
     [code],
   )).rows[0]
   // A used code means the Team Leader account already exists (often someone who left before finishing),
-  // so the answer sends them to sign in rather than saying the code is wrong.
-  if (invite && (invite.status === 'used' || invite.used_by_account_id)) {
+  // so the answer sends them to sign in rather than saying the code is wrong. A shared code (jury, volunteers) is never used up.
+  if (invite && !invite.shared && (invite.status === 'used' || invite.used_by_account_id)) {
     return res.status(409).json({
       error: `This code has already been used to create the account for ${invite.country_territory}. Sign in with that account instead.`,
       codeUsed: true, countryTerritory: invite.country_territory, accountHint: invite.used_by_email ? maskEmail(invite.used_by_email) : null,
     })
   }
   if (invite?.status !== 'active') throw new HttpError(404, 'That code was not found. Check the invitation email, or contact the organisers.')
-  const { country_territory, accredited_organisation, max_teams } = invite
-  res.json({ invite: camelizeRow({ code: invite.code, country_territory, accredited_organisation, max_teams }) })
+  const { country_territory, accredited_organisation, max_teams, kind } = invite
+  res.json({ invite: camelizeRow({ code: invite.code, country_territory, accredited_organisation, max_teams, kind }) })
 }))
 
 /* ------------------------------------------------------------------ */
@@ -170,9 +182,11 @@ async function currentUserPayload(user) {
   if (!user) return { user: null }
   const payload = { user: { ...user } }
   if (user.role === 'team_leader') {
-    const d = await query('SELECT id, country_territory FROM delegations WHERE account_id = $1 ORDER BY created_at LIMIT 1', [user.id])
+    const d = await query('SELECT id, country_territory, kind FROM delegations WHERE account_id = $1 ORDER BY created_at LIMIT 1', [user.id])
     payload.user.delegationId = d.rows[0]?.id ?? null
     payload.user.country = d.rows[0]?.country_territory ?? null
+    // A country's national representative, or a jury member or volunteer registering themselves.
+    payload.user.kind = d.rows[0]?.kind ?? 'country'
   }
   return payload
 }
@@ -260,7 +274,7 @@ app.post('/api/registration/team-leader-account', asyncHandler(async (req, res) 
 
   const created = await withTransaction(async (client) => {
     const invite = (await client.query(
-      `SELECT * FROM invite_codes WHERE code = $1 AND status = 'active' AND used_by_account_id IS NULL FOR UPDATE`,
+      `SELECT * FROM invite_codes WHERE code = $1 AND status = 'active' AND (shared OR used_by_account_id IS NULL) FOR UPDATE`,
       [inviteCode],
     )).rows[0]
     if (!invite) throw new HttpError(404, 'That code was not found or has already been used.')
@@ -281,15 +295,17 @@ app.post('/api/registration/team-leader-account', asyncHandler(async (req, res) 
       `INSERT INTO accounts (email, full_name, password_hash, role) VALUES ($1, $2, $3, 'team_leader') RETURNING *`,
       [email, fullName, hashPassword(req.body.password)],
     )).rows[0]
+    // A jury member or volunteer registers only themselves (a jury member may bring an observer): no teams, no contestants.
+    const country = invite.kind === 'country'
     const delegation = (await client.query(
       `INSERT INTO delegations (account_id, invite_code_id, country_territory, accredited_organisation,
-         national_representative_name, team_leader_email, registration_contact_email, number_of_teams, number_of_contestants, number_of_observers, fee_category)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 4, 0, $8) RETURNING *`,
-      [account.id, invite.id, invite.country_territory, invite.accredited_organisation, fullName, email, invite.contact_email, invite.fee_category],
+         national_representative_name, team_leader_email, registration_contact_email, number_of_teams, number_of_contestants, number_of_observers, fee_category, kind)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $9, 0, $8, $10) RETURNING *`,
+      [account.id, invite.id, invite.country_territory, invite.accredited_organisation, fullName, email, country ? invite.contact_email : email, invite.fee_category, 4, invite.kind],
     )).rows[0]
     // Team Leaders are named in Team and observers, which adds their records to People.
-    await ensureTeams(client, delegation)
-    if (!reuse) await client.query(`UPDATE invite_codes SET status = 'used', used_at = now(), used_by_account_id = $1, updated_at = now() WHERE id = $2`, [account.id, invite.id])
+    if (country) await ensureTeams(client, delegation)
+    if (!reuse && !invite.shared) await client.query(`UPDATE invite_codes SET status = 'used', used_at = now(), used_by_account_id = $1, updated_at = now() WHERE id = $2`, [account.id, invite.id])
     await insertAudit(client, { actorAccountId: account.id, delegationId: delegation.id, eventType: 'team_leader_account_created', entityType: 'delegation', entityId: delegation.id, details: { inviteCode } })
     return { account, delegation }
   })
@@ -377,7 +393,7 @@ app.get('/api/registration/delegations/:delegationId', ...signedIn, delegationAc
   const [settings, teams, members, travel, payments, attachments, badges] = await Promise.all([
     loadSettings(requireDb()),
     query('SELECT * FROM teams WHERE delegation_id = $1 ORDER BY code', [id]),
-    query(`SELECT * FROM members WHERE delegation_id = $1 ORDER BY CASE role WHEN 'team_leader' THEN 0 WHEN 'contestant' THEN 1 ELSE 2 END, created_at`, [id]),
+    query(`SELECT * FROM members WHERE delegation_id = $1 ORDER BY CASE role WHEN 'contestant' THEN 1 WHEN 'observer' THEN 2 ELSE 0 END, created_at`, [id]),
     query(
       `SELECT tr.*, COALESCE(json_agg(trp.member_id) FILTER (WHERE trp.member_id IS NOT NULL), '[]'::json) AS member_ids
        FROM travel_records tr LEFT JOIN travel_record_people trp ON trp.travel_record_id = tr.id
@@ -400,6 +416,9 @@ app.get('/api/registration/delegations/:delegationId', ...signedIn, delegationAc
       teamFees: settings.fees.teamFees[fees.tier][fees.category] ?? settings.fees.teamFees[fees.tier].accredited,
     },
     guardianConsent: settings.guardianConsent,
+    // Deadlines and wording shown beside the steps, and the choices People and Travel offer.
+    event: { ...settings.event, languagesLocked: pastDay(settings.event.languageLock), travelLocked: pastDay(settings.event.travelDeadline), peopleLocked: pastDay(settings.event.peopleDeadline), earlyBirdEnds: settings.fees.earlyBirdEnds, registrationEnds: settings.fees.registrationEnds },
+    options: { diets: DIET_OPTIONS, airports: AIRPORTS, travelWindow: TRAVEL_WINDOW },
     bank: settings.invoice.bank,
     teams: camelizeRows(teams.rows),
     members: camelizeRows(members.rows.map((m) => ({ ...filterMember(m, req.user.role), needs_guardian_consent: needsGuardianConsent(m, settings.guardianConsent) }))),
@@ -412,13 +431,20 @@ app.get('/api/registration/delegations/:delegationId', ...signedIn, delegationAc
 
 app.patch('/api/registration/delegations/:delegationId', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
   const body = { ...req.body }
-  const current = (await query('SELECT number_of_teams, number_of_observers, fee_category, single_rooms FROM delegations WHERE id = $1', [req.params.delegationId])).rows[0]
+  const current = (await query('SELECT number_of_teams, number_of_observers, fee_category, single_rooms, kind FROM delegations WHERE id = $1', [req.params.delegationId])).rows[0]
   if (!current) throw new HttpError(404, 'Delegation not found.')
+  const country = current.kind === 'country'
+  // A jury member registers themselves and may bring one observer; a volunteer comes alone.
+  if (!country && 'numberOfTeams' in body) throw new HttpError(400, 'Jury members and volunteers register without a team.')
+  if (current.kind === 'volunteer' && (Number(body.numberOfObservers) > 0 || (Array.isArray(body.observerTeams) && body.observerTeams.length))) throw new HttpError(400, 'Volunteers register on their own, without an observer.')
+  if ('needsAccommodation' in body && typeof body.needsAccommodation !== 'boolean') throw new HttpError(400, 'Say whether you need a hotel room.')
   // Team and observers sets the amount paid, so it is locked once the proof of payment is in (admins can still change it).
   if (['numberOfTeams', 'numberOfObservers', 'observerTeams', 'singleRooms'].some((key) => key in body) && !DELEGATION_ADMINS.includes(req.user.role) && await proofIsIn(requireDb(), req.params.delegationId)) {
     throw new HttpError(409, 'Your proof of payment is uploaded, so Team and observers is locked: it sets the amount you paid. Email the organisers to change it.')
   }
   const { fees } = await loadSettings(requireDb())
+  // Without a hotel room there is no single room to pay for.
+  if (body.needsAccommodation === false && body.singleRooms) body.singleRooms = { ...body.singleRooms, teamLeaders: [false] }
   if ('numberOfTeams' in body) {
     const teams = Number(body.numberOfTeams)
     if (![1, 2].includes(teams)) throw new HttpError(400, 'A country can register one or two teams.')
@@ -454,15 +480,31 @@ app.patch('/api/registration/delegations/:delegationId', ...signedIn, delegation
   }
   delete body.observerTeams
   // Who registers and who leads each team, from Team and observers. Not locked by the proof: names do not change fees.
+  // The national representative is the country's one main contact, even with two teams, and may lead either team or
+  // neither (representativeTeam 0, 1 or null). Each team has its own Team Leader (IOL Board, 16 Nov 2026).
   let leaderNames = null
-  if ('nationalRepresentativeName' in body || 'representativeIsTeamLeader' in body || 'teamLeaderNames' in body) {
-    const name = requiredString(body.nationalRepresentativeName, 'National representative’s name')
+  let selfName = null
+  if (['nationalRepresentativeName', 'representativeTeam', 'representativeIsTeamLeader', 'teamLeaderNames'].some((key) => key in body)) {
+    const name = requiredString(body.nationalRepresentativeName, country ? 'National representative’s name' : 'Your full name')
     if (name.length > 200) throw new HttpError(400, 'The name must be at most 200 characters.')
-    if (typeof body.representativeIsTeamLeader !== 'boolean') throw new HttpError(400, 'Say whether the national representative is also a Team Leader.')
-    const given = Array.isArray(body.teamLeaderNames) ? body.teamLeaderNames : []
-    leaderNames = Array.from({ length: teams }, (_, i) => (i === 0 && body.representativeIsTeamLeader ? name : String(given[i] ?? '').trim().slice(0, 200)))
-    if (!leaderNames[0]) throw new HttpError(400, 'Enter the Team Leader’s name.')
     body.nationalRepresentativeName = name
+    if (country) {
+      // Pages from before 17 Nov 2026 send representativeIsTeamLeader, meaning the first team.
+      const team = 'representativeTeam' in body ? body.representativeTeam
+        : typeof body.representativeIsTeamLeader === 'boolean' ? (body.representativeIsTeamLeader ? 0 : null) : undefined
+      if (team === undefined) throw new HttpError(400, 'Say whether the national representative is also a Team Leader, and of which team.')
+      if (team !== null && (!Number.isInteger(team) || team < 0 || team >= teams)) throw new HttpError(400, 'Choose one of your teams for the national representative.')
+      const given = Array.isArray(body.teamLeaderNames) ? body.teamLeaderNames : []
+      leaderNames = Array.from({ length: teams }, (_, i) => (i === team ? name : String(given[i] ?? '').trim().slice(0, 200)))
+      const gap = leaderNames.findIndex((n) => !n)
+      if (gap >= 0) throw new HttpError(400, teams === 1 ? 'Enter the Team Leader’s name.' : `Enter the ${gap === 0 ? 'first' : 'second'} team’s Team Leader: each team has its own Team Leader.`)
+      body.representativeTeam = team
+      body.representativeIsTeamLeader = team !== null
+    } else {
+      selfName = name
+      delete body.representativeTeam
+      delete body.representativeIsTeamLeader
+    }
   }
   delete body.teamLeaderNames
   if ('completedSteps' in body) {
@@ -488,16 +530,28 @@ app.patch('/api/registration/delegations/:delegationId', ...signedIn, delegation
     singleRooms: 'single_rooms',
     nationalRepresentativeName: 'national_representative_name',
     representativeIsTeamLeader: 'representative_is_team_leader',
+    representativeTeam: 'representative_team',
+    needsAccommodation: 'needs_accommodation',
   }
   const delegation = await withTransaction(async (client) => {
     const { sets, values } = buildUpdate(body, fieldMap)
     values.push(req.params.delegationId)
     const result = await client.query(`UPDATE delegations SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values)
     if (!result.rowCount) throw new HttpError(404, 'Delegation not found.')
-    if ('numberOfTeams' in body || leaderNames) await ensureTeams(client, result.rows[0])
-    if (leaderNames) {
-      await syncTeamLeaders(client, result.rows[0], leaderNames)
-      // The account is the representative's: emails and the page header greet them by this name.
+    // Down to one team: the second team's Team Leader (named in Team and observers) goes with it, and its contestants
+    // wait for a team again, so the second team can be removed.
+    if (country && result.rows[0].number_of_teams === 1) {
+      const extra = (await client.query('SELECT id FROM teams WHERE delegation_id = $1 ORDER BY code OFFSET 1', [result.rows[0].id])).rows.map((t) => t.id)
+      if (extra.length) {
+        await client.query(`DELETE FROM members WHERE role = 'team_leader' AND team_id = ANY($1)`, [extra])
+        await client.query('UPDATE members SET team_id = NULL, updated_at = now() WHERE team_id = ANY($1)', [extra])
+      }
+    }
+    if (country && ('numberOfTeams' in body || leaderNames)) await ensureTeams(client, result.rows[0])
+    if (leaderNames) await syncTeamLeaders(client, result.rows[0], leaderNames)
+    if (selfName) await syncSelf(client, result.rows[0], selfName)
+    if (leaderNames || selfName) {
+      // The account is the representative's (or the jury member's or volunteer's own): emails and the page header greet them by this name.
       await client.query('UPDATE accounts SET full_name = $1, updated_at = now() WHERE id = $2', [body.nationalRepresentativeName, result.rows[0].account_id])
       if (!('singleRooms' in body)) await syncSingleRooms(client, result.rows[0].id)
     }
@@ -607,6 +661,10 @@ app.post('/api/registration/delegations/:delegationId/teams', ...signedIn, deleg
 
 app.patch('/api/registration/teams/:teamId', ...signedIn, childAccess('teams', 'teamId'), asyncHandler(async (req, res) => {
   const body = { ...req.body }
+  if ('contestLanguage' in body) {
+    const before = (await query('SELECT contest_language FROM teams WHERE id = $1', [req.params.teamId])).rows[0]
+    await checkLanguageOpen(req, (optionalString(body.contestLanguage) ?? null) !== (before?.contest_language ?? null))
+  }
   if ('contestLanguage' in body) body.status = optionalString(body.contestLanguage) ? 'ready' : 'draft'
   const { sets, values } = buildUpdate(body, { name: 'name', contestLanguage: 'contest_language', status: 'status' })
   values.push(req.params.teamId)
@@ -626,6 +684,8 @@ const memberFields = {
   passportNumber: 'passport_number',
   passportNationality: 'passport_nationality',
   dateOfBirth: 'date_of_birth',
+  diet: 'diet',
+  photoConsent: 'photo_consent',
   genderForRoomAllocation: 'gender_for_room_allocation',
   examLanguage: 'exam_language',
   tshirtSize: 'tshirt_size',
@@ -644,9 +704,10 @@ const memberFields = {
  */
 async function requirePeopleOpen(req, delegationId) {
   if (DELEGATION_ADMINS.includes(req.user.role)) return
-  // Some delegations have it open from the start (the account the IOL committee reviews the site with).
-  const early = await query('SELECT people_open_early FROM delegations WHERE id = $1', [delegationId])
-  if (early.rows[0]?.people_open_early) return
+  // Some delegations have it open from the start (the account the IOL committee reviews the site with), and so do
+  // jury members and volunteers, who pay nothing unless they bring an observer or ask for a single room.
+  const early = await query('SELECT people_open_early, kind FROM delegations WHERE id = $1', [delegationId])
+  if (early.rows[0]?.people_open_early || early.rows[0]?.kind !== 'country') return
   if (!(await proofIsIn(requireDb(), delegationId))) throw new HttpError(409, 'People opens once proof of payment is uploaded.')
 }
 
@@ -656,49 +717,96 @@ async function proofIsIn(db, delegationId) {
   return result.rowCount > 0
 }
 
+/** Renames a person's record; their badge and official names follow when they still matched the old name. */
+async function renameMember(db, member, name, email, teamId = member.team_id) {
+  if (member.display_name === name && member.email === email && member.team_id === teamId) return
+  await db.query(
+    `UPDATE members SET display_name = $1, email = $3, team_id = $4,
+       badge_name = CASE WHEN badge_name IS NULL OR badge_name = '' OR badge_name = display_name THEN $1 ELSE badge_name END,
+       official_name = CASE WHEN official_name = '' OR official_name = display_name THEN $1 ELSE official_name END,
+       updated_at = now() WHERE id = $2`,
+    [name, member.id, email, teamId],
+  )
+}
+
 /**
- * The Team Leaders named in Team and observers, one per team in order (an empty name leaves that team's for later).
- * A record already there is renamed; its badge and official names follow when they still matched the old name, so
- * names corrected in People are kept. A new record joins its team, and the representative's has the account's email.
+ * The Team Leaders named in Team and observers, one for each team. Each team's record is the one assigned to it (or
+ * one not assigned to a team yet); it is renamed when the name changes, so details entered in People stay. A new
+ * record joins its team, and the national representative's own Team Leader record carries the account's email.
  */
 async function syncTeamLeaders(db, delegation, names) {
   const teams = (await db.query('SELECT id FROM teams WHERE delegation_id = $1 ORDER BY code', [delegation.id])).rows
   const leaders = (await db.query(`SELECT * FROM members WHERE delegation_id = $1 AND role = 'team_leader' ORDER BY created_at`, [delegation.id])).rows
+  const taken = new Set()
+  const recordOf = (teamId) => leaders.find((l) => !taken.has(l.id) && l.team_id === teamId) ?? leaders.find((l) => !taken.has(l.id) && !l.team_id)
   for (const [i, name] of names.entries()) {
-    if (!name) continue
-    const leader = leaders[i]
-    // The representative's own Team Leader record carries the account's email; another person's does not get it.
-    const own = i === 0 && delegation.representative_is_team_leader
+    if (!name || !teams[i]) continue
+    const leader = recordOf(teams[i].id)
+    const own = i === delegation.representative_team
     if (leader) {
+      taken.add(leader.id)
       const email = own ? delegation.team_leader_email : leader.email === delegation.team_leader_email ? null : leader.email
-      if (leader.display_name === name && leader.email === email) continue
-      await db.query(
-        `UPDATE members SET display_name = $1, email = $3,
-           badge_name = CASE WHEN badge_name IS NULL OR badge_name = '' OR badge_name = display_name THEN $1 ELSE badge_name END,
-           official_name = CASE WHEN official_name = '' OR official_name = display_name THEN $1 ELSE official_name END,
-           updated_at = now() WHERE id = $2`,
-        [name, leader.id, email],
-      )
+      await renameMember(db, leader, name, email, teams[i].id)
     } else {
-      const email = own ? delegation.team_leader_email : null
       await db.query(
         `INSERT INTO members (delegation_id, team_id, role, display_name, badge_name, official_name, email) VALUES ($1, $2, 'team_leader', $3, $3, $3, $4)`,
-        [delegation.id, teams[i]?.id ?? null, name, email],
+        [delegation.id, teams[i].id, name, own ? delegation.team_leader_email : null],
       )
     }
   }
 }
 
-/** The first team's Team Leader: the first Team Leader record, named in Team and observers. */
-async function primaryLeaderId(delegationId) {
-  return (await query(`SELECT id FROM members WHERE delegation_id = $1 AND role = 'team_leader' ORDER BY created_at LIMIT 1`, [delegationId])).rows[0]?.id
+/** A jury member's or volunteer's own record in People, named from their setup step, with the account's email. */
+async function syncSelf(db, delegation, name) {
+  const self = (await db.query('SELECT * FROM members WHERE delegation_id = $1 AND role = $2 ORDER BY created_at LIMIT 1', [delegation.id, delegation.kind])).rows[0]
+  if (self) await renameMember(db, self, name, delegation.team_leader_email)
+  else {
+    await db.query(
+      'INSERT INTO members (delegation_id, role, display_name, badge_name, official_name, email) VALUES ($1, $2, $3, $3, $3, $4)',
+      [delegation.id, delegation.kind, name, delegation.team_leader_email],
+    )
+  }
 }
 
-/** Each team has one Team Leader, included in its fee: with two teams, one more person may be a Team Leader. */
-async function checkLeaderPlace(delegationId, memberId = null) {
-  const d = (await query('SELECT number_of_teams FROM delegations WHERE id = $1', [delegationId])).rows[0]
-  const others = (await query(`SELECT count(*)::int AS n FROM members WHERE delegation_id = $1 AND role = 'team_leader' AND id IS DISTINCT FROM $2`, [delegationId, memberId])).rows[0].n
-  if (others >= d.number_of_teams) throw new HttpError(400, d.number_of_teams === 1 ? 'One team has one Team Leader. Register this person as an observer.' : 'Each team already has its Team Leader. Register this person as an observer.')
+/**
+ * People must match Team and observers, which set the fees (IOL Board, 16 Nov 2026): four contestants for each team,
+ * one Team Leader for each team (named in Team and observers), and the observers chosen there. The organisers can add
+ * more (special guests) from the back office, so these limits are for the national representative.
+ */
+async function checkPlace(req, delegationId, role, teamId, memberId = null) {
+  if (isAdmin(req)) return
+  const d = (await query('SELECT number_of_teams, number_of_observers, kind FROM delegations WHERE id = $1', [delegationId])).rows[0]
+  const others = (await query('SELECT role, team_id FROM members WHERE delegation_id = $1 AND id IS DISTINCT FROM $2', [delegationId, memberId])).rows
+  const count = (test) => others.filter(test).length
+  if (role === 'team_leader') throw new HttpError(400, 'Team Leaders are named in Team and observers. Add this person as a contestant or an observer, or change the Team Leaders there.')
+  if (role === 'jury' || role === 'volunteer') throw new HttpError(400, 'This record is made from your own details in the first step.')
+  if (role === 'contestant') {
+    if (d.kind !== 'country') throw new HttpError(400, 'Only country delegations bring contestants.')
+    const places = 4 * d.number_of_teams
+    if (count((m) => m.role === 'contestant') >= places) throw new HttpError(400, `Your ${d.number_of_teams === 1 ? 'team has' : 'two teams have'} ${places} contestant places, and all are taken.`)
+    if (teamId && count((m) => m.role === 'contestant' && m.team_id === teamId) >= 4) throw new HttpError(400, 'That team already has four contestants. Put this contestant in your other team.')
+  }
+  if (role === 'observer' && count((m) => m.role === 'observer') >= d.number_of_observers) {
+    throw new HttpError(400, d.number_of_observers
+      ? `You chose ${d.number_of_observers === 1 ? 'one observer' : `${d.number_of_observers} observers`} in Team and observers, and ${d.number_of_observers === 1 ? 'they are' : 'all are'} already in People. To bring another, add one in Team and observers (before the proof of payment), or email the organisers.`
+      : 'You chose no observers in Team and observers. Add one there first (before the proof of payment), or email the organisers.')
+  }
+}
+
+/** Contest languages lock 10 weeks before the Olympiad (IOL Board, 16 Nov 2026); the organisers can still change them. */
+async function checkLanguageOpen(req, changing) {
+  if (!changing || isAdmin(req)) return
+  const { event } = await loadSettings(requireDb())
+  if (pastDay(event.languageLock)) throw new HttpError(409, `Contest languages could be changed until ${longDate(event.languageLock)}. To change one now, email the organisers.`)
+}
+
+/** Diets are ticked from a list; "No special diet" stands alone. */
+function cleanDiet(value) {
+  if (value === null) return []
+  if (!Array.isArray(value) || value.some((v) => !DIET_OPTIONS.includes(v))) throw new HttpError(400, 'Choose food options from the list.')
+  const diet = [...new Set(value)]
+  if (diet.includes('No special diet') && diet.length > 1) throw new HttpError(400, '“No special diet” cannot be ticked with other food options.')
+  return diet
 }
 
 /**
@@ -709,11 +817,13 @@ async function checkLeaderPlace(delegationId, memberId = null) {
 async function syncSingleRooms(db, delegationId) {
   const d = (await db.query('SELECT single_rooms FROM delegations WHERE id = $1', [delegationId])).rows[0]
   if (!d) return
+  // A jury member's or volunteer's own answer is kept where a Team Leader's would be.
   const answers = { team_leader: d.single_rooms?.teamLeaders ?? [], observer: d.single_rooms?.observers ?? [] }
-  const people = (await db.query(`SELECT id, role FROM members WHERE delegation_id = $1 AND role IN ('team_leader', 'observer') ORDER BY created_at`, [delegationId])).rows
+  const people = (await db.query(`SELECT id, role FROM members WHERE delegation_id = $1 AND role IN ('team_leader', 'observer', 'jury', 'volunteer') ORDER BY created_at`, [delegationId])).rows
   const seen = { team_leader: 0, observer: 0 }
   for (const person of people) {
-    const answer = answers[person.role][seen[person.role]++]
+    const kind = person.role === 'observer' ? 'observer' : 'team_leader'
+    const answer = answers[kind][seen[kind]++]
     const value = answer === undefined ? null : answer ? 'single' : 'shared'
     await db.query('UPDATE members SET room_type_preference = $1, updated_at = now() WHERE id = $2 AND room_type_preference IS DISTINCT FROM $1', [value, person.id])
   }
@@ -729,8 +839,11 @@ app.post('/api/registration/delegations/:delegationId/members', ...signedIn, del
   await requirePeopleOpen(req, req.params.delegationId)
   const body = { ...req.body, role: normalizeRole(req.body.role || 'contestant') }
   delete body.roomTypePreference // set from Team and observers (syncSingleRooms)
-  if (body.role === 'team_leader') await checkLeaderPlace(req.params.delegationId)
   await checkTeamBelongs(body.teamId, req.params.delegationId)
+  await checkPlace(req, req.params.delegationId, body.role, body.teamId)
+  await checkLanguageOpen(req, Boolean(optionalString(body.examLanguage)))
+  if ('diet' in body) body.diet = cleanDiet(body.diet)
+  if ('photoConsent' in body && body.photoConsent !== null && typeof body.photoConsent !== 'boolean') throw new HttpError(400, 'Answer yes or no to photo and video consent.')
   requiredString(body.displayName, 'Display name')
   const entries = Object.entries(memberFields).filter(([key]) => key in body)
   const columns = ['delegation_id', ...entries.map(([, column]) => column)]
@@ -748,13 +861,22 @@ app.patch('/api/registration/members/:memberId', ...signedIn, childAccess('membe
   await requirePeopleOpen(req, req.delegationId)
   const body = { ...req.body }
   delete body.roomTypePreference // set from Team and observers (syncSingleRooms)
-  if (body.role) {
-    body.role = normalizeRole(body.role)
-    const primary = await primaryLeaderId(req.delegationId)
-    if (req.params.memberId === primary && body.role !== 'team_leader') throw new HttpError(400, 'The first team’s Team Leader is named in Team and observers, so they stay the Team Leader.')
-    if (body.role === 'team_leader' && req.params.memberId !== primary) await checkLeaderPlace(req.delegationId, req.params.memberId)
+  const before = (await query('SELECT role, team_id, exam_language FROM members WHERE id = $1', [req.params.memberId])).rows[0]
+  // Team Leaders (and a jury member's or volunteer's own record) come from the first step: their role and team are set there.
+  const fromSetup = ['team_leader', 'jury', 'volunteer'].includes(before.role)
+  if (fromSetup && !isAdmin(req)) {
+    if (body.role && normalizeRole(body.role) !== before.role) throw new HttpError(400, before.role === 'team_leader' ? 'Team Leaders are named in Team and observers. Change them there.' : 'Your own record stays as it is.')
+    delete body.role
+    delete body.teamId
   }
+  if (body.role) body.role = normalizeRole(body.role)
   await checkTeamBelongs(body.teamId, req.delegationId)
+  const role = body.role ?? before.role
+  const teamId = 'teamId' in body ? body.teamId : before.team_id
+  if (role !== before.role || (role === 'contestant' && teamId && teamId !== before.team_id)) await checkPlace(req, req.delegationId, role, teamId, req.params.memberId)
+  if ('examLanguage' in body) await checkLanguageOpen(req, (optionalString(body.examLanguage) ?? null) !== (before.exam_language ?? null))
+  if ('diet' in body) body.diet = cleanDiet(body.diet)
+  if ('photoConsent' in body && body.photoConsent !== null && typeof body.photoConsent !== 'boolean') throw new HttpError(400, 'Answer yes or no to photo and video consent.')
   const { sets, values } = buildUpdate(body, memberFields)
   values.push(req.params.memberId)
   await query(`UPDATE members SET ${sets.join(', ')} WHERE id = $${values.length}`, values)
@@ -764,11 +886,36 @@ app.patch('/api/registration/members/:memberId', ...signedIn, childAccess('membe
 }))
 
 app.delete('/api/registration/members/:memberId', ...signedIn, childAccess('members', 'memberId'), asyncHandler(async (req, res) => {
-  if (req.params.memberId === await primaryLeaderId(req.delegationId)) throw new HttpError(400, 'The first team’s Team Leader is named in Team and observers. Change the name there instead.')
+  const gone = (await query('SELECT role FROM members WHERE id = $1', [req.params.memberId])).rows[0]
+  if (!isAdmin(req) && gone?.role === 'team_leader') throw new HttpError(400, 'Team Leaders are named in Team and observers. Change them there instead.')
+  if (!isAdmin(req) && ['jury', 'volunteer'].includes(gone?.role)) throw new HttpError(400, 'Your own record cannot be removed.')
   await query('DELETE FROM members WHERE id = $1', [req.params.memberId])
   await syncSingleRooms(requireDb(), req.delegationId)
   await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'member_removed', entityType: 'member', entityId: req.params.memberId })
   res.status(204).end()
+}))
+
+// A jury member's or volunteer's photo, cropped in the portal to one frame (4:5, JPEG or PNG). A new one replaces the old.
+const photoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => (['image/jpeg', 'image/png'].includes(file.mimetype) ? callback(null, true) : callback(new HttpError(400, 'The photo must be a JPG or PNG.'))),
+})
+app.post('/api/registration/members/:memberId/photo', ...signedIn, childAccess('members', 'memberId'), photoUpload.single('photo'), asyncHandler(async (req, res) => {
+  if (!req.file) throw new HttpError(400, 'Choose a photo to upload.')
+  const storedPath = await saveUpload(`${req.delegationId}/photo-${req.params.memberId}-${crypto.randomUUID()}${req.file.mimetype === 'image/png' ? '.png' : '.jpg'}`, req.file)
+  const attachment = await withTransaction(async (client) => {
+    await client.query(`DELETE FROM attachments WHERE member_id = $1 AND kind = 'photo'`, [req.params.memberId])
+    const row = (await client.query(
+      `INSERT INTO attachments (delegation_id, member_id, kind, original_filename, stored_path, mime_type, size_bytes, uploaded_by_account_id)
+       VALUES ($1, $2, 'photo', $3, $4, $5, $6, $7)
+       RETURNING id, delegation_id, member_id, kind, original_filename, mime_type, size_bytes, created_at`,
+      [req.delegationId, req.params.memberId, req.file.originalname || 'photo.jpg', storedPath, req.file.mimetype, req.file.size, req.user.id],
+    )).rows[0]
+    await insertAudit(client, { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'photo_uploaded', entityType: 'member', entityId: req.params.memberId })
+    return row
+  })
+  res.status(201).json({ attachment: camelizeRow(attachment) })
 }))
 
 app.post('/api/registration/members/:memberId/guardian-consent', ...signedIn, childAccess('members', 'memberId'), upload.single('consent'), asyncHandler(async (req, res) => {
@@ -790,6 +937,18 @@ app.post('/api/registration/members/:memberId/guardian-consent', ...signedIn, ch
 
 async function setTripPeople(db, travelRecordId, delegationId, peopleIds) {
   if (!Array.isArray(peopleIds)) return
+  // Each person arrives once and leaves once: someone already on another trip that way is taken off it first.
+  const clash = (await db.query(
+    `SELECT DISTINCT m.display_name, tr.direction FROM travel_record_people trp
+     JOIN travel_records tr ON tr.id = trp.travel_record_id JOIN members m ON m.id = trp.member_id
+     WHERE tr.delegation_id = $1 AND tr.id <> $2 AND trp.member_id = ANY($3)
+       AND tr.direction = (SELECT direction FROM travel_records WHERE id = $2)`,
+    [delegationId, travelRecordId, peopleIds],
+  )).rows
+  if (clash.length) {
+    const names = clash.map((c) => c.display_name)
+    throw new HttpError(400, `${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} already on another ${clash[0].direction}. Take ${names.length === 1 ? 'them' : 'them'} off that one first: each person has one arrival and one departure.`)
+  }
   await db.query('DELETE FROM travel_record_people WHERE travel_record_id = $1', [travelRecordId])
   for (const memberId of peopleIds) {
     const own = await db.query('SELECT 1 FROM members WHERE id = $1 AND delegation_id = $2', [memberId, delegationId])
@@ -798,13 +957,30 @@ async function setTripPeople(db, travelRecordId, delegationId, peopleIds) {
   }
 }
 
+/**
+ * Checks a trip: after the travel deadline only the organisers change flights; airport pickup and drop-off are from
+ * Suvarnabhumi or Don Mueang only (anyone else makes their own way); dates fall around the programme.
+ */
+async function checkTrip(req, body, existing = null) {
+  const { event } = await loadSettings(requireDb())
+  if (!isAdmin(req) && pastDay(event.travelDeadline)) throw new HttpError(409, `Travel details could be changed until ${longDate(event.travelDeadline)}. To change a flight now, email the organisers.`)
+  const transport = body.transport ?? existing?.transport ?? 'organisers'
+  if (!['organisers', 'own'].includes(transport)) throw new HttpError(400, 'Choose airport pickup, or your own way to the hotel.')
+  const point = 'travelPoint' in body ? optionalString(body.travelPoint) : existing?.travel_point
+  if (transport === 'organisers' && point && !AIRPORTS.includes(point)) throw new HttpError(400, 'Airport pickup and drop-off are from Suvarnabhumi (BKK) or Don Mueang (DMK) only. Choose one of them, or say you will make your own way.')
+  const date = optionalString(body.localDate)
+  if (date && (date < TRAVEL_WINDOW.first || date > TRAVEL_WINDOW.last)) throw new HttpError(400, `Enter a date between ${longDate(TRAVEL_WINDOW.first)} and ${longDate(TRAVEL_WINDOW.last)}. The Olympiad runs from 21 to 28 July 2027.`)
+  return transport
+}
+
 app.post('/api/registration/delegations/:delegationId/travel', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
+  const transport = await checkTrip(req, req.body)
   const travel = await withTransaction(async (client) => {
     const row = (await client.query(
-      `INSERT INTO travel_records (delegation_id, direction, travel_point, flight_service_number, local_date, local_time, terminal, change_status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [req.params.delegationId, normalizeDirection(req.body.direction), optionalString(req.body.travelPoint), optionalString(req.body.flightServiceNumber),
-        optionalString(req.body.localDate), optionalString(req.body.localTime), optionalString(req.body.terminal), normalizeChangeStatus(req.body.changeStatus)],
+      `INSERT INTO travel_records (delegation_id, direction, travel_point, flight_service_number, local_date, local_time, terminal, change_status, transport)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [req.params.delegationId, normalizeDirection(req.body.direction), transport === 'own' ? null : optionalString(req.body.travelPoint), optionalString(req.body.flightServiceNumber),
+        optionalString(req.body.localDate), optionalString(req.body.localTime), optionalString(req.body.terminal), normalizeChangeStatus(req.body.changeStatus), transport],
     )).rows[0]
     await setTripPeople(client, row.id, req.params.delegationId, req.body.peopleIds)
     await client.query(`UPDATE delegations SET travel_status = 'in_progress', updated_at = now() WHERE id = $1`, [req.params.delegationId])
@@ -817,10 +993,13 @@ app.post('/api/registration/delegations/:delegationId/travel', ...signedIn, dele
 }))
 
 app.patch('/api/registration/travel/:travelRecordId', ...signedIn, childAccess('travel', 'travelRecordId'), asyncHandler(async (req, res) => {
+  const existing = (await query('SELECT * FROM travel_records WHERE id = $1', [req.params.travelRecordId])).rows[0]
+  const transport = await checkTrip(req, req.body, existing)
   const travel = await withTransaction(async (client) => {
-    const body = { ...req.body }
+    const body = { ...req.body, transport }
+    if (transport === 'own') body.travelPoint = null
     if (body.changeStatus) body.changeStatus = normalizeChangeStatus(body.changeStatus)
-    const { sets, values } = buildUpdate(body, { travelPoint: 'travel_point', flightServiceNumber: 'flight_service_number', localDate: 'local_date', localTime: 'local_time', terminal: 'terminal', changeStatus: 'change_status' })
+    const { sets, values } = buildUpdate(body, { travelPoint: 'travel_point', flightServiceNumber: 'flight_service_number', localDate: 'local_date', localTime: 'local_time', terminal: 'terminal', changeStatus: 'change_status', transport: 'transport' })
     values.push(req.params.travelRecordId)
     const result = await client.query(`UPDATE travel_records SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values)
     await setTripPeople(client, req.params.travelRecordId, req.delegationId, req.body.peopleIds)
@@ -833,6 +1012,8 @@ app.patch('/api/registration/travel/:travelRecordId', ...signedIn, childAccess('
 
 // A trip added by mistake, or a flight that was cancelled.
 app.delete('/api/registration/travel/:travelRecordId', ...signedIn, childAccess('travel', 'travelRecordId'), asyncHandler(async (req, res) => {
+  const { event } = await loadSettings(requireDb())
+  if (!isAdmin(req) && pastDay(event.travelDeadline)) throw new HttpError(409, `Travel details could be changed until ${longDate(event.travelDeadline)}. To change a flight now, email the organisers.`)
   await query('DELETE FROM travel_records WHERE id = $1', [req.params.travelRecordId])
   await insertAudit(requireDb(), { actorAccountId: req.user.id, delegationId: req.delegationId, eventType: 'travel_removed', entityType: 'travel_record', entityId: req.params.travelRecordId })
   res.status(204).end()
@@ -926,40 +1107,77 @@ app.get('/api/registration/attachments/:attachmentId', ...signedIn, asyncHandler
 /** Server-side check of what still blocks submission. */
 async function missingForSubmission(delegationId) {
   const d = (await query('SELECT * FROM delegations WHERE id = $1', [delegationId])).rows[0]
+  const country = d.kind === 'country'
+  const settings = await loadSettings(requireDb())
   const missing = []
-  for (const [step, label] of [['setup', 'Team and observers'], ['teams', 'Teams'], ['people', 'People'], ['welfare', 'Rooms and welfare'], ['travel', 'Travel']]) {
+  const steps = country
+    ? [['setup', 'Team and observers'], ['teams', 'Teams'], ['people', 'People'], ['welfare', 'Rooms and welfare'], ['travel', 'Travel']]
+    : [['setup', 'About you'], ['people', 'Your details'], ['welfare', 'Rooms and welfare'], ['travel', 'Travel']]
+  for (const [step, label] of steps) {
     if (!d.completed_steps.includes(step)) missing.push(`Finish “${label}”`)
   }
-  const paid = await query(`SELECT 1 FROM payments WHERE delegation_id = $1 AND status IN ('awaiting_review', 'approved')`, [delegationId])
-  if (!paid.rowCount) missing.push('Upload proof of payment')
-  if (!d.declared_arrival_date || !d.declared_departure_date) missing.push('Add your stay dates')
-  const teams = await query('SELECT name FROM teams WHERE delegation_id = $1 AND contest_language IS NULL ORDER BY code', [delegationId])
-  for (const team of teams.rows) missing.push(`${team.name}: working language missing`)
-  const { guardianConsent } = await loadSettings(requireDb())
+  // A jury member or volunteer pays only for an observer or a single room.
+  if (country || delegationFees(settings.fees, d).total > 0) {
+    const paid = await query(`SELECT 1 FROM payments WHERE delegation_id = $1 AND status IN ('awaiting_review', 'approved')`, [delegationId])
+    if (!paid.rowCount) missing.push('Upload proof of payment')
+  }
+  const teams = (await query('SELECT id, name, contest_language FROM teams WHERE delegation_id = $1 ORDER BY code', [delegationId])).rows
+  if (country) for (const team of teams.filter((t) => !t.contest_language)) missing.push(`${team.name}: working language missing`)
   const members = await query(
-    `SELECT m.*, EXISTS (SELECT 1 FROM attachments a WHERE a.member_id = m.id AND a.kind = 'guardian_consent') AS has_consent
+    `SELECT m.*, EXISTS (SELECT 1 FROM attachments a WHERE a.member_id = m.id AND a.kind = 'guardian_consent') AS has_consent,
+       EXISTS (SELECT 1 FROM attachments a WHERE a.member_id = m.id AND a.kind = 'photo') AS has_photo
      FROM members m WHERE m.delegation_id = $1 ORDER BY m.created_at`,
     [delegationId],
   )
   for (const member of members.rows) {
     const gaps = missingMemberDetails(member)
-    if (needsGuardianConsent(member, guardianConsent) && !member.has_consent) gaps.push('guardian consent form')
+    if (needsGuardianConsent(member, settings.guardianConsent) && !member.has_consent) gaps.push('guardian consent form')
+    if (['jury', 'volunteer'].includes(member.role) && !member.has_photo) gaps.push('photo')
     if (gaps.length) missing.push(`${member.display_name}: ${gaps.join(', ')}`)
   }
-  // People must match what the fees were worked out from (Team and observers).
+  // People must match what the fees were worked out from (Team and observers): four contestants and a Team Leader
+  // for each team, and the observers chosen (IOL Board, 16 Nov 2026).
+  if (country) {
+    const leaders = members.rows.filter((m) => m.role === 'team_leader').length
+    if (leaders < d.number_of_teams) missing.push(`Team Leaders: name one for each team in Team and observers`)
+    for (const team of teams) {
+      const n = members.rows.filter((m) => m.role === 'contestant' && m.team_id === team.id).length
+      if (n !== 4) missing.push(`${team.name}: ${n} of 4 contestants in People`)
+    }
+  } else if (!members.rows.some((m) => m.role === d.kind)) missing.push('Your details: enter your name in the first step')
   const observers = members.rows.filter((m) => m.role === 'observer').length
-  if (observers !== d.number_of_observers) missing.push(`Observers: ${d.number_of_observers} in Team and observers, ${observers} in People`)
+  if (observers !== d.number_of_observers) missing.push(`Observers: ${d.number_of_observers} in ${country ? 'Team and observers' : 'the first step'}, ${observers} in People`)
   const payment = (await query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC LIMIT 1', [delegationId])).rows[0]
   if (await splitsOutOfStep(d, payment)) missing.push('Invoice amounts: update them in Payment, the total has changed')
   return { delegation: d, missing }
 }
 
+// Registrations not submitted yet and what each still needs, for the registration team to follow up (IOL Board, 16 Nov 2026).
+app.get('/api/admin/incomplete', ...signedIn, requireRole('registration_admin', 'viewer'), asyncHandler(async (_req, res) => {
+  const drafts = (await query(`SELECT id FROM delegations WHERE registration_status = 'draft' ORDER BY kind, country_territory`)).rows
+  const rows = []
+  for (const { id } of drafts) {
+    const { delegation: d, missing } = await missingForSubmission(id)
+    const lastEmail = (await query(`SELECT purpose, created_at FROM email_deliveries WHERE delegation_id = $1 AND purpose LIKE 'reminder_%' ORDER BY created_at DESC LIMIT 1`, [id])).rows[0]
+    rows.push({
+      id, countryTerritory: d.country_territory, kind: d.kind, name: d.national_representative_name, email: d.team_leader_email, paymentStatus: d.payment_status,
+      updatedAt: d.updated_at, createdAt: d.created_at, missing, lastReminder: lastEmail ? { purpose: lastEmail.purpose, sentAt: lastEmail.created_at } : null,
+    })
+  }
+  res.json({ registrations: rows })
+}))
+
 app.post('/api/registration/delegations/:delegationId/submit', ...signedIn, delegationAccess('write'), asyncHandler(async (req, res) => {
-  const { missing } = await missingForSubmission(req.params.delegationId)
+  const { delegation: current, missing } = await missingForSubmission(req.params.delegationId)
+  if (current.registration_status !== 'draft') throw new HttpError(409, 'This registration has already been submitted.')
   if (missing.length) return res.status(409).json({ error: 'Finish the remaining steps first.', missing })
+  // Both notices on Submit must be ticked: the royal reception's dress code and protocol, and travel insurance.
+  if (req.body?.acknowledgeDressCode !== true || req.body?.acknowledgeInsurance !== true) {
+    throw new HttpError(400, 'Tick both boxes above the Submit button: the dress code and protocol, and travel insurance.')
+  }
   const submitted = await withTransaction(async (client) => {
     const row = (await client.query(
-      `UPDATE delegations SET registration_status = 'submitted', submitted_at = now(), updated_at = now()
+      `UPDATE delegations SET registration_status = 'submitted', submitted_at = now(), dress_code_acknowledged_at = now(), insurance_acknowledged_at = now(), updated_at = now()
        WHERE id = $1 AND registration_status = 'draft' RETURNING *`,
       [req.params.delegationId],
     )).rows[0]
@@ -1005,7 +1223,7 @@ async function delegationInvoice(d, payment, part = null) {
  * already received keeps its tier, also when Finance returns it for a missing file.
  */
 async function catchUpFeeTier(db, payment, fees) {
-  if (payment?.status !== 'awaiting_proof' || payment.fee_tier !== 'early_bird' || feeTier(fees) === 'early_bird') return payment
+  if (payment?.status !== 'awaiting_proof' || payment.fee_tier !== 'early_bird' || !pastEarlyBirdGrace(fees)) return payment
   const d = (await db.query('SELECT * FROM delegations WHERE id = $1', [payment.delegation_id])).rows[0]
   const updated = (await db.query(
     `UPDATE payments SET fee_tier = 'normal', amount_due = $1, updated_at = now() WHERE id = $2 AND status = 'awaiting_proof' AND fee_tier = 'early_bird' RETURNING *`,

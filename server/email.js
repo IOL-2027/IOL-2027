@@ -378,6 +378,45 @@ export function buildInviteEmail({ countryTerritory, organisation, code, portalU
   return { subject, html: layout(preview, body) }
 }
 
+/**
+ * A reminder before something closes (IOL Board, 16 Nov 2026): the early bird rate, the last day of registration,
+ * People, travel or the contest languages. `items` lists what is still missing, in plain words.
+ */
+export function buildReminderEmail({ fullName, countryTerritory, title, lead, deadline, items = [], buttonLabel, url }) {
+  const subject = `${title} — IOL 2027`
+  const preview = `${lead} ${deadline}.`
+  const body = `
+    ${h1(esc(title))}
+    ${p(`Hi ${esc(fullName || 'there')},`)}
+    ${p(`${esc(lead)} <strong style="color:${C.ink}">${esc(deadline)}</strong>.`)}
+    ${items.length ? `${p('Still to do for ' + esc(countryTerritory) + ':')}<ul style="margin:0 0 16px;padding-left:20px;font-size:15px;line-height:1.6;color:${C.ink}">${items.slice(0, 15).map((item) => `<li>${esc(item)}</li>`).join('')}${items.length > 15 ? `<li>and ${items.length - 15} more</li>` : ''}</ul>` : ''}
+    ${button(buttonLabel, url)}
+    ${p('If you have already done this, thank you: there is nothing more to do. Questions? Reply to this email.', SMALL)}
+  `
+  return { subject, html: layout(preview, body) }
+}
+
+/** Each arrival and departure with its pickup time, bus group and meeting point, from the transport team. */
+export function buildPickupEmail({ fullName, countryTerritory, trips, url }) {
+  const subject = `Your airport pickup and drop-off — IOL 2027`
+  const preview = `Pickup and drop-off times for ${countryTerritory}.`
+  const rows = trips.map((t) => `
+    <tr><td style="padding:10px 0;border-top:1px solid ${C.line};font-size:15px;line-height:1.5;color:${C.ink}">
+      <strong>${t.direction === 'arrival' ? 'Arrival' : 'Departure'} · ${esc(t.date)}${t.flight ? ` · ${esc(t.flight)}` : ''}</strong><br>
+      ${t.pickupTime ? `${t.direction === 'arrival' ? 'Pickup' : 'Bus leaves the hotel'} at ${esc(t.pickupTime)}` : 'Time to follow'}${t.group ? ` · bus ${esc(t.group)}` : ''}${t.meeting ? ` · ${esc(t.meeting)}` : ''}<br>
+      <span style="color:${C.muted}">${esc(t.people)}</span>
+    </td></tr>`).join('')
+  const body = `
+    ${h1('Your airport pickup and drop-off')}
+    ${p(`Hi ${esc(fullName || 'there')},`)}
+    ${p(`Here are the transfers the transport team has planned for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong>. Please pass them on to everyone travelling.`)}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px">${rows}</table>
+    ${notice('If a flight changes, update it in the portal before the travel deadline, or reply to this email.')}
+    ${button('See your travel', url)}
+  `
+  return { subject, html: layout(preview, body) }
+}
+
 // ── delivery ──────────────────────────────────────────────────────────────────
 
 /** Which service sends email right now. Gmail wins when both are configured. */

@@ -1,7 +1,7 @@
 // The staff back office: a section list on the left, one section at a time on the right, opening on a home page
 // with what is waiting and quick actions. Each role sees only its sections; the API enforces the same rules (docs/ROLES.md).
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react'
-import { BarChart3, Banknote, CreditCard, Download, Globe2, HeartPulse, History, House, IdCardLanyard, Inbox, Mail, QrCode, ShieldCheck, UserCog, Users } from 'lucide-react'
+import { BarChart3, Banknote, Bus, CalendarClock, CreditCard, Download, Globe2, HeartPulse, History, House, IdCardLanyard, Inbox, ListTodo, Mail, QrCode, ShieldCheck, UserCog, Users } from 'lucide-react'
 import { portalPath } from '../launch'
 import { roleLabel, type Role, type User } from './api'
 import Workspace from './Workspace'
@@ -15,6 +15,7 @@ import Payments from './staff/Payments'
 import { Countries, People, Welfare } from './staff/People'
 import { Activity, EmailLog, Exports } from './staff/Records'
 import { ConsentSettingsPanel, FeeSettingsPanel, InvoiceSettingsPanel } from './staff/Settings'
+import { EventSettingsPanel, IncompletePanel, TransportPanel } from './staff/Planning'
 import { Panel, Problem, human, useLoad } from './staff/common'
 
 type ParticipantRecord = { displayName: string; countryTerritory: string; teamName: string | null; role: string; badgeStatus: string | null; tshirtSize: string | null; poloSize: string | null; examLanguage: string | null }
@@ -59,6 +60,8 @@ const sectionDefs: SectionDef[] = [
   { id: 'overview', label: 'Statistics', group: 'Registration', icon: BarChart3, roles: ['registration_admin', 'finance_admin', 'viewer'] },
   { id: 'countries', label: 'Countries', group: 'Registration', icon: Globe2, roles: ['registration_admin', 'finance_admin', 'welfare_staff'] },
   { id: 'people', label: 'People', group: 'Registration', icon: Users, roles: ['registration_admin', 'finance_admin', 'checkin_staff'] },
+  { id: 'incomplete', label: 'Incomplete', group: 'Registration', icon: ListTodo, roles: ['registration_admin', 'viewer'] },
+  { id: 'transport', label: 'Transport', group: 'Registration', icon: Bus, roles: ['registration_admin', 'welfare_staff', 'viewer'] },
   { id: 'invites', label: 'Invitation codes', group: 'Registration', icon: Mail, roles: ['registration_admin'] },
   { id: 'badges', label: 'Badges', group: 'Registration', icon: IdCardLanyard, roles: ['registration_admin'] },
   { id: 'welfare', label: 'Welfare', group: 'Registration', icon: HeartPulse, roles: ['welfare_staff'] },
@@ -68,6 +71,7 @@ const sectionDefs: SectionDef[] = [
   { id: 'exports', label: 'Exports', group: 'Records', icon: Download, roles: ['registration_admin', 'finance_admin', 'checkin_staff', 'welfare_staff', 'viewer', 'content_editor', 'results_staff'] },
   { id: 'activity', label: 'Activity log', group: 'Records', icon: History, roles: ['registration_admin'] },
   { id: 'email', label: 'Email log', group: 'Records', icon: Inbox, roles: ['registration_admin'] },
+  { id: 'event', label: 'Dates and notices', group: 'Settings', icon: CalendarClock, roles: ['registration_admin'] },
   { id: 'consent', label: 'Guardian consent', group: 'Settings', icon: ShieldCheck, roles: ['registration_admin'] },
   { id: 'accounts', label: 'Accounts', group: 'Settings', icon: UserCog, roles: [] },
 ]
@@ -133,6 +137,9 @@ export default function StaffHome({ user, onSessionEnd, session }: { user: User;
     overview: () => <Overview onGo={visible.some((s) => s.id === 'payments') ? go : undefined} />,
     countries: () => <Countries onOpen={openCountry} />,
     people: () => <People onOpen={openCountry} />,
+    incomplete: () => <IncompletePanel onOpen={openCountry} />,
+    transport: () => <TransportPanel canEdit={role === 'registration_admin' || isSuper} />,
+    event: () => <EventSettingsPanel canEdit={role === 'registration_admin' || isSuper} />,
     invites: () => <Invites />,
     badges: () => <Badges />,
     welfare: () => <Welfare />,
