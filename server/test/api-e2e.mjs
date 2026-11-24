@@ -168,8 +168,6 @@ const snapshot = (await tl.get(`/api/registration/delegations/${thaiId}`)).json
 const details = { badgeName: 'Test', officialName: 'Test Person', passportName: 'TEST PERSON', passportNumber: 'T1234567', passportNationality: 'Thai', dateOfBirth: '2008-01-01', genderForRoomAllocation: 'Male', tshirtSize: 'M', poloSize: 'M', emergencyContact: 'Test Contact +66 80 000 0000', diet: ['No special diet'], medicalAccessibilityNotes: 'None' }
 for (const m of snapshot.members) await tl.patch(`/api/registration/members/${m.id}`, { ...details, ...(m.role === 'contestant' ? { teamId: m.teamId ?? snapshot.teams[0].id, examLanguage: 'English' } : {}) })
 for (const t of snapshot.teams) await tl.patch(`/api/registration/teams/${t.id}`, { contestLanguage: t.contestLanguage ?? 'English' })
-const noTicks = await tl.post(`/api/registration/delegations/${thaiId}/submit`)
-check('submitting needs the dress code and insurance boxes ticked (400)', noTicks.status === 400, JSON.stringify(noTicks.json))
 const early = await tl.post(`/api/registration/delegations/${thaiId}/submit`, { acknowledgeDressCode: true, acknowledgeInsurance: true })
 check('submit lists the consent forms and travel still missing (409)', early.status === 409 && early.json.missing.some((m) => m.startsWith('Consent forms: upload')) && early.json.missing.some((m) => m.startsWith('Consent forms: tick')) && early.json.missing.some((m) => m.startsWith('Travel:')), JSON.stringify(early.json))
 
@@ -202,6 +200,8 @@ await trip({ travelPoint: 'Don Mueang Airport (DMK)', flightServiceNumber: 'FD 3
 const halfway = await tl.post(`/api/registration/delegations/${thaiId}/submit`, { acknowledgeDressCode: true, acknowledgeInsurance: true })
 check('submit names the people without a departure (409)', halfway.status === 409 && halfway.json.missing.some((m) => m.startsWith('Travel:') && m.includes('departure')), JSON.stringify(halfway.json))
 await tl.post(`/api/registration/delegations/${thaiId}/travel`, { direction: 'departure', transport: 'organisers', travelPoint: 'Suvarnabhumi Airport (BKK)', flightServiceNumber: 'TG 662', localDate: '2027-07-28', localTime: '20:00', peopleIds: thaiPeople.map((m) => m.id) })
+const noTicks = await tl.post(`/api/registration/delegations/${thaiId}/submit`)
+check('submitting needs the dress code and insurance boxes ticked (400)', noTicks.status === 400, JSON.stringify(noTicks.json))
 const submitted = await tl.post(`/api/registration/delegations/${thaiId}/submit`, { acknowledgeDressCode: true, acknowledgeInsurance: true })
 check('submit when complete -> 200', submitted.status === 200 && Boolean(submitted.json.delegation?.dressCodeAcknowledgedAt), JSON.stringify(submitted.json))
 check('once submitted, the last signed-form file cannot be removed (409)', (await tl.req('DELETE', `/api/registration/attachments/${upSigned.json.attachments[0].id}/consent`)).status === 409)
@@ -319,7 +319,8 @@ check('super admin cannot change own role', (await S.superadmin.patch(`/api/admi
 // --- people status
 const people = await S.admin.get('/api/admin/people')
 check('admin people list has stages and missing details', people.status === 200 && people.json.people.length > 0 && people.json.people.every((p) => Array.isArray(p.missingDetails)))
-check('approved Thailand people show as paid', people.json.people.filter((p) => p.delegationId === thaiId).every((p) => p.stage === 'paid'))
+// Thailand is submitted with everyone's travel in, so its badges are issued on submit (stage after "paid").
+check('approved Thailand people show as paid, or badged', people.json.people.filter((p) => p.delegationId === thaiId).every((p) => ['paid', 'badge_issued'].includes(p.stage)), JSON.stringify(people.json.people.filter((p) => p.delegationId === thaiId).map((p) => p.stage)))
 check('check-in staff sees people without their missing details', (await S.checkin.get('/api/admin/people')).json.people.every((p) => !('missingDetails' in p)))
 check('Content editor cannot list people (403)', await can(S.content, '/api/admin/people') === 403)
 check('dashboard has people stages', ((await S.finance.get('/api/admin/dashboard')).json.stages ?? []).length === 5)

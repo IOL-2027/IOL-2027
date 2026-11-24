@@ -974,7 +974,7 @@ async function consentAttachments(delegationId) {
 async function emailConsentForms(delegationId, again = false) {
   const { d, people, attachments } = await consentAttachments(delegationId)
   if (!people.length) throw new HttpError(409, 'Enter everyone’s date of birth in People first: it decides which form each person signs.')
-  await query('UPDATE delegations SET consent_forms_emailed_at = now() WHERE id = $1', [delegationId])
+  if (again) await query('UPDATE delegations SET consent_forms_emailed_at = now() WHERE id = $1', [delegationId])
   await sendEmail({
     pool: requireDb(), to: d.team_leader_email, purpose: again ? 'consent_forms_again' : 'consent_forms', delegationId, retry: true, attachments,
     ...buildConsentFormsEmail({ fullName: d.national_representative_name, countryTerritory: consentCountry(d), people, url: `${portalUrl}/?step=consent`, again }),
@@ -989,7 +989,13 @@ async function emailConsentFormsWhenReady(delegationId) {
   const members = (await query('SELECT * FROM members WHERE delegation_id = $1', [delegationId])).rows
   const expected = d.kind === 'country' ? 5 * d.number_of_teams + d.number_of_observers : 1 + d.number_of_observers
   if (members.length < expected || members.some((m) => missingMemberDetails(m).length)) return
-  await emailConsentForms(delegationId)
+  // Two saves close together must not both send it: the first to mark the registration sends.
+  const claimed = await query('UPDATE delegations SET consent_forms_emailed_at = now() WHERE id = $1 AND consent_forms_emailed_at IS NULL RETURNING id', [delegationId])
+  if (!claimed.rowCount) return
+  try { await emailConsentForms(delegationId) } catch (error) {
+    await query('UPDATE delegations SET consent_forms_emailed_at = NULL WHERE id = $1', [delegationId])
+    throw error
+  }
 }
 const consentFormsWhenReady = (delegationId) => { emailConsentFormsWhenReady(delegationId).catch((e) => console.error(`consent forms: ${e.message}`)) }
 
