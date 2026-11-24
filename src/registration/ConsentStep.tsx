@@ -107,16 +107,27 @@ export function ConsentStep({ data, busy, country, error, onUpload, onRemove, on
           </div>
         </Card>
 
-        <Card id="consent-answers" number={3} done={!consentUnanswered(data).length && people.length > 0} title={self ? 'Your answer' : 'Each person’s answer'}
-          intro={self ? 'As you ticked on your signed form.' : 'As ticked on each signed form. We go by these answers; the files are kept as the record. Anyone who does not consent can step out of group photos.'}>
+        <Card id="consent-answers" number={3} done={!consentUnanswered(data).length && people.length > 0} title={self ? 'Your answer' : 'Each person’s answer'}>
+          {/* The wording the People step used for this question (IOL Board, 16 Nov 2026), word for word, set out to read
+              more easily (25 Nov 2026). */}
+          <div className="reg-card-lead reg-consent-text">
+            <p>Photos and videos taken during the event may appear on the IOL 2027 website, on social media and in event materials.</p>
+            <p><strong>{self ? 'Do you agree to appear in them?' : 'Does this person agree to appear in them?'}</strong></p>
+            {!self && (
+              <ul>
+                <li>For anyone under 18, a parent or guardian must agree: please ask them.</li>
+                <li>Anyone who does not agree can step out of group photos.</li>
+              </ul>
+            )}
+          </div>
           <table className="reg-consent-table">
-            <thead><tr><th scope="col">Person</th><th scope="col">Consents</th><th scope="col">Does not consent</th></tr></thead>
+            <thead><tr><th scope="col">Person</th><th scope="col">{self ? 'Yes, I agree' : 'Yes, they agree'}</th><th scope="col">{self ? 'No, I do not agree' : 'No, they do not agree'}</th></tr></thead>
             <tbody>
               {people.map((m) => (
                 <tr key={m.id}>
                   <th scope="row">{m.displayName}<small>{roleToLabel[m.role]}</small></th>
-                  <td><label className="reg-consent-choice"><input type="radio" name={`consent-${m.id}`} value="yes" defaultChecked={m.photoConsent === true} /><span className="reg-visually-hidden">{m.displayName} consents</span></label></td>
-                  <td><label className="reg-consent-choice"><input type="radio" name={`consent-${m.id}`} value="no" defaultChecked={m.photoConsent === false} /><span className="reg-visually-hidden">{m.displayName} does not consent</span></label></td>
+                  <td><label className="reg-consent-choice"><input type="radio" name={`consent-${m.id}`} value="yes" defaultChecked={m.photoConsent === true} /><span className="reg-visually-hidden">{m.displayName}: {self ? 'Yes, I agree' : 'Yes, they agree'}</span></label></td>
+                  <td><label className="reg-consent-choice"><input type="radio" name={`consent-${m.id}`} value="no" defaultChecked={m.photoConsent === false} /><span className="reg-visually-hidden">{m.displayName}: {self ? 'No, I do not agree' : 'No, they do not agree'}</span></label></td>
                 </tr>
               ))}
             </tbody>

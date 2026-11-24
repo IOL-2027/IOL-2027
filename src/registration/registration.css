@@ -995,20 +995,6 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
   .reg-record-list { max-height: calc(100vh - var(--reg-header-offset) - 24px); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 4px; }
 }
 
-/* Review and requests: the summary in four short groups, two side by side on wide screens. */
-.reg-review { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.reg-review-group { min-width: 0; padding: clamp(18px, 2.2vw, 26px); border: 1px solid var(--reg-border); border-radius: var(--reg-radius-lg); background: var(--reg-surface); }
-.reg-review-group h3 { margin: 0 0 6px; font-size: 18px; }
-.reg-review-group dl { margin: 0; }
-.reg-review-group dl > div { padding: 12px 0; border-top: 1px solid var(--reg-border); }
-.reg-review-group dl > div:first-child { border-top: 0; }
-.reg-review-group dt { font-size: 14px; color: var(--reg-muted); }
-.reg-review-group dd { margin: 3px 0 0; font-size: 15.5px; font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
-.reg-review-group dd ul { margin: 2px 0 0; padding-left: 18px; font-weight: 600; }
-.reg-review-group dd li + li { margin-top: 3px; }
-.reg-review-group dd small { display: block; margin-top: 4px; font-size: 13.5px; font-weight: 500; color: var(--reg-muted); }
-.reg-review-foot { grid-column: 1 / -1; margin: 0; }
-.reg-review + .reg-card { margin-top: 16px; }
 .reg-requests-text p { margin: 0 0 10px; }
 .reg-requests-text ul { margin: 0 0 4px; padding-left: 20px; }
 .reg-requests-text li + li { margin-top: 4px; }
@@ -1033,3 +1019,58 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-consent-choice input { width: 20px; height: 20px; accent-color: var(--reg-accent); cursor: pointer; }
 @media (max-width: 560px) { .reg-consent-table thead th:not(:first-child), .reg-consent-table td { width: auto; } }
 .reg-files + .reg-field { margin-top: 20px; }
+
+/* Review and requests (25 Nov 2026): totals at a glance, then rooms, food and health, and travel as short tables. */
+.reg-review { display: grid; gap: 16px; }
+.reg-review-totals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.reg-review-totals li { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px; border: 1px solid var(--reg-border); border-radius: var(--reg-radius); background: var(--reg-surface); }
+.reg-review-totals li > svg { flex: none; margin-top: 2px; color: var(--reg-muted); }
+.reg-review-totals li.is-ok > svg { color: var(--reg-ok, #2e6644); }
+.reg-review-totals li.is-warn > svg { color: var(--reg-warn, #b4532a); }
+.reg-review-totals span { display: grid; gap: 2px; min-width: 0; font-size: 13.5px; line-height: 1.4; color: var(--reg-muted); }
+.reg-review-totals strong { font-size: 15.5px; color: var(--ink); }
+.reg-review-group { min-width: 0; padding: clamp(18px, 2.4vw, 28px); border: 1px solid var(--reg-border); border-radius: var(--reg-radius-lg); background: var(--reg-surface); }
+.reg-review-group h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 18px; }
+.reg-review-group h3 svg { color: var(--reg-muted); }
+.reg-review-group > .reg-hint { margin: 12px 0 0; }
+.reg-review-rows { display: grid; margin: 0; }
+.reg-review-rows > div { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 4px 20px; padding: 12px 0; border-top: 1px solid var(--reg-border); }
+.reg-review-rows > div:first-child { border-top: 0; padding-top: 0; }
+.reg-review-rows dt { font-size: 14px; color: var(--reg-muted); }
+.reg-review-rows dd { margin: 0; font-size: 15.5px; font-weight: 700; line-height: 1.45; }
+.reg-review-rows dd small, .reg-review-table small { display: block; margin-top: 3px; font-size: 13.5px; font-weight: 500; line-height: 1.45; color: var(--reg-muted); }
+.reg-review-table { width: 100%; border-collapse: collapse; font-size: 15px; line-height: 1.45; }
+.reg-review-table th, .reg-review-table td { padding: 10px 12px 10px 0; border-top: 1px solid var(--reg-border); text-align: left; vertical-align: top; }
+.reg-review-table thead th { border-top: 0; padding-top: 0; font-size: 13.5px; font-weight: 600; color: var(--reg-muted); }
+.reg-review-table tbody th { font-weight: 700; }
+.reg-review-trips + .reg-review-trips { margin-top: 18px; }
+.reg-review-trips h4 { margin: 0 0 8px; font-size: 15px; }
+.reg-review-empty { margin: 0; font-size: 15.5px; }
+.reg-review-foot { margin: 0; }
+@media (max-width: 900px) { .reg-review-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .reg-review-totals { grid-template-columns: 1fr; }
+  .reg-review-rows > div { grid-template-columns: 1fr; }
+  .reg-review-table thead { display: none; }
+  .reg-review-table tr { display: grid; padding: 10px 0; border-top: 1px solid var(--reg-border); }
+  .reg-review-table th, .reg-review-table td { padding: 2px 0; border-top: 0; }
+}
+
+/* Travel: hotel nights and airport transfers as four short tiles, each led by the one fact to remember. */
+.reg-info-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.reg-info-tiles li { padding: 16px 18px; border: 1px solid var(--reg-border); border-radius: var(--reg-radius); background: var(--reg-field-bg); }
+.reg-info-tiles li > svg { color: var(--reg-muted); }
+.reg-info-tiles p { margin: 4px 0 0; font-size: 14.5px; line-height: 1.5; color: var(--reg-muted); }
+.reg-info-tiles .reg-info-label { margin-top: 8px; font-size: 13.5px; font-weight: 600; }
+.reg-info-tiles .reg-info-fact { margin: 2px 0 6px; font-size: 16.5px; font-weight: 700; line-height: 1.35; color: var(--ink); }
+@media (max-width: 720px) { .reg-info-tiles { grid-template-columns: 1fr; } }
+
+/* Consent: the question as it was asked in People, set out to read easily. */
+.reg-consent-text p { margin: 0 0 8px; }
+.reg-consent-text ul { margin: 0 0 4px; padding-left: 20px; }
+.reg-consent-text li + li { margin-top: 4px; }
+
+/* People, Teams and Travel save together (25 Nov 2026): records with changes not saved yet, and the bar that saves them. */
+.reg-chip.is-unsaved { background: var(--reg-tint-strong); color: var(--ink); }
+.reg-unsaved-note { font-size: 14px; color: var(--reg-muted); }
+.reg-record-editor .reg-editor-actions { position: sticky; bottom: 0; z-index: 2; margin-top: 24px; padding: 14px 0; border-top: 1px solid var(--reg-border); background: var(--reg-surface); }
