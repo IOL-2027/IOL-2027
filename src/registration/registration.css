@@ -939,3 +939,42 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
   .reg-team-box { padding: 16px 16px 6px; }
   .reg-invoices.is-split .reg-invoice-part > .reg-grid { padding: 16px; }
 }
+
+/* IOL Board feedback, 17 Nov 2026 ------------------------------------------------------------ */
+/* A second team not chosen yet: shown, greyed out, its Team Leader field not typed in. */
+.reg-team-box.is-off { background: var(--reg-tint); border-style: dashed; }
+.reg-team-box.is-off .reg-team-box-head, .reg-team-box.is-off .reg-field { opacity: .55; }
+.reg-team-box .reg-field { width: 100%; margin: 12px 0 10px; }
+.reg-team-box-leader { display: grid; gap: 2px; width: 100%; margin: 12px 0 10px; }
+.reg-team-box-leader span { font-size: 14px; font-weight: 700; }
+.reg-team-box-leader strong { font-size: 16px; }
+.reg-team-box-leader small { font-size: 13px; color: var(--reg-muted); }
+/* Radio choices, one a line, as they are answers to a question. */
+.reg-radios { display: grid; gap: 8px; margin-top: 10px; justify-items: start; }
+.reg-check.is-unavailable { cursor: not-allowed; color: var(--reg-muted); background: var(--reg-tint); }
+.reg-check.is-unavailable small { display: block; font-size: 12px; }
+.reg-check > span small { display: block; font-size: 12px; color: var(--reg-muted); }
+/* The date a step closes, under its status in the rail and under its heading. */
+.reg-rail-text .reg-rail-deadline { font-size: 12px; }
+.reg-step-deadline { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px !important; font-size: 15px !important; font-weight: 600; color: var(--reg-text) !important; }
+.reg-travel-info { gap: 14px; }
+.reg-travel-info dd { line-height: 1.55; }
+/* Submit: the dress code and travel insurance notices. */
+.reg-home > .reg-card { margin-bottom: 20px; }
+.reg-notices { display: grid; gap: 18px; }
+.reg-notice h4 { margin: 0 0 4px; font-size: 16px; }
+.reg-notice p { margin: 0 0 10px; line-height: 1.55; }
+.reg-notice .reg-check { align-items: flex-start; padding: 10px 14px; border-radius: 14px; }
+.reg-notice .reg-check input { margin-top: 2px; flex: none; }
+/* A jury member's or volunteer's photo, moved and zoomed in its frame. */
+.reg-photo-crop { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 10px; align-items: flex-start; }
+.reg-photo-frame { position: relative; overflow: hidden; border-radius: 10px; background: var(--reg-tint); cursor: grab; touch-action: none; outline-offset: 3px; }
+.reg-photo-frame:active { cursor: grabbing; }
+.reg-photo-frame img { position: absolute; top: 0; left: 0; max-width: none; user-select: none; pointer-events: none; }
+.reg-photo-tools { display: grid; gap: 8px; min-width: 200px; }
+.reg-photo-tools input[type="range"] { width: 100%; accent-color: var(--plum); }
+.reg-photo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 8px; }
+.reg-shared-codes { display: grid; gap: 10px; margin: 12px 0 28px; padding: 0; list-style: none; }
+.reg-shared-codes li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 14px 16px; border: 1px solid var(--reg-border); border-radius: var(--reg-radius); background: var(--reg-field-bg); }
+.reg-shared-codes li > div:first-child { display: grid; gap: 2px; }
+.reg-cell-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.45; }

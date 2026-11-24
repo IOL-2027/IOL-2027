@@ -16,7 +16,7 @@ type WelfareRow = {
   foodAllergyNotes: string | null; medicalAccessibilityNotes: string | null; emergencyContact: string | null; roomTypePreference: string | null
 }
 
-const roleName = (role: string) => (role === 'team_leader' ? 'Team Leader' : human(role))
+const roleName = (role: string) => (role === 'team_leader' ? 'Team Leader' : role === 'jury' ? 'Jury member' : human(role))
 
 export function Countries({ onOpen }: { onOpen?: (delegationId: string) => void }) {
   const { data, error } = useLoad<{ delegations: DelegationRow[] }>('/api/admin/delegations')
@@ -85,7 +85,7 @@ export function People({ onOpen }: { onOpen?: (delegationId: string) => void }) 
         </FilterField>
         <FilterField id="people-role" label="Role">
           <select id="people-role" className="reg-control reg-control-compact" value={role} onChange={(e) => setRole(e.target.value)}>
-            <option value="">All roles</option><option value="contestant">Contestant</option><option value="team_leader">Team Leader</option><option value="observer">Observer</option>
+            <option value="">All roles</option><option value="contestant">Contestant</option><option value="team_leader">Team Leader</option><option value="observer">Observer</option><option value="jury">Jury</option><option value="volunteer">Volunteer</option>
           </select>
         </FilterField>
         <FilterField id="people-stage" label="Stage">

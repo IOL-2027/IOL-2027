@@ -9,6 +9,8 @@ export const testEnvironment = import.meta.env.VITE_TEST_ENVIRONMENT === 'true' 
 
 export const slug = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 export const formatDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })
+/** "12 May 2027": deadlines are given as dates, not as days left (the professor, 17 Nov 2026). */
+export const longDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 export const daysBetween = (from: string, to: string) => Math.round((new Date(`${to}T00:00:00`).getTime() - new Date(`${from}T00:00:00`).getTime()) / 86400000)
 export const messageOf = (error: unknown) => (error instanceof ApiError ? error.message : 'Something went wrong. Please try again.')
 
@@ -46,21 +48,27 @@ export function FieldControl({ field, idPrefix, error, wide, disabled }: FieldPr
   const options = field.options ?? selectOptions[field.label] ?? []
   const isWide = wide || kind === 'textarea' || kind === 'checkboxes'
 
-  if (kind === 'checkboxes') {
-    const chosen = field.value.split(',').map((v) => v.trim()).filter(Boolean)
+  const off = disabled || field.disabled
+  if (kind === 'checkboxes' || kind === 'radio') {
+    // Checkbox values are kept comma-separated in field.value; a radio's is the one chosen.
+    const chosen = kind === 'radio' ? [field.value] : field.value.split(',').map((v) => v.trim()).filter(Boolean)
     return (
-      <fieldset className={`reg-field reg-field-wide${error ? ' has-error' : ''}`} aria-describedby={describedBy} disabled={disabled}>
+      <fieldset className={`reg-field reg-field-wide${error ? ' has-error' : ''}`} aria-describedby={describedBy} disabled={off}>
         <legend>{field.label}{field.optional && <span className="reg-optional"> (optional)</span>}</legend>
         {field.help && <p className="reg-hint" id={hintId}>{field.help}</p>}
         {error && <p className="reg-error" id={errorId}><CircleAlert size={16} aria-hidden="true" />{error}</p>}
         {options.length ? (
-          <div className="reg-checks">
-            {options.map((option) => (
-              <label key={option} className="reg-check">
-                <input type="checkbox" name={field.label} value={option} defaultChecked={chosen.includes(option)} />
-                <span>{option}</span>
-              </label>
-            ))}
+          <div className={kind === 'radio' ? 'reg-radios' : 'reg-checks'}>
+            {options.map((option) => {
+              const why = field.unavailable?.[option]
+              return (
+                <label key={option} className={`reg-check${why ? ' is-unavailable' : ''}`}>
+                  <input type={kind === 'radio' ? 'radio' : 'checkbox'} name={field.label} value={option} defaultChecked={chosen.includes(option)} disabled={Boolean(why)}
+                    aria-invalid={error ? true : undefined} />
+                  <span>{option}{why && <small>{why}</small>}</span>
+                </label>
+              )
+            })}
           </div>
         ) : <p className="reg-hint">Add people first.</p>}
       </fieldset>
@@ -68,7 +76,7 @@ export function FieldControl({ field, idPrefix, error, wide, disabled }: FieldPr
   }
 
   const common = {
-    id, name: field.label, defaultValue: field.value, disabled,
+    id, name: field.label, defaultValue: field.value, disabled: off,
     'aria-describedby': describedBy, 'aria-invalid': error ? true : undefined,
     className: 'reg-control',
   }
@@ -87,7 +95,7 @@ export function FieldControl({ field, idPrefix, error, wide, disabled }: FieldPr
       ) : kind === 'textarea' ? (
         <textarea {...common} rows={3} />
       ) : (
-        <input {...common} type={kind} min={kind === 'number' ? 0 : undefined} inputMode={kind === 'number' ? 'numeric' : undefined} />
+        <input {...common} type={kind} min={kind === 'number' ? 0 : field.min} max={field.max} inputMode={kind === 'number' ? 'numeric' : undefined} />
       )}
     </div>
   )

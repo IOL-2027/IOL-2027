@@ -18,10 +18,10 @@ type Badge = {
 type BadgeData = { badges: Badge[]; waiting: { country: string; people: number }[]; printCutoff: string; back: string; categories: string[] }
 type State = 'not_printed' | 'reprint' | 'printed' | 'all'
 
-const categoryLabel: Record<string, string> = { staff: 'Staff', guide: 'Guide', volunteer: 'Volunteer', guest: 'Guest' }
+const categoryLabel: Record<string, string> = { staff: 'Staff', guide: 'Guide', volunteer: 'Volunteer', guest: 'Guest', jury: 'Jury', observer: 'Observer' }
 const stateLabel: Record<Exclude<State, 'all'>, string> = { not_printed: 'Not printed', reprint: 'Needs reprint', printed: 'Printed' }
 
-/** "Full name, role, assignment" per line, as pasted from a spreadsheet; the role is staff, guide, volunteer or guest. */
+/** "Full name, role, assignment" per line, as pasted from a spreadsheet; the role is staff, guide, volunteer, guest, jury or observer. */
 function parseLines(text: string) {
   return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
     const [fullName = '', category = '', ...rest] = line.split(/\s*[,\t]\s*/)
@@ -60,7 +60,7 @@ function StaffForm({ categories, onAdded }: { categories: string[]; onAdded: (me
 
   return (
     <form ref={formRef} className="reg-staff-form" onSubmit={add} noValidate>
-      <h3 className="reg-staff-subhead">Add staff, guides, volunteers and guests</h3>
+      <h3 className="reg-staff-subhead">Add staff, guides, volunteers and special guests</h3>
       <div className="reg-switch reg-switch-small" role="group" aria-label="Add people">
         <button type="button" aria-pressed={mode === 'one'} className={mode === 'one' ? 'active' : undefined} onClick={() => setMode('one')}>One person</button>
         <button type="button" aria-pressed={mode === 'many'} className={mode === 'many' ? 'active' : undefined} onClick={() => setMode('many')}>Paste a list</button>
@@ -78,7 +78,7 @@ function StaffForm({ categories, onAdded }: { categories: string[]; onAdded: (me
       ) : (
         <div className={`reg-field${fieldErrors.lines ? ' has-error' : ''}`}>
           <label htmlFor="staff-lines">People, one per line</label>
-          <p className="reg-hint" id="staff-lines-hint">Full name, role (staff, guide, volunteer or guest), assignment. The assignment may be left out. Up to 300 lines; paste straight from a spreadsheet.</p>
+          <p className="reg-hint" id="staff-lines-hint">Full name, role (staff, guide, volunteer, guest, jury or observer), assignment. The assignment may be left out. Up to 300 lines; paste straight from a spreadsheet.</p>
           {fieldErrors.lines && <p className="reg-error" id="staff-lines-error">{fieldErrors.lines}</p>}
           <textarea id="staff-lines" name="lines" className="reg-control" rows={6} aria-describedby={`staff-lines-hint${fieldErrors.lines ? ' staff-lines-error' : ''}`}
             placeholder={'Kanokwan Srisuk, guide, Guide for Japan A\nSomchai Jaidee, staff, Registration desk'} />

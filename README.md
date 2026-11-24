@@ -28,7 +28,7 @@ npm run build && npm run preview    # the website and the portal at /portal (dis
 - `/people` — organising roles
 - `/people/committee` — official Thai committee and subcommittee roster
 - `/people/jury` — jury (placeholder)
-- `/people/problem-committee` — problem committee (placeholder)
+- `/people/problem-committee` — shows the Jury page (the jury and the Problem Committee are the same people)
 - `/news` — chronological announcements
 - `/registration` — how to register, who can register, key dates, working languages, and the button to the registration portal
 - `/registration/team-leader`, `/registration/check-in` — old addresses; they forward to the portal (or show `/registration` before it opens)

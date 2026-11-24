@@ -2,12 +2,13 @@
 // step, Submit, shows where every step stands and is where the registration is submitted.
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, FileText, Info, Lock, Plus, Send, Upload, UserPlus } from 'lucide-react'
-import { api, ApiError, type DelegationData, type Member, type TravelRecord } from './api'
-import { personFieldGroups, programmeWindow, sections, type Field, type PortalRecord, type Section, type SectionId } from './portalData'
-import { consentFor, personFields, personPayload, personRecord, teamRecord, tripPayload, tripRecord, welfareFacts } from './live'
-import { FeeTable, InvoiceDetails, TeamSetup, UnsavedNote, invoiceProblems, readInvoices, usd, type SetupBody } from './SetupForms'
+import { api, ApiError, type DelegationData, type DelegationKind, type Member, type TravelRecord } from './api'
+import { personFieldGroups, sections, type Field, type PortalRecord, type Section, type SectionId } from './portalData'
+import { consentFor, personFields, personPayload, personRecord, photoFor, teamRecord, transportChoices, transportLabel, tripComplete, tripPayload, tripRecord, welfareFacts } from './live'
+import { FeeTable, InvoiceDetails, SelfSetup, TeamSetup, UnsavedNote, invoiceProblems, readInvoices, usd, type SetupBody } from './SetupForms'
 import { openReceipt } from './invoice'
-import { Alert, Card, Chip, Facts, FieldControl, PageHead, daysBetween, focusFirstError, formatDate, messageOf, unsavedWork } from './ui'
+import { PhotoField } from './PhotoField'
+import { Alert, Card, Chip, Facts, FieldControl, PageHead, focusFirstError, longDate, messageOf, unsavedWork } from './ui'
 
 // "attention": saved, but something in it is missing since (a person's details, the stay dates), or a proof of payment
 // Finance returned.
@@ -43,11 +44,26 @@ const dayOf = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 
 const tripOrder = (t: TravelRecord) => `${t.localDate ?? '9999'}${t.localTime ?? ''}${t.createdAt ?? ''}`
 // Room requests go to the welfare team as free text, as the IOL Host's Handbook (6.2.2) asks registration to allow.
 const welfareNoteLabel = 'Room requests and anything else the welfare team should know'
-const main = sections.filter((s) => !s.afterSubmission)
-// "Before you begin" is an introduction, not a step: the numbered steps run from Team and observers to Submit.
-const numbered = main.filter((s) => s.id !== 'start')
-const after = sections.filter((s) => s.afterSubmission)
-const required = sections.filter((s) => s.required)
+
+/**
+ * The steps a registration has. A jury member or volunteer registers only themselves: no Teams step, the first step is
+ * About you, People holds their own details (and a jury member's observer), and Payment is there only when they owe
+ * something (an observer or a single room).
+ */
+function stepsFor(kind: DelegationKind, owes: boolean) {
+  const country = kind === 'country'
+  const all: Section[] = sections
+    .filter((s) => country || (s.id !== 'teams' && (s.id !== 'payment' || owes)))
+    .map((s) => (country ? s
+      : s.id === 'setup' ? { ...s, title: 'About you', intro: kind === 'jury' ? 'Your name, your hotel room, and whether you bring an observer. This sets anything you pay.' : 'Your name, and whether you need a hotel room.' }
+      : s.id === 'people' ? { ...s, title: 'Your details', intro: kind === 'jury' ? 'Your passport and personal details, your photo, and your observer’s details if you bring one.' : 'Your passport and personal details, and your photo.' }
+      : s))
+  const main = all.filter((s) => !s.afterSubmission)
+  // "Before you begin" is an introduction, not a step: the numbered steps run from the first step to Submit.
+  return { all, main, numbered: main.filter((s) => s.id !== 'start'), after: all.filter((s) => s.afterSubmission), required: all.filter((s) => s.required) }
+}
+const owesFor = (data: DelegationData) => (data.delegation.kind ?? 'country') === 'country' || data.fees.total > 0 || data.payments.length > 0
+const kindNoun: Record<DelegationKind, string> = { country: 'National representative', jury: 'Jury member', volunteer: 'Volunteer' }
 
 type StaffView = { roleLabel: string; onBack: () => void }
 
@@ -68,9 +84,10 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const [busy, setBusy] = useState(false)
   // Said at the top of the step just opened: a step saved (ok), or one left unfinished (warn).
   const [infoNote, setInfoNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null)
-  const [stay, setStay] = useState({ arrival: '', departure: '' })
-  const [stayNote, setStayNote] = useState('')
-  const [stayState, setStayState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  // The transport chosen in the open trip form, which decides whether its airport and flight are asked.
+  const [tripMode, setTripMode] = useState<'organisers' | 'own' | null>(null)
+  // The two notices ticked on Submit: the royal reception's dress code and protocol, and travel insurance.
+  const [acks, setAcks] = useState({ dressCode: false, insurance: false })
   const [navOpen, setNavOpen] = useState(false)
   const [copied, setCopied] = useState('')
   const [draftTrip, setDraftTrip] = useState<'arrival' | 'departure' | null>(null)
@@ -118,8 +135,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     let current = true
     load().then((d) => {
       if (!current) return
-      setStay({ arrival: d.delegation.declaredArrivalDate ?? '', departure: d.delegation.declaredDepartureDate ?? '' })
-      setStayNote(d.delegation.stayWindowNote ?? '')
+      const { all: sections, required } = stepsFor(d.delegation.kind ?? 'country', owesFor(d))
       const steps = new Set(d.delegation.completedSteps)
       const paid = d.payments[0] && ['awaiting_review', 'approved'].includes(d.payments[0].status)
       if (navigated.current) return
@@ -144,6 +160,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const derived = useMemo(() => {
     if (!data) return null
     const d = data.delegation
+    const kind = d.kind ?? 'country'
+    const country = kind === 'country'
+    const flow = stepsFor(kind, owesFor(data))
     const steps = new Set(d.completedSteps)
     const payment = data.payments[0]
     const paymentDone = Boolean(payment && ['awaiting_review', 'approved'].includes(payment.status))
@@ -151,31 +170,38 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     // observers and the invoice details lock, because they set the amount paid. Submitting still needs a proof
     // Finance has not returned.
     const proofIn = paymentDone || payment?.status === 'rejected'
-    // People, and Rooms and welfare, open with the proof, or from the start for a delegation the organisers opened early.
-    const peopleOpen = proofIn || Boolean(d.peopleOpenEarly)
+    // People, and Rooms and welfare, open with the proof, or from the start for a delegation the organisers opened early,
+    // and for jury members and volunteers.
+    const peopleOpen = proofIn || Boolean(d.peopleOpenEarly) || !country
     const submitted = d.registrationStatus !== 'draft'
-    const draftMember = { role: 'contestant' as const, teamId: data.teams[0]?.id ?? null }
-    // The account's own Team Leader comes first; with two teams, one more person may lead the second team.
-    const leaders = data.members.filter((m) => m.role === 'team_leader')
-    const canLead = d.numberOfTeams === 2 && leaders.length < 2
+    // People holds what Team and observers chose (IOL Board, 16 Nov 2026): four contestants for each team, the Team
+    // Leaders named there, and the observers chosen; a jury member's observer. "Add person" stops when all are in.
+    const placesLeft = {
+      contestant: country ? 4 * d.numberOfTeams - data.members.filter((m) => m.role === 'contestant').length : 0,
+      observer: d.numberOfObservers - data.members.filter((m) => m.role === 'observer').length,
+    }
+    const draftRole = placesLeft.contestant > 0 ? 'contestant' as const : 'observer' as const
+    const draftMember = { role: draftRole, teamId: draftRole === 'contestant' ? data.teams.find((t) => data.members.filter((m) => m.role === 'contestant' && m.teamId === t.id).length < 4)?.id ?? null : null }
     const records: Partial<Record<SectionId, PortalRecord[]>> = {
       teams: data.teams.map((t) => teamRecord(t, data)),
       people: [
-        ...data.members.map((m) => personRecord(m, data.teams, data.attachments, { primary: m.id === leaders[0]?.id, canLead })),
-        ...(draftOpen ? [{ id: NEW_PERSON, label: 'New person', meta: 'Not saved yet', status: 'attention' as const, issue: 'Not saved yet', fields: personFields(draftMember, data.teams, { canLead }) }] : []),
+        ...data.members.map((m) => personRecord(m, data)),
+        ...(draftOpen ? [{ id: NEW_PERSON, label: 'New person', meta: 'Not saved yet', status: 'attention' as const, issue: 'Not saved yet', fields: personFields(draftMember, data) }] : []),
       ],
       // Every arrival and departure saved, by date, with an empty one to fill when there is none yet or one is being added.
       travel: (['arrival', 'departure'] as const).flatMap((dir) => {
         const trips = data.travelRecords.filter((t) => t.direction === dir).sort((a, b) => tripOrder(a).localeCompare(tripOrder(b)))
         const adding = !trips.length || draftTrip === dir
         const several = trips.length + (adding && trips.length ? 1 : 0) > 1
-        return [...trips.map((t, i) => tripRecord(dir, t, data.members, several ? i + 1 : undefined)), ...(adding ? [tripRecord(dir, undefined, data.members, several ? trips.length + 1 : undefined)] : [])]
+        const mode = (id: string) => (selected.travel === id && tripMode ? tripMode : undefined)
+        return [...trips.map((t, i) => tripRecord(dir, t, data, several ? i + 1 : undefined, mode(t.id))), ...(adding ? [tripRecord(dir, undefined, data, several ? trips.length + 1 : undefined, mode(`new-${dir}`))] : [])]
       }),
     }
-    return { d, steps, payment, paymentDone, proofIn, peopleOpen, submitted, records }
-  }, [data, draftOpen, draftTrip])
+    return { d, kind, country, flow, steps, payment, paymentDone, proofIn, peopleOpen, submitted, records, placesLeft }
+  }, [data, draftOpen, draftTrip, tripMode, selected.travel])
 
-  const eyebrow = staff ? `Back office · ${staff.roleLabel}` : 'National representative portal'
+  const kindOfData = data?.delegation.kind ?? 'country'
+  const eyebrow = staff ? `Back office · ${staff.roleLabel}` : kindOfData === 'jury' ? 'Jury registration' : kindOfData === 'volunteer' ? 'Volunteer registration' : 'National representative portal'
   if (loadError || !data || !derived) {
     return <>
       <PageHead eyebrow={eyebrow} title={staff ? 'Registration' : 'Your registration'} session={session} />
@@ -185,7 +211,10 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     </>
   }
 
-  const { d, steps, payment, paymentDone, proofIn, peopleOpen, submitted, records } = derived
+  const { d, kind, country, flow, steps, payment, paymentDone, proofIn, peopleOpen, submitted, records, placesLeft } = derived
+  const { main, numbered, after, required } = flow
+  const sectionList = flow.all
+  const ev = data.event
   const isDone = (id: SectionId) => (id === 'payment' ? paymentDone : id === 'submit' ? submitted : steps.has(id))
   const doneCount = required.filter((s) => isDone(s.id)).length
   const allRequiredDone = doneCount === required.length
@@ -194,10 +223,18 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   // What a step needs beyond being saved: unfinished teams and people, stay dates, observers that match the fees.
   const todo: Partial<Record<SectionId, string[]>> = {}
   const needs = (step: SectionId, item: string) => { (todo[step] ??= []).push(item) }
-  if (!d.declaredArrivalDate || !d.declaredDepartureDate) needs('travel', 'Add your stay dates')
-  // Names asked in Team and observers since sign-up stopped asking for one (12 Nov 2026).
-  if (!d.nationalRepresentativeName) needs('setup', 'Enter the national representative’s name')
-  if (!data.members.some((m) => m.role === 'team_leader')) needs('setup', 'Name the Team Leader')
+  // Names asked in Team and observers since sign-up stopped asking for one (12 Nov 2026): the national representative,
+  // and a Team Leader for each team.
+  if (country) {
+    if (!d.nationalRepresentativeName) needs('setup', 'Enter the national representative’s name')
+    const leaders = data.members.filter((m) => m.role === 'team_leader').length
+    if (leaders < d.numberOfTeams) needs('setup', d.numberOfTeams === 1 ? 'Name the Team Leader' : 'Name a Team Leader for each team')
+    // Each team brings four contestants (IOL Board, 16 Nov 2026).
+    if (peopleOpen) for (const t of data.teams) {
+      const n = data.members.filter((m) => m.role === 'contestant' && m.teamId === t.id).length
+      if (n !== 4) needs('people', `${t.name}: ${n} of 4 contestants`)
+    }
+  } else if (!data.members.some((m) => m.role === kind)) needs('setup', 'Enter your name')
   for (const id of ['teams', 'people'] as const) {
     (records[id] ?? []).filter((r) => r.status === 'attention' && r.id !== NEW_PERSON).forEach((r) => needs(id, `${r.label}: ${r.issue?.toLowerCase()}`))
   }
@@ -221,7 +258,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     if (s.afterSubmission) return submitted ? 'todo' : 'after'
     return 'todo'
   }
-  const section = sections.find((s) => s.id === activeId)!
+  const section = sectionList.find((s) => s.id === activeId) ?? sectionList[0]
   const status = statusOf(section)
   const locked = status === 'locked'
   // Payment is done on the representative's side once the proof is in; the label says where Finance is with it.
@@ -232,7 +269,16 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   // A step that can be worked on and still needs something: not saved yet, or saved and missing something since.
   const needsWork = (s: Section) => s.required && statusOf(s) !== 'locked' && (!isDone(s.id) || Boolean(todo[s.id]?.length))
   const firstOpenStep = ready || submitted ? undefined : main.find(needsWork)
-  const stepNumber = (s: Section) => numbered.indexOf(s) + 1
+  const stepNumber = (s: Section) => numbered.findIndex((x) => x.id === s.id) + 1
+  // The date beside each step that closes (IOL Board, 16 Nov 2026), as a date rather than days left.
+  const deadlineOf = (id: SectionId): string | null => (
+    // A jury member's or volunteer's observer and single room have no early bird rate: only a date to pay by.
+    id === 'payment' && (!payment || payment.status === 'awaiting_proof') ? (country ? `${data.fees.tier === 'early_bird' ? 'Early bird rate until' : 'Due by'} ${longDate(data.fees.tier === 'early_bird' ? ev.earlyBirdEnds : ev.registrationEnds)}` : `Due by ${longDate(data.fees.dueDate)}`)
+    : id === 'teams' ? (ev.languagesLocked ? `Languages closed on ${longDate(ev.languageLock)}` : `Languages can change until ${longDate(ev.languageLock)}`)
+    : id === 'people' ? `By ${longDate(ev.peopleDeadline)}`
+    : id === 'welfare' ? `By ${longDate(ev.peopleDeadline)}`
+    : id === 'travel' ? (ev.travelLocked ? `Closed on ${longDate(ev.travelDeadline)}` : `Flights until ${longDate(ev.travelDeadline)}`)
+    : null)
   const stepsDone = numbered.filter((s) => statusOf(s) === 'done').length
   // Steps can be done in any order, so after one comes the next one along that still needs something, and once there is
   // none, Submit, which shows anything left from earlier.
@@ -288,7 +334,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     // The step is saved, so nothing on it is left unsaved (an open record was asked about before finishing).
     setDirty({})
     go(nextOf(id))
-    const finished = sections.find((s) => s.id === id)
+    const finished = sectionList.find((s) => s.id === id)
     if (finished?.required) setInfoNote({ tone: 'ok', text: `“${finished.title}” is saved.` })
   }
   /** Moves on from a step that is not finished; it stays on the to-do list, and the next step says so. */
@@ -302,6 +348,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const currentRecord = sectionRecords.find((r) => r.id === selected[activeId]) ?? sectionRecords[0]
   // Opening another record (or a new person) replaces the editor, so unsaved changes in it are asked about first.
   const chooseRecord = (id: string) => guard(() => {
+    setTripMode(null)
     setSelected((s) => ({ ...s, [activeId]: id }))
     setRecordOpen(true); setFieldErrors({}); setSavedNote(''); clean('record')
   }, id === currentRecord?.id ? [] : ['record'])
@@ -328,11 +375,12 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
         if (saved) setSelected((s) => ({ ...s, travel: saved.id }))
         setDraftTrip(null)
         clean('record')
-        setSavedNote(body.travelPoint && body.flightServiceNumber && body.localDate && body.localTime ? 'Saved.' : 'Saved. Finish this trip once flights are booked.')
+        setTripMode(null)
+        setSavedNote(tripComplete({ ...body, id: '', terminal: null, memberIds: [] } as TravelRecord) ? 'Saved.' : 'Saved. Finish this trip once flights are booked.')
       } else if (activeId === 'people') {
         const member = data.members.find((m) => m.id === currentRecord.id)
         const role = member?.role ?? 'contestant'
-        const payload = personPayload(form, role, data.teams)
+        const payload = personPayload(form, role, data)
         if (!payload.displayName) { setFieldErrors({ 'Display name': 'Enter a name so we can save this person.' }); focusFirstError(panelRef.current); return }
         let id = currentRecord.id
         if (currentRecord.id === NEW_PERSON) {
@@ -384,15 +432,6 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   })
 
   const finishRecords = () => guard(() => {
-    if (activeId === 'travel') {
-      if (!stay.arrival || !stay.departure || stayProblem) {
-        setSectionError('Add your arrival and departure dates first. Flights can wait.')
-        document.getElementById('stay-arrival')?.focus()
-        return
-      }
-      run(() => finishStep('travel', { declaredArrivalDate: stay.arrival, declaredDepartureDate: stay.departure, stayWindowNote: outsideWindow > 0 ? stayNote || null : null }))
-      return
-    }
     const pending = sectionRecords.filter((r) => r.status === 'attention' && r.id !== NEW_PERSON)
     if (pending.length) {
       moveOn(`${section.title} is not finished yet, so it stays on your list: ${pending.map((r) => `${r.label} (${r.issue?.toLowerCase()})`).join(', ')}.`)
@@ -452,27 +491,13 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     run(() => finishStep('welfare', { welfareNote: note || null }))
   }
 
-  /* travel stay dates --------------------------------------------- */
-  const nights = stay.arrival && stay.departure ? daysBetween(stay.arrival, stay.departure) : null
-  const stayProblem = nights !== null && nights < 0 ? 'Departure must be on or after the arrival date.' : null
-  const outsideWindow = stay.arrival && stay.departure && !stayProblem
-    ? Math.max(0, daysBetween(stay.arrival, programmeWindow.first)) + Math.max(0, daysBetween(programmeWindow.last, stay.departure))
-    : 0
-  // Stay dates, and the note about extra nights when it is left, save on their own; the card says when they have.
-  const saveStay = (body: Record<string, unknown>) => {
-    setStayState('saving')
-    patchDelegation(body).then(load).then(() => setStayState('saved')).catch((e) => { setStayState('idle'); setSectionError(messageOf(e)) })
-  }
-  const changeStay = (next: { arrival: string; departure: string }) => {
-    setStay(next); setSectionError(null)
-    const bad = next.arrival && next.departure && next.departure < next.arrival
-    if (!bad) saveStay({ declaredArrivalDate: next.arrival || null, declaredDepartureDate: next.departure || null })
-  }
-  const saveStayNote = () => {
-    if (!dirty['stay-note']) return
-    clean('stay-note')
-    saveStay({ stayWindowNote: stayNote.trim() || null })
-  }
+  const uploadPhoto = (memberId: string, file: Blob) => run(async () => {
+    const form = new FormData()
+    form.append('photo', file, 'photo.jpg')
+    await api(`/api/registration/members/${memberId}/photo`, { method: 'POST', form })
+    await load()
+    setSavedNote('Photo saved.')
+  })
 
   /** A Copy button for something typed into online banking: the payment reference, account number, SWIFT code. */
   const copyButton = (what: string, text: string) => (
@@ -483,7 +508,12 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
   /** Submits the registration. The server checks everything again and lists anything still missing. */
   const submit = () => run(async () => {
-    await api(`/api/registration/delegations/${d.id}/submit`, { method: 'POST' })
+    if (!acks.dressCode || !acks.insurance) {
+      setSectionError('Tick both boxes above first: the dress code and protocol, and travel insurance.')
+      document.getElementById(!acks.dressCode ? 'ack-dress-code' : 'ack-insurance')?.focus()
+      return
+    }
+    await api(`/api/registration/delegations/${d.id}/submit`, { method: 'POST', body: { acknowledgeDressCode: true, acknowledgeInsurance: true } })
     await load()
     setInfoNote({ tone: 'ok', text: 'Your registration is submitted.' })
   })
@@ -541,27 +571,30 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   }
   const singleRoomsChosen = [...d.singleRooms.teamLeaders, ...d.singleRooms.observers].filter(Boolean).length
   const unsavedNames: Record<string, string> = {
-    setup: 'Team and observers', invoice: 'the invoice details', welfare: 'the note for the welfare team', 'stay-note': 'the note about extra nights',
+    setup: country ? 'Team and observers' : 'About you', invoice: 'the invoice details', welfare: 'the note for the welfare team',
     record: currentRecord?.id === NEW_PERSON ? 'the new person' : currentRecord?.label ?? 'this record',
   }
   const consentMember = activeId === 'people' ? data.members.find((m) => m.id === currentRecord?.id && m.needsGuardianConsent) : undefined
   const consent = consentMember ? consentFor(consentMember, data.attachments) : undefined
+  // A jury member's or volunteer's own record asks for their photo.
+  const photoMember = activeId === 'people' ? data.members.find((m) => m.id === currentRecord?.id && (m.role === 'jury' || m.role === 'volunteer')) : undefined
 
   /* submit: where every step stands ----------------------------------- */
   const paymentStatus = payment?.status
-  const peopleCount = data.members.filter((m) => m.role !== 'team_leader').length
+  const peopleCount = data.members.filter((m) => country ? m.role !== 'team_leader' : true).length
   const peopleToFinish = (records.people ?? []).filter((r) => r.status === 'attention' && r.id !== NEW_PERSON).length
-  const flightsIn = data.travelRecords.filter((t) => t.flightServiceNumber && t.localDate).length
+  const flightsIn = data.travelRecords.filter((t) => tripComplete(t)).length
   // Who is not on any arrival or departure yet: their badges wait for it.
   const offTrips = (direction: 'arrival' | 'departure') => data.members
     .filter((m) => !data.travelRecords.some((t) => t.direction === direction && t.memberIds.includes(m.id)))
     .map((m) => m.badgeName || m.displayName)
-  const flightsMissing = data.travelRecords.some((t) => !t.flightServiceNumber || !t.localDate) || (data.members.length > 0 && (offTrips('arrival').length > 0 || offTrips('departure').length > 0))
+  const flightsMissing = data.travelRecords.some((t) => !tripComplete(t)) || (data.members.length > 0 && (offTrips('arrival').length > 0 || offTrips('departure').length > 0))
   const trackDetail: Record<SectionId, string> = {
     start: '',
-    setup: steps.has('setup')
+    setup: !country ? (steps.has('setup') ? `${d.needsAccommodation === false ? 'No hotel room' : singleRoomsChosen ? 'Hotel room, with a single room' : 'Hotel room, shared'}${d.numberOfObservers ? ', bringing an observer' : ''}.` : 'Your name, and your hotel room.')
+      : steps.has('setup')
       ? `${d.numberOfTeams} ${d.numberOfTeams === 1 ? 'team' : 'teams'}, ${d.numberOfObservers} ${d.numberOfObservers === 1 ? 'observer' : 'observers'}, ${singleRoomsChosen || 'no'} single ${singleRoomsChosen === 1 ? 'room' : 'rooms'}.`
-      : 'How many teams and observers, and who would like a single room. This sets your fees.',
+      : 'How many teams and observers, who leads each team, and who would like a single room. This sets your fees.',
     payment: paymentStatus === 'approved' ? `Confirmed by Finance${reviewDay ? ` on ${reviewDay}` : ''}. Your e-receipt is in this step.`
       : paymentStatus === 'awaiting_review' ? `Proof uploaded${proofDay ? ` on ${proofDay}` : ''}. Finance is checking it against the bank statement, usually within 5 business days.`
       : paymentStatus === 'rejected' ? 'Finance returned the proof. Upload a new one.'
@@ -570,9 +603,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     people: !peopleOpen ? 'Opens once the proof of payment is uploaded.'
       : `${peopleCount} ${peopleCount === 1 ? 'person' : 'people'} entered${peopleToFinish ? `, ${peopleToFinish} still to finish` : ''}.`,
     welfare: !peopleOpen ? 'Opens with People, once the proof of payment is uploaded.' : steps.has('welfare') ? 'Summary checked.' : 'Check the summary built from everyone’s details, and add any room requests.',
-    travel: d.declaredArrivalDate && d.declaredDepartureDate
-      ? `Staying ${formatDate(d.declaredArrivalDate)} to ${formatDate(d.declaredDepartureDate)}. ${flightsIn ? `${flightsIn} ${flightsIn === 1 ? 'flight' : 'flights'} added${flightsMissing ? ', but not everyone is on one yet' : ''}` : 'Flights once they are booked'}.`
-      : 'Stay dates now; flights once they are booked.',
+    travel: flightsIn ? `${flightsIn} ${flightsIn === 1 ? 'trip' : 'trips'} added${flightsMissing ? ', but not everyone is on an arrival and a departure yet' : ''}. Changes until ${longDate(ev.travelDeadline)}.` : `Flights once they are booked, by ${longDate(ev.travelDeadline)}.`,
     submit: '',
     badges: '',
   }
@@ -594,7 +625,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   }
   const phases: { title: string; steps: TrackStep[] }[] = [
     { title: 'Your account', steps: [
-      { key: 'code', title: 'Invitation code', detail: `Linked this account to ${d.countryTerritory}.`, state: 'done', label: 'Done' },
+      { key: 'code', title: 'Invitation code', detail: country ? `Linked this account to ${d.countryTerritory}.` : `Registering as ${kind === 'jury' ? 'a jury member' : 'a volunteer'}.`, state: 'done', label: 'Done' },
       { key: 'account', title: 'Your account', detail: `${d.teamLeaderEmail}, email checked.`, state: 'done', label: 'Done' },
     ] },
     { title: 'Registration', steps: [...numbered.filter((s) => s.id !== 'submit').map(trackOf), submitStep] },
@@ -621,10 +652,35 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const trackMark = (step: TrackStep) => step.state === 'done' ? <Check size={15} strokeWidth={3} />
     : step.state === 'locked' ? <Lock size={14} strokeWidth={2.4} />
     : step.state === 'after' ? <Clock size={14} />
-    : stepNumber(sections.find((s) => s.id === (step.to ?? step.key))!)
+    : stepNumber(sectionList.find((s) => s.id === (step.to ?? step.key)) ?? sectionList[0])
+
+  // Before submitting (IOL Board, 16 Nov 2026): the royal reception's dress code and protocol, and travel insurance.
+  const notices = (
+    <Card id="submit-notices" title="Before you submit" intro={submitted ? undefined : 'Please read both and tick each box. Submitting needs both.'}>
+      <div className="reg-notices">
+        <div className="reg-notice">
+          <h4>Royal reception: dress code and protocol</h4>
+          <p>{ev.dressCode}</p>
+          {submitted
+            ? <p className="reg-hint"><Check size={14} strokeWidth={3} aria-hidden="true" /> Confirmed{d.dressCodeAcknowledgedAt ? ` on ${dayOf(d.dressCodeAcknowledgedAt)}` : ''}.</p>
+            : <label className="reg-check"><input type="checkbox" id="ack-dress-code" checked={acks.dressCode} onChange={(e) => { setAcks((a) => ({ ...a, dressCode: e.target.checked })); setSectionError(null) }} />
+              <span>{country ? 'I have read the dress code and protocol, and will make sure everyone in my delegation follows them.' : 'I have read the dress code and protocol, and will follow them.'}</span></label>}
+        </div>
+        <div className="reg-notice">
+          <h4>Travel insurance</h4>
+          <p>We strongly recommend that everyone travels with insurance covering medical treatment and accidents. Each participant is responsible for their own personal accident and medical expenses, subject to the official event policy.</p>
+          {submitted
+            ? <p className="reg-hint"><Check size={14} strokeWidth={3} aria-hidden="true" /> Confirmed{d.insuranceAcknowledgedAt ? ` on ${dayOf(d.insuranceAcknowledgedAt)}` : ''}.</p>
+            : <label className="reg-check"><input type="checkbox" id="ack-insurance" checked={acks.insurance} onChange={(e) => { setAcks((a) => ({ ...a, insurance: e.target.checked })); setSectionError(null) }} />
+              <span>{country ? 'I understand that each person in my delegation is responsible for their own accident and medical expenses, and that travel insurance is recommended.' : 'I understand that I am responsible for my own accident and medical expenses, and that travel insurance is recommended.'}</span></label>}
+        </div>
+      </div>
+    </Card>
+  )
 
   const overview = (
     <div className="reg-home">
+      {notices}
       <div className={`reg-home-next is-${nextStep.tone}`}>
         <div>
           <p className="reg-home-kicker">{nextStep.kicker}</p>
@@ -666,8 +722,11 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
       <div className="reg-home-foot">
         <dl>
-          <div><dt>Early bird rate</dt><dd>Proof of payment uploaded by 12 March 2027</dd></div>
-          <div><dt>Registration closes</dt><dd>30 April 2027</dd></div>
+          {country && <div><dt>Early bird rate</dt><dd>Proof of payment uploaded by {longDate(ev.earlyBirdEnds)}</dd></div>}
+          <div><dt>Registration closes</dt><dd>{longDate(ev.registrationEnds)}</dd></div>
+          {country && <div><dt>Contest languages</dt><dd>Can change until {longDate(ev.languageLock)}</dd></div>}
+          <div><dt>People details</dt><dd>By {longDate(ev.peopleDeadline)}</dd></div>
+          <div><dt>Flights</dt><dd>Add and change until {longDate(ev.travelDeadline)}</dd></div>
           <div><dt>The Olympiad</dt><dd>21–28 July 2027, Bangkok</dd></div>
         </dl>
         <p>Questions about your registration? <a href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a></p>
@@ -680,15 +739,19 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     askRef.current?.close()
     question?.onGo()
   }
-  const primaryLeader = data.members.find((m) => m.role === 'team_leader')
+  // Team Leaders are named in Team and observers, and a jury member's or volunteer's own record comes from About you.
+  const fixedRecord = (id: string) => ['team_leader', 'jury', 'volunteer'].includes(data.members.find((m) => m.id === id)?.role ?? '')
+  const canAdd = placesLeft.contestant > 0 || placesLeft.observer > 0
 
   const recordsCard = section.records && !locked && (
     <div className={`reg-card reg-records${recordOpen ? ' is-open' : ''}`}>
       <div className="reg-record-list">
         <div className="reg-record-list-head">
           <h3>{activeId === 'travel' ? 'Flights' : `${sectionRecords.filter((r) => r.id !== NEW_PERSON).length} ${section.records.plural}`}</h3>
-          {activeId === 'people' && !draftOpen && <button type="button" className="reg-btn-link" onClick={addPerson}><UserPlus size={16} aria-hidden="true" />Add person</button>}
+          {activeId === 'people' && !draftOpen && canAdd && <button type="button" className="reg-btn-link" onClick={addPerson}><UserPlus size={16} aria-hidden="true" />{country ? 'Add person' : 'Add your observer'}</button>}
         </div>
+        {activeId === 'people' && !canAdd && kind !== 'volunteer' && <p className="reg-hint">Everyone is in: {country ? `four contestants for each team, the Team Leaders and ${d.numberOfObservers === 1 ? 'the observer' : d.numberOfObservers ? `the ${d.numberOfObservers} observers` : 'no observers'} chosen in Team and observers` : 'you, and your observer if you bring one'}. To add someone, change {country ? 'Team and observers' : 'About you'} (before the proof of payment), or email the organisers.</p>}
+        {activeId === 'people' && canAdd && country && <p className="reg-hint">Still to add: {[placesLeft.contestant > 0 && `${placesLeft.contestant} ${placesLeft.contestant === 1 ? 'contestant' : 'contestants'}`, placesLeft.observer > 0 && `${placesLeft.observer} ${placesLeft.observer === 1 ? 'observer' : 'observers'}`].filter(Boolean).join(' and ')}.</p>}
         {activeId === 'travel' && <p className="reg-hint">Add each flight once it is booked. People on different flights? Add an arrival or departure for each flight, and tick who is on it.</p>}
         <ul>
           {sectionRecords.map((record) => (
@@ -714,7 +777,13 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       </div>
 
       {currentRecord && (
-        <form className="reg-record-editor" onSubmit={saveRecord} noValidate key={currentRecord.id} data-dirty-key="record">
+        <form className="reg-record-editor" onSubmit={saveRecord} noValidate key={currentRecord.id} data-dirty-key="record"
+          onChange={(e) => {
+            const target = e.target as unknown as HTMLInputElement
+            if (activeId === 'travel' && (target.name === transportLabel('arrival') || target.name === transportLabel('departure'))) {
+              setTripMode(target.value === transportChoices.arrival[1] || target.value === transportChoices.departure[1] ? 'own' : 'organisers')
+            }
+          }}>
           <button type="button" className="reg-btn-link reg-back-to-list" onClick={() => guard(() => { setRecordOpen(false); clean('record') }, ['record'])}><ArrowLeft size={16} aria-hidden="true" />All {section.records.plural}</button>
           <div className="reg-editor-head">
             <h3>{currentRecord.label}</h3>
@@ -736,6 +805,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
           ) : (
             <div className="reg-grid" key="fields">{group.fields.map((f) => <FieldControl key={f.label} field={f} idPrefix={`${activeId}-${currentRecord.id}`} error={fieldErrors[f.label]} />)}</div>
           ))}
+          {photoMember && (
+            <PhotoField key={photoFor(photoMember, data.attachments)?.id ?? 'none'} busy={busy} current={photoFor(photoMember, data.attachments)} onSave={(blob) => uploadPhoto(photoMember.id, blob)} />
+          )}
           {consentMember && (
             <div className="reg-field reg-field-wide reg-proof">
               <span className="reg-label-text" id="consent-label">Guardian consent form</span>
@@ -753,7 +825,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
             <button type="submit" className="reg-btn reg-btn-secondary" disabled={busy}>{busy ? 'Saving…' : `Save ${section.records.noun}`}</button>
             {currentRecord.id === NEW_PERSON && <button type="button" className="reg-btn-link" onClick={cancelNewPerson}>Cancel</button>}
             {draftTrip && currentRecord.id === `new-${draftTrip}` && <button type="button" className="reg-btn-link" onClick={cancelNewTrip}>Cancel</button>}
-            {activeId === 'people' && currentRecord.id !== NEW_PERSON && currentRecord.id !== primaryLeader?.id && (
+            {activeId === 'people' && currentRecord.id !== NEW_PERSON && !fixedRecord(currentRecord.id) && (
               <button type="button" className="reg-btn-link reg-btn-remove" onClick={() => remove('person', currentRecord.id, currentRecord.label)}>Remove this person</button>
             )}
             {activeId === 'travel' && !currentRecord.id.startsWith('new-') && (
@@ -767,8 +839,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   )
 
   return <>
-    <PageHead eyebrow={eyebrow} title={d.countryTerritory} session={session}
-      intro={`${d.nationalRepresentativeName || d.teamLeaderEmail} · National representative${d.representativeIsTeamLeader ? ' and Team Leader' : ''}${staff ? ` · ${d.teamLeaderEmail}` : ''}`}
+    <PageHead eyebrow={eyebrow} title={country ? d.countryTerritory : d.nationalRepresentativeName || (kind === 'jury' ? 'Jury registration' : 'Volunteer registration')} session={session}
+      intro={`${d.nationalRepresentativeName || d.teamLeaderEmail} · ${kindNoun[kind]}${country && d.representativeIsTeamLeader ? ' and Team Leader' : ''}${staff ? ` · ${d.teamLeaderEmail}` : ''}`}
       aside={
         <div className="reg-head-progress">
           <p><strong>{submitted ? 'Submitted' : `${stepsDone} of ${numbered.length}`}</strong>{submitted ? ' · people and travel can still change' : ' steps done'}</p>
@@ -788,9 +860,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
         </div>
       }>
       <ul className="reg-ws-summary" aria-label="Delegation summary">
-        <li>{d.numberOfTeams} {d.numberOfTeams === 1 ? 'team' : 'teams'} · up to {d.numberOfTeams * 4} contestants</li>
-        <li>{d.numberOfObservers} {d.numberOfObservers === 1 ? 'observer' : 'observers'}</li>
-        <li>{submitted ? 'Registration submitted' : paymentLabel[payment?.status ?? 'none']}</li>
+        {country && <li>{d.numberOfTeams} {d.numberOfTeams === 1 ? 'team' : 'teams'} · {d.numberOfTeams * 4} contestants</li>}
+        {kind !== 'volunteer' && <li>{d.numberOfObservers} {d.numberOfObservers === 1 ? 'observer' : 'observers'}</li>}
+        <li>{submitted ? 'Registration submitted' : owesFor(data) ? paymentLabel[payment?.status ?? 'none'] : 'Nothing to pay'}</li>
       </ul>
     </PageHead>
     <div className="reg-shell wrap reg-workspace">
@@ -813,7 +885,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                 <li key={s.id}>
                   <button type="button" className={`reg-rail-item is-${st}${s.id === activeId ? ' is-current' : ''}`} aria-current={s.id === activeId ? 'step' : undefined} onClick={() => open(s.id)}>
                     <StatusMark status={st} number={stepNumber(s)} />
-                    <span className="reg-rail-text"><span>{s.title}</span><small>{stepLabel(s, st)}</small></span>
+                    <span className="reg-rail-text"><span>{s.title}</span><small>{stepLabel(s, st)}</small>{!submitted && st !== 'done' && deadlineOf(s.id) && <small className="reg-rail-deadline">{deadlineOf(s.id)}</small>}</span>
                   </button>
                 </li>
               )
@@ -841,6 +913,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
             <p className="reg-step-kicker">{section.afterSubmission ? 'After you submit' : section.id === 'start' ? 'Start here' : `Step ${stepNumber(section)} of ${numbered.length}`}</p>
             <h2 id="reg-panel-title" ref={titleRef} tabIndex={-1}>{section.title}</h2>
             <p>{section.intro}</p>
+            {deadlineOf(section.id) && <p className="reg-step-deadline"><Clock size={15} aria-hidden="true" />{deadlineOf(section.id)}</p>}
           </header>
 
           {infoNote && (
@@ -857,30 +930,45 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
           )}
 
           {activeId === 'start' && <>
-            <Card id="start-steps" title="How registration works" intro="Seven steps, the last of them submitting. Everything you save is kept, so you can stop at any point and come back later, on any device.">
-              <p className="reg-hint reg-card-lead">As national representative you are the organisers’ contact for your whole delegation, so please pass on to your team and observers what you read here.</p>
-              <ol className="reg-journey">
-                <li><strong>Team and observers.</strong> How many teams, whether each brings an observer, and who would like a single room. This sets your fees.</li>
-                <li><strong>Payment.</strong> Your invoice details, the bank transfer, then the bank’s proof of transfer.</li>
-                <li><strong>Teams.</strong> Each team’s contest language.</li>
-                <li><strong>People.</strong> Opens after payment. Fill it in stages if you need to.</li>
-                <li><strong>Rooms and welfare.</strong> Check the summary built from your people, and add any requests.</li>
-                <li><strong>Travel.</strong> Stay dates now; flights once they are booked.</li>
-                <li><strong>Submit.</strong> Shows where every step stands. Once the six above are done, you submit here.</li>
-              </ol>
-              <p className="reg-hint reg-card-foot">Do steps 1 to 6 in whatever order suits you, except that People and Rooms and welfare open after payment. You can still update people and travel after you submit.</p>
-            </Card>
+            {country ? (
+              <Card id="start-steps" title="How registration works" intro="Seven steps, the last of them submitting. Everything you save is kept, so you can stop at any point and come back later, on any device.">
+                <p className="reg-hint reg-card-lead">As national representative you are the organisers’ one contact for your whole delegation, even with two teams, so please pass on to your teams and observers what you read here.</p>
+                <ol className="reg-journey">
+                  <li><strong>Team and observers.</strong> How many teams, each team’s Team Leader, whether each team brings an observer, and who would like a single room. This sets your fees.</li>
+                  <li><strong>Payment.</strong> Your invoice details, the bank transfer, then the bank’s proof of transfer. Early bird rate until {longDate(ev.earlyBirdEnds)}.</li>
+                  <li><strong>Teams.</strong> Each team’s contest language, which can change until {longDate(ev.languageLock)}.</li>
+                  <li><strong>People.</strong> Opens after payment. Fill it in stages, by {longDate(ev.peopleDeadline)}.</li>
+                  <li><strong>Rooms and welfare.</strong> Check the summary built from your people, and add any requests.</li>
+                  <li><strong>Travel.</strong> Each person’s flights once they are booked, by {longDate(ev.travelDeadline)}.</li>
+                  <li><strong>Submit.</strong> Shows where every step stands. Once the six above are done, you read the dress code and travel insurance notices and submit here.</li>
+                </ol>
+                <p className="reg-hint reg-card-foot">Do steps 1 to 6 in whatever order suits you, except that People and Rooms and welfare open after payment. You can still update people and travel after you submit, until the dates above.</p>
+              </Card>
+            ) : (
+              <Card id="start-steps" title="How registration works" intro="A few steps, the last of them submitting. Everything you save is kept, so you can stop at any point and come back later.">
+                <ol className="reg-journey">
+                  <li><strong>About you.</strong> Your name, whether you need a hotel room{kind === 'jury' ? ', and whether you bring an observer' : ''}.</li>
+                  {owesFor(data) && <li><strong>Payment.</strong> Only for {kind === 'jury' ? 'an observer or ' : ''}a single room: the invoice, the bank transfer, then the proof.</li>}
+                  <li><strong>Your details.</strong> Passport and personal details, and your photo, by {longDate(ev.peopleDeadline)}.</li>
+                  <li><strong>Rooms and welfare.</strong> Check the summary, and add any requests.</li>
+                  <li><strong>Travel.</strong> Your flights once they are booked, by {longDate(ev.travelDeadline)}.</li>
+                  <li><strong>Submit.</strong> Read the dress code and travel insurance notices, then submit.</li>
+                </ol>
+              </Card>
+            )}
             <div className="reg-panel-actions">
               <Alert>{sectionError}</Alert>
               {steps.has('start')
                 ? <button type="button" className="reg-btn reg-btn-primary" onClick={() => go(firstOpenStep?.id ?? 'submit')}>Continue to {firstOpenStep?.title ?? 'Submit'} <ArrowRight size={18} aria-hidden="true" /></button>
-                : <button type="button" className="reg-btn reg-btn-primary" disabled={busy} onClick={() => run(() => finishStep('start'))}>Start with team and observers <ArrowRight size={18} aria-hidden="true" /></button>}
+                : <button type="button" className="reg-btn reg-btn-primary" disabled={busy} onClick={() => run(() => finishStep('start'))}>{country ? 'Start with team and observers' : 'Start with About you'} <ArrowRight size={18} aria-hidden="true" /></button>}
             </div>
           </>}
 
           {activeId === 'submit' && overview}
 
-          {activeId === 'setup' && <TeamSetup key={`${d.numberOfTeams}-${d.numberOfObservers}`} data={data} locked={proofIn} busy={busy} error={sectionError} dirty={Boolean(dirty.setup)} onTouched={() => markDirty('setup')} onSave={saveSetup} onContinue={() => go(nextOf('setup'))} />}
+          {activeId === 'setup' && (country
+            ? <TeamSetup key={`${d.numberOfTeams}-${d.numberOfObservers}`} data={data} locked={proofIn} busy={busy} error={sectionError} dirty={Boolean(dirty.setup)} onTouched={() => markDirty('setup')} onSave={saveSetup} onContinue={() => go(nextOf('setup'))} />
+            : <SelfSetup key={`${d.numberOfObservers}-${d.needsAccommodation}`} data={data} locked={proofIn} busy={busy} error={sectionError} dirty={Boolean(dirty.setup)} onTouched={() => markDirty('setup')} onSave={saveSetup} onContinue={() => go(nextOf('setup'))} />)}
 
           {activeId === 'welfare' && !locked && (
             <form onSubmit={saveWelfare} noValidate data-dirty-key="welfare">
@@ -888,10 +976,12 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                 <Card id="welfare-summary" title="Summary from People" intro="Built from everyone’s records. To change something, edit that person in People.">
                   <Facts items={welfareFacts(data)} />
                 </Card>
-                <Card id="welfare-requests" title="Requests" intro="For example: a contestant who should share with a particular teammate, or would rather not share with someone they do not know, needs a room of their own, or has access needs. Seen only by the organising team.">
+                <Card id="welfare-requests" title="Requests">
+                  <p className="reg-card-lead">We are committed to ensuring that all participants, including trans and non-binary contestants, feel safe, comfortable, and welcome in their accommodation arrangements. Therefore, if any of the participants has specific justifiable accommodation requests or access requirements, please outline them below. This may include, but is not limited to: requests to share a room with a specific contestant from the same country/territory whom they know well, requests to avoid sharing a room with contestants from another country/territory whom they do not know, preferences regarding sharing a room with contestants of their gender assigned at birth, requests for a single room or any alternative accommodation arrangements that would support their wellbeing.</p>
                   <div className="reg-grid">
-                    <FieldControl idPrefix="welfare" field={{ label: welfareNoteLabel, value: d.welfareNote ?? '', kind: 'textarea', optional: true }} />
+                    <FieldControl idPrefix="welfare" field={{ label: welfareNoteLabel, value: d.welfareNote ?? '', kind: 'textarea', optional: true, help: 'Seen only by the organising team, and handled privately.' }} />
                   </div>
+                  <p className="reg-hint reg-card-foot">The organisers will make every reasonable effort to accommodate requests, but cannot guarantee particular arrangements.</p>
                 </Card>
               </div>
               <div className="reg-panel-actions">
@@ -1037,31 +1127,15 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
           )}
 
           {activeId === 'travel' && (
-            <Card id="travel-stay" title="Stay dates" intro={`The programme runs from ${formatDate(programmeWindow.first)} to ${formatDate(programmeWindow.last)} 2027. These set the hotel nights we reserve.`}
-              status={stayState === 'saving' ? <Chip tone="later">Saving…</Chip> : stayState === 'saved' ? <Chip tone="ok">Saved</Chip> : <Chip tone="later">Saved as you choose</Chip>}>
-              <div className="reg-grid">
-                <div className="reg-field">
-                  <label htmlFor="stay-arrival">Arrival date</label>
-                  <p className="reg-hint" id="stay-arrival-hint">Your first night at the official hotel.</p>
-                  <input id="stay-arrival" type="date" className="reg-control" value={stay.arrival} onChange={(e) => changeStay({ ...stay, arrival: e.target.value })} aria-describedby="stay-arrival-hint" />
-                </div>
-                <div className={`reg-field${stayProblem ? ' has-error' : ''}`}>
-                  <label htmlFor="stay-departure">Departure date</label>
-                  <p className="reg-hint" id="stay-departure-hint">The day you leave the hotel.</p>
-                  {stayProblem && <p className="reg-error" id="stay-departure-error"><CircleAlert size={16} aria-hidden="true" />{stayProblem}</p>}
-                  <input id="stay-departure" type="date" className="reg-control" value={stay.departure} min={stay.arrival || undefined} onChange={(e) => changeStay({ ...stay, departure: e.target.value })} aria-describedby={`stay-departure-hint${stayProblem ? ' stay-departure-error' : ''}`} aria-invalid={stayProblem ? true : undefined} />
-                </div>
-              </div>
-              <p className="reg-nights" role="status">
-                {nights !== null && !stayProblem && <><strong>{nights} {nights === 1 ? 'night' : 'nights'}</strong> at the official hotel{outsideWindow > 0 ? `, ${outsideWindow} outside the programme dates.` : '.'}</>}
-              </p>
-              {outsideWindow > 0 && (
-                <div className="reg-field reg-field-wide reg-stay-why" data-dirty-key="stay-note">
-                  <label htmlFor="stay-why">Why you need the extra nights <span className="reg-optional">(optional)</span></label>
-                  <p className="reg-hint" id="stay-why-hint">So the organisers can check hotel availability and any extra cost. Saved when you leave the box.</p>
-                  <textarea id="stay-why" className="reg-control" rows={3} value={stayNote} onChange={(e) => setStayNote(e.target.value)} onBlur={saveStayNote} aria-describedby="stay-why-hint" />
-                </div>
-              )}
+            <Card id="travel-info" title="Hotel nights and airport transfers">
+              <dl className="reg-ref reg-travel-info">
+                <div><dt>Hotel nights</dt><dd>{d.needsAccommodation === false
+                  ? 'You said you do not need a hotel room, so none is booked for you.'
+                  : <>We provide accommodation from the night of {longDate(ev.hotelFirstNight)} to the night of {longDate(ev.hotelLastNight)}, checking out on the morning after. If you arrive earlier or leave later, please book and pay for those nights yourself: they are outside the official programme and not the organisers’ responsibility.</>}</dd></div>
+                <div><dt>Airport pickup and drop-off</dt><dd>We will provide pickup and drop-off at Suvarnabhumi (BKK) and Don Mueang (DMK) airports only. {ev.pickup} Outside these times, or from anywhere else, please make your own way to and from the hotel.</dd></div>
+                <div><dt>Arriving late</dt><dd>The opening ceremony is on the morning of 22 July. If you arrive after 21 July, you may miss it.</dd></div>
+                <div><dt>Deadline</dt><dd>{ev.travelLocked ? `Travel details closed on ${longDate(ev.travelDeadline)}. To change a flight now, email the organisers.` : `Add and change flights until ${longDate(ev.travelDeadline)}, so the transport team can plan pickups and buses.`}</dd></div>
+              </dl>
             </Card>
           )}
 

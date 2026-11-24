@@ -143,19 +143,45 @@ const thaiNames = await tl.patch(`/api/registration/delegations/${thaiId}`, { na
 const thaiNow = (await tl.get(`/api/registration/delegations/${thaiId}`)).json
 const thaiLeaders = thaiNow.members.filter((m) => m.role === 'team_leader')
 check('names save after the proof; the second team gets its Team Leader', thaiNames.status === 200 && thaiLeaders.length === 2 && thaiLeaders[1].displayName === 'Kittipong Rattana' && thaiLeaders[1].teamId === thaiNow.teams[1]?.id, JSON.stringify(thaiLeaders.map((m) => [m.displayName, m.teamId])))
-check('a third Team Leader for two teams is refused (400)', (await tl.post(`/api/registration/delegations/${thaiId}/members`, { role: 'team_leader', displayName: 'x' })).status === 400)
+check('Team Leaders are not added in People (400)', (await tl.post(`/api/registration/delegations/${thaiId}/members`, { role: 'team_leader', displayName: 'x' })).status === 400)
+check('a Team Leader cannot be removed in People (400)', (await tl.req('DELETE', `/api/registration/members/${thaiLeaders[1].id}`)).status === 400)
+check('two teams need two Team Leaders (400)', (await tl.patch(`/api/registration/delegations/${thaiId}`, { nationalRepresentativeName: 'Dr. Ananya Somchai', representativeTeam: 0, teamLeaderNames: ['', ''] })).status === 400)
+check('the national representative may lead the second team instead', (await tl.patch(`/api/registration/delegations/${thaiId}`, { nationalRepresentativeName: 'Dr. Ananya Somchai', representativeTeam: 1, teamLeaderNames: ['Kittipong Rattana', ''] })).status === 200)
+const swapped = (await tl.get(`/api/registration/delegations/${thaiId}`)).json
+const leaderOf = (i) => swapped.members.find((m) => m.role === 'team_leader' && m.teamId === swapped.teams[i].id)
+check('each team keeps its own Team Leader record, the representative’s with the account email', leaderOf(0)?.displayName === 'Kittipong Rattana' && leaderOf(1)?.displayName === 'Dr. Ananya Somchai' && leaderOf(1)?.email === 'tl.thailand@iol2027.test' && !leaderOf(0)?.email, JSON.stringify(swapped.members.filter((m) => m.role === 'team_leader').map((m) => [m.displayName, m.teamId, m.email])))
+await tl.patch(`/api/registration/delegations/${thaiId}`, { nationalRepresentativeName: 'Dr. Ananya Somchai', representativeTeam: 0, teamLeaderNames: ['', 'Kittipong Rattana'] })
 const blocked = await tl.post(`/api/registration/delegations/${thaiId}/submit`)
 check('submit with missing steps -> 409 + list', blocked.status === 409 && Array.isArray(blocked.json.missing) && blocked.json.missing.length > 0, JSON.stringify(blocked.json))
 await tl.patch(`/api/registration/delegations/${thaiId}`, { completedSteps: ['start', 'setup', 'teams', 'people', 'welfare', 'travel'], declaredArrivalDate: '2027-07-20', declaredDepartureDate: '2027-07-28' })
 const gaps = await tl.post(`/api/registration/delegations/${thaiId}/submit`)
 check('submit with incomplete people -> 409 naming them', gaps.status === 409 && gaps.json.missing.some((m) => m.startsWith('Arun Songsiri:')), JSON.stringify(gaps.json))
 check('the observer chosen in Team and observers is added', (await tl.post(`/api/registration/delegations/${thaiId}/members`, { role: 'observer', displayName: 'Pim Observer', teamId: thaiNow.teams[0].id, observerCategory: 'Parent', email: 'pim.observer@iol2027.test' })).status === 201)
+check('a second observer beyond the one chosen is refused (400)', (await tl.post(`/api/registration/delegations/${thaiId}/members`, { role: 'observer', displayName: 'Extra Observer' })).status === 400)
+// Four contestants for each team (IOL Board, 16 Nov 2026): Thailand B has none yet.
+const teamB = thaiNow.teams[1].id
+for (const name of ['Ploy Srisuk', 'Tawan Boonmee', 'Fah Chaiyo', 'Krit Wongsa']) await tl.post(`/api/registration/delegations/${thaiId}/members`, { role: 'contestant', displayName: name, teamId: teamB })
+check('a fifth contestant in a team is refused (400)', (await tl.post(`/api/registration/delegations/${thaiId}/members`, { role: 'contestant', displayName: 'Too Many', teamId: teamB })).status === 400)
+check('food must come from the list (400)', (await tl.patch(`/api/registration/members/${thaiLeaders[0].id}`, { diet: ['Pizza only'] })).status === 400)
+check('“No special diet” stands alone (400)', (await tl.patch(`/api/registration/members/${thaiLeaders[0].id}`, { diet: ['No special diet', 'Vegan'] })).status === 400)
 const snapshot = (await tl.get(`/api/registration/delegations/${thaiId}`)).json
-const details = { badgeName: 'Test', officialName: 'Test Person', passportName: 'TEST PERSON', passportNumber: 'T1234567', passportNationality: 'Thai', dateOfBirth: '2008-01-01', genderForRoomAllocation: 'Male', tshirtSize: 'M', poloSize: 'M', emergencyContact: 'Test Contact +66 80 000 0000', foodAllergyNotes: 'None', medicalAccessibilityNotes: 'None' }
+const details = { badgeName: 'Test', officialName: 'Test Person', passportName: 'TEST PERSON', passportNumber: 'T1234567', passportNationality: 'Thai', dateOfBirth: '2008-01-01', genderForRoomAllocation: 'Male', tshirtSize: 'M', poloSize: 'M', emergencyContact: 'Test Contact +66 80 000 0000', diet: ['No special diet'], photoConsent: true, medicalAccessibilityNotes: 'None' }
 for (const m of snapshot.members) await tl.patch(`/api/registration/members/${m.id}`, { ...details, ...(m.role === 'contestant' ? { teamId: m.teamId ?? snapshot.teams[0].id, examLanguage: 'English' } : {}) })
 for (const t of snapshot.teams) await tl.patch(`/api/registration/teams/${t.id}`, { contestLanguage: t.contestLanguage ?? 'English' })
-const submitted = await tl.post(`/api/registration/delegations/${thaiId}/submit`)
-check('submit when complete -> 200', submitted.status === 200, JSON.stringify(submitted.json))
+const noTicks = await tl.post(`/api/registration/delegations/${thaiId}/submit`)
+check('submitting needs the dress code and insurance boxes ticked (400)', noTicks.status === 400, JSON.stringify(noTicks.json))
+const submitted = await tl.post(`/api/registration/delegations/${thaiId}/submit`, { acknowledgeDressCode: true, acknowledgeInsurance: true })
+check('submit when complete -> 200', submitted.status === 200 && Boolean(submitted.json.delegation?.dressCodeAcknowledgedAt), JSON.stringify(submitted.json))
+
+// --- travel: the two airports, dates around the programme, one arrival per person
+const trip = (body) => tl.post(`/api/registration/delegations/${thaiId}/travel`, { direction: 'arrival', ...body })
+check('pickup only from BKK or DMK (400)', (await trip({ travelPoint: 'Bangkok railway station', localDate: '2027-07-21' })).status === 400)
+check('a date far from the Olympiad is refused (400)', (await trip({ travelPoint: 'Suvarnabhumi Airport (BKK)', localDate: '2026-12-03' })).status === 400)
+const firstArrival = await trip({ travelPoint: 'Suvarnabhumi Airport (BKK)', flightServiceNumber: 'TG 661', localDate: '2027-07-21', localTime: '09:30', peopleIds: [thaiLeaders[0].id] })
+check('an arrival at BKK saves', firstArrival.status === 201 && firstArrival.json.travelRecord.transport === 'organisers', JSON.stringify(firstArrival.json))
+check('the same person on a second arrival is refused (400)', (await trip({ transport: 'own', localDate: '2027-07-21', localTime: '18:00', peopleIds: [thaiLeaders[0].id] })).status === 400)
+const ownWay = await trip({ transport: 'own', travelPoint: 'Suvarnabhumi Airport (BKK)', localDate: '2027-07-21', localTime: '18:00', peopleIds: [thaiLeaders[1].id] })
+check('making their own way to the hotel saves, without an airport', ownWay.status === 201 && ownWay.json.travelRecord.transport === 'own' && ownWay.json.travelRecord.travelPoint === null, JSON.stringify(ownWay.json))
 check('submit twice -> 409', (await tl.post(`/api/registration/delegations/${thaiId}/submit`)).status === 409)
 
 // --- finance review
@@ -217,6 +243,44 @@ check('reusable code creates an account', firstLoop.status === 201, JSON.stringi
 check('reusable code still verifies after use', (await new Client().post('/api/registration/invite/verify', { code: 'IOL2027-TST-LOOP' })).status === 200)
 const secondLoop = await new Client().post('/api/registration/team-leader-account', loop)
 check('reusable code works again with the same email', secondLoop.status === 201 && secondLoop.json.user.id !== firstLoop.json.user?.id, JSON.stringify(secondLoop.json))
+
+// --- jury members and volunteers: one shared code each, an account each (IOL Board, 16 Nov 2026)
+async function selfSignUp(code, email) {
+  const c = new Client()
+  const made = await c.post('/api/registration/team-leader-account', { inviteCode: code, email, password: 'a-long-enough-password' })
+  await c.post('/api/auth/verify-email', { code: made.json?.developmentCode })
+  return { c, made, id: made.json?.user?.delegationId }
+}
+check('the jury code verifies as a jury code', (await new Client().post('/api/registration/invite/verify', { code: 'IOL2027-JUR-TEST' })).json?.invite?.kind === 'jury')
+const juror = await selfSignUp('IOL2027-JUR-TEST', 'juror.one@iol2027.test')
+const juror2 = await selfSignUp('IOL2027-JUR-TEST', 'juror.two@iol2027.test')
+check('the shared jury code makes an account for each person', juror.made.status === 201 && juror2.made.status === 201 && juror.id !== juror2.id, JSON.stringify([juror.made.json, juror2.made.json]))
+check('the jury code is still not used up', (await new Client().post('/api/registration/invite/verify', { code: 'IOL2027-JUR-TEST' })).status === 200)
+const jurySetup = await juror.c.patch(`/api/registration/delegations/${juror.id}`, { nationalRepresentativeName: 'Anna Juror', needsAccommodation: true, numberOfObservers: 1, observerTeams: [0], singleRooms: { teamLeaders: [true], observers: [false] }, completedSteps: ['start', 'setup'] })
+const jury = (await juror.c.get(`/api/registration/delegations/${juror.id}`)).json
+check('a jury member with an observer and a single room pays for those only', jurySetup.status === 200 && jury.fees.total === jury.feeRules.observerFee + jury.feeRules.singleRoomFee && jury.teams.length === 0, JSON.stringify([jurySetup.json, jury.fees]))
+check('About you makes the jury member’s own record', jury.members.some((m) => m.role === 'jury' && m.displayName === 'Anna Juror' && m.email === 'juror.one@iol2027.test'), JSON.stringify(jury.members))
+check('a jury member’s details open without a payment', (await juror.c.post(`/api/registration/delegations/${juror.id}/members`, { role: 'observer', displayName: 'Jury Guest' })).status === 201)
+check('a jury member brings at most the observer chosen (400)', (await juror.c.post(`/api/registration/delegations/${juror.id}/members`, { role: 'observer', displayName: 'Second Guest' })).status === 400)
+check('a jury member has no contestants (400)', (await juror.c.post(`/api/registration/delegations/${juror.id}/members`, { role: 'contestant', displayName: 'Kid' })).status === 400)
+const volunteer = await selfSignUp('IOL2027-VOL-TEST', 'volunteer.one@iol2027.test')
+check('a volunteer cannot bring an observer (400)', (await volunteer.c.patch(`/api/registration/delegations/${volunteer.id}`, { nationalRepresentativeName: 'Vee Volunteer', numberOfObservers: 1 })).status === 400)
+await volunteer.c.patch(`/api/registration/delegations/${volunteer.id}`, { nationalRepresentativeName: 'Vee Volunteer', needsAccommodation: false, numberOfObservers: 0, observerTeams: [], singleRooms: { teamLeaders: [true], observers: [] }, completedSteps: ['start', 'setup'] })
+const vol = (await volunteer.c.get(`/api/registration/delegations/${volunteer.id}`)).json
+check('a volunteer without a room pays nothing, even if a single room was ticked', vol.fees.total === 0 && vol.delegation.needsAccommodation === false, JSON.stringify(vol.fees))
+const vSelf = vol.members.find((m) => m.role === 'volunteer')
+const photo = new FormData(); photo.append('photo', new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], { type: 'image/jpeg' }), 'photo.jpg')
+check('a volunteer uploads a photo', (await volunteer.c.post(`/api/registration/members/${vSelf.id}/photo`, undefined, { form: photo })).status === 201)
+const badPhoto = new FormData(); badPhoto.append('photo', new Blob(['%PDF'], { type: 'application/pdf' }), 'photo.pdf')
+check('a photo must be a JPG or PNG (400)', (await volunteer.c.post(`/api/registration/members/${vSelf.id}/photo`, undefined, { form: badPhoto })).status === 400)
+await volunteer.c.patch(`/api/registration/members/${vSelf.id}`, { ...details })
+await volunteer.c.patch(`/api/registration/delegations/${volunteer.id}`, { completedSteps: ['start', 'setup', 'people', 'welfare', 'travel'] })
+const volSubmit = await volunteer.c.post(`/api/registration/delegations/${volunteer.id}/submit`, { acknowledgeDressCode: true, acknowledgeInsurance: true })
+check('a volunteer submits without any payment', volSubmit.status === 200, JSON.stringify(volSubmit.json))
+check('the incomplete list shows the jury member, not the submitted volunteer', await (async () => {
+  const list = (await S.admin.get('/api/admin/incomplete')).json?.registrations ?? []
+  return list.some((r) => r.id === juror.id && r.kind === 'jury') && !list.some((r) => r.id === volunteer.id)
+})())
 
 // --- super admin changes a role; that user's sessions end
 const accounts = (await S.superadmin.get('/api/admin/accounts')).json.accounts
