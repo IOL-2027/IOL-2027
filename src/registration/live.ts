@@ -278,7 +278,7 @@ export function reviewGroups(data: DelegationData): { id: string; title: string;
   const missingTrip = members.filter((m) => !onTrip('arrival').has(m.id) || !onTrip('departure').has(m.id)).map((m) => m.badgeName || m.displayName)
   return [
     { id: 'review-rooms', title: 'Rooms', facts: [
-      { label: 'Hotel nights', value: noRoom ? 'No hotel room needed' : `${longDate(event.hotelFirstNight)} to the night of ${longDate(event.hotelLastNight)}`,
+      { label: 'Hotel nights', value: noRoom ? 'No hotel room needed' : `From the night of ${longDate(event.hotelFirstNight)} to the night of ${longDate(event.hotelLastNight)}`,
         help: noRoom ? 'You said you do not need a room. Change it in About you.' : 'Provided by the organisers. Other nights are yours to book and pay for.' },
       ...(country ? [{ label: 'Contestants’ rooms', value: `${male} male, ${female} female${others ? `, ${others} other or not given` : ''}`, help: 'Contestants share twin rooms with someone of the same gender, from their own country where possible.' }] : []),
       { label: 'Single rooms', value: singles.length ? singles : 'None', help: `USD ${feeRules.singleRoomFee.toLocaleString('en-US')} each. Chosen in ${country ? 'Team and observers' : 'About you'}.` },
