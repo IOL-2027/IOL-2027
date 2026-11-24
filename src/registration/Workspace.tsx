@@ -621,7 +621,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const submitStep: TrackStep = {
     key: 'submit', title: 'Submit registration', state: submitted ? 'done' : ready ? 'next' : 'waiting', label: submitted ? 'Done' : ready ? 'Next' : statusLabel.waiting,
     detail: submitted ? `Submitted${d.submittedAt ? ` on ${dayOf(d.submittedAt)}` : ''}. People and travel can still be updated until the change deadline.`
-      : ready ? 'Everything is in. Submit with the button at the top of this page.' : 'Once the steps above are done, you submit here, on this page.',
+      : ready ? 'Everything is in. Submit with the button at the bottom of this page.' : 'Once the steps above are done, you submit here, on this page.',
   }
   const phases: { title: string; steps: TrackStep[] }[] = [
     { title: 'Your account', steps: [
@@ -636,7 +636,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     ] },
   ]
 
-  // The card at the top of Submit: the one thing to do next, or submitting once everything is in.
+  // The card on Submit: the one thing to do next (at the top), or submitting once everything is in (at the end).
   const nextUp = firstOpenStep ?? numbered[0]
   const nextStep: { tone: 'go' | 'warn' | 'done'; kicker: string; title: string; body: ReactNode; to?: SectionId; cta?: string; submit?: boolean } =
     submitted ? { tone: 'done', kicker: 'Registration submitted', title: 'Submitted. Thank you.', ...(flightsMissing ? { to: 'travel' as const, cta: 'Add flight details' } : {}),
@@ -644,7 +644,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     : paymentStatus === 'rejected' ? { tone: 'warn', kicker: 'Action needed', title: 'Upload a new proof of payment', to: 'payment', cta: 'Go to Payment',
       body: <>Finance could not match your proof of transfer.{payment?.reviewNote ? <> Their note: “{payment.reviewNote}”</> : null}</> }
     : ready ? { tone: 'go', kicker: 'Ready to submit', title: 'Everything is in. Submit your registration.', submit: true,
-      body: 'Check anything you like first: each step below opens from its name. After you submit, you can still update people and travel until the change deadline.' }
+      body: 'Check anything you like first: each step above opens from its name. After you submit, you can still update people and travel until the change deadline.' }
     : { tone: 'go', kicker: 'Not ready to submit yet', title: `Next: ${nextUp.title}`, to: nextUp.id, cta: `Continue to ${nextUp.title}`,
       body: <>{isDone(nextUp.id) && todo[nextUp.id]?.length ? `${todo[nextUp.id]!.join('; ')}.` : trackDetail[nextUp.id]}{paymentStatus === 'awaiting_review' && <> Finance is checking your proof of payment; carry on meanwhile.</>}</> }
 
@@ -678,20 +678,23 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     </Card>
   )
 
+  const nextCard = (
+    <div className={`reg-home-next is-${nextStep.tone}`}>
+      <div>
+        <p className="reg-home-kicker">{nextStep.kicker}</p>
+        <h3>{nextStep.title}</h3>
+        <p>{nextStep.body}</p>
+        {nextStep.submit && <Alert>{sectionError}</Alert>}
+      </div>
+      {nextStep.submit
+        ? <button type="button" className="reg-btn reg-btn-primary" disabled={busy} onClick={submit}>{busy ? 'Submitting…' : 'Submit registration'} <Send size={17} aria-hidden="true" /></button>
+        : nextStep.to && <button type="button" className="reg-btn reg-btn-primary" onClick={() => open(nextStep.to!)}>{nextStep.cta} <ArrowRight size={18} aria-hidden="true" /></button>}
+    </div>
+  )
+
   const overview = (
     <div className="reg-home">
-      {notices}
-      <div className={`reg-home-next is-${nextStep.tone}`}>
-        <div>
-          <p className="reg-home-kicker">{nextStep.kicker}</p>
-          <h3>{nextStep.title}</h3>
-          <p>{nextStep.body}</p>
-          {nextStep.submit && <Alert>{sectionError}</Alert>}
-        </div>
-        {nextStep.submit
-          ? <button type="button" className="reg-btn reg-btn-primary" disabled={busy} onClick={submit}>{busy ? 'Submitting…' : 'Submit registration'} <Send size={17} aria-hidden="true" /></button>
-          : nextStep.to && <button type="button" className="reg-btn reg-btn-primary" onClick={() => open(nextStep.to!)}>{nextStep.cta} <ArrowRight size={18} aria-hidden="true" /></button>}
-      </div>
+      {!nextStep.submit && nextCard}
 
       <div className="reg-track">
         {phases.map((phase) => (
@@ -719,6 +722,10 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
             </div>
         ))}
       </div>
+
+      {/* At the end of the flow: the notices to read and tick, then the button that submits. */}
+      {notices}
+      {nextStep.submit && nextCard}
 
       <div className="reg-home-foot">
         <dl>
