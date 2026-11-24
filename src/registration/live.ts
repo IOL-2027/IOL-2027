@@ -1,5 +1,5 @@
 // Converts API data into the portal's records and fields, and form data back into API payloads.
-import type { Attachment, DelegationData, GuardianConsentPolicy, Member, MemberRole, Team, TravelRecord } from './api'
+import type { Attachment, DelegationData, Member, MemberRole, Team, TravelRecord } from './api'
 import type { Field, PortalRecord } from './portalData'
 import { longDate } from './ui'
 
@@ -8,9 +8,6 @@ const shirtHelp = 'Chest: XS 80 cm · S 85 · M 90 · L 95 · XL 100 · 2XL 106 
 export const roleToLabel: Record<MemberRole, string> = { contestant: 'Contestant', observer: 'Observer', team_leader: 'Team Leader', jury: 'Jury member', volunteer: 'Volunteer' }
 const labelToRole: Record<string, MemberRole> = { Contestant: 'contestant', Observer: 'observer' }
 
-// Photo and video consent (IOL Board, 16 Nov 2026): one answer per person, which the national representative confirms.
-export const consentLabel = 'Photos and videos'
-const consentAnswers = { self: ['Yes, I agree', 'No, I do not agree'], other: ['Yes, they agree', 'No, they do not agree'] }
 
 type MemberFieldDef = Field & { key: keyof Member; roles?: MemberRole[] }
 
@@ -18,7 +15,6 @@ type MemberFieldDef = Field & { key: keyof Member; roles?: MemberRole[] }
 const memberFieldDefs: MemberFieldDef[] = [
   { key: 'role', label: 'Role', value: '', kind: 'select', roles: ['contestant', 'observer'] },
   { key: 'teamId', label: 'Team assignment', value: '', kind: 'select', roles: ['contestant'], help: 'Each team has four contestants.' },
-  { key: 'observerCategory', label: 'Observer category', value: '', kind: 'select', roles: ['observer'], help: 'Used by Finance to apply the observer rate.' },
   { key: 'email', label: 'Email', value: '', kind: 'email', roles: ['observer'], help: 'Receives their own invitation letter and badge notices.' },
   { key: 'displayName', label: 'Display name', value: '', help: 'May appear on the IOL website and in the official programme.' },
   { key: 'badgeName', label: 'Badge name', value: '', help: 'Printed large on the lanyard badge. Usually a first or preferred name.' },
@@ -32,10 +28,9 @@ const memberFieldDefs: MemberFieldDef[] = [
   { key: 'tshirtSize', label: 'T-shirt size', value: '', kind: 'select', help: shirtHelp },
   { key: 'poloSize', label: 'Polo shirt size', value: '', kind: 'select', help: shirtHelp },
   { key: 'diet', label: 'Food', value: '', kind: 'checkboxes', help: 'Tick everything that applies. For anything not listed, tick “Other” and say what below.' },
-  { key: 'foodAllergyNotes', label: 'Food details', value: '', kind: 'textarea', optional: true, help: 'Needed for “Other” and for allergies: what to avoid, and how serious it is.' },
+  { key: 'foodAllergyNotes', label: 'Food details', value: '', kind: 'textarea', optional: true, help: 'Opens when you tick “Other” or an allergy: what to avoid, and how serious it is.' },
   { key: 'medicalAccessibilityNotes', label: 'Medical or accessibility notes', value: '', kind: 'textarea', help: 'Conditions, medicines or access needs the organisers should know about. Write “None” if there is nothing.' },
   { key: 'emergencyContact', label: 'Emergency contact', value: '', help: 'Name and phone number of someone we can reach during the event.' },
-  { key: 'photoConsent', label: consentLabel, value: '', kind: 'radio' },
 ]
 
 /** Whose record this is: the account holder's own (a jury member or volunteer), or someone in the delegation. */
@@ -53,14 +48,6 @@ function memberDefs(role: MemberRole, data: DelegationData) {
     .map((def): MemberFieldDef => {
       if (def.key === 'examLanguage') return { ...def, disabled: data.event.languagesLocked, help: languageHelp(data, 'The language of their individual contest paper.') }
       if (def.key === 'diet') return { ...def, options: data.options.diets }
-      if (def.key === 'photoConsent') {
-        return {
-          ...def, options: consentAnswers[isSelf(role) ? 'self' : 'other'],
-          help: isSelf(role)
-            ? 'Photos and videos taken during the event may appear on the IOL 2027 website, on social media and in event materials. Do you agree to appear in them?'
-            : 'Photos and videos taken during the event may appear on the IOL 2027 website, on social media and in event materials. Does this person agree to appear in them? For anyone under 18, a parent or guardian must agree: please ask them. Anyone who does not agree can step out of group photos.',
-        }
-      }
       if (def.key === 'dateOfBirth' && role !== 'contestant') return { ...def, help: undefined }
       return def
     })
@@ -72,9 +59,11 @@ export function personFields(member: Partial<Member> & { role: MemberRole }, dat
     if (def.key === 'role') value = roleToLabel[member.role]
     if (def.key === 'teamId') value = data.teams.find((t) => t.id === member.teamId)?.name ?? ''
     if (def.key === 'diet') value = (member.diet ?? []).join(', ')
-    if (def.key === 'photoConsent') value = member.photoConsent === true ? def.options![0] : member.photoConsent === false ? def.options![1] : ''
     const options = def.key === 'teamId' ? data.teams.map((t) => t.name) : def.key === 'role' ? ['Contestant', 'Observer'] : def.options
     const { key: _key, roles: _roles, ...field } = def
+    // The food details box stays greyed out until "Other" or an allergy is ticked (meeting of 24 Nov 2026), so nothing
+    // stray is typed there; Workspace opens it as the boxes are ticked.
+    if (def.key === 'foodAllergyNotes') return { ...field, value, options, disabled: !needsFoodDetails(member.diet ?? []) }
     return { ...field, value, options }
   })
 }
@@ -82,14 +71,16 @@ export function personFields(member: Partial<Member> & { role: MemberRole }, dat
 /** Required details that are still empty, as the server checks them (server/lib.js missingMemberDetails). */
 export function missingPersonFields(member: Partial<Member> & { role: MemberRole }, data: DelegationData) {
   const gaps = memberDefs(member.role, data)
-    .filter((def) => !def.optional && def.key !== 'diet' && def.key !== 'photoConsent' && !String(member[def.key] ?? '').trim())
+    .filter((def) => !def.optional && def.key !== 'diet' && !String(member[def.key] ?? '').trim())
     .map((def) => def.label)
   const diet = member.diet ?? []
   if (!diet.length) gaps.push('Food')
-  else if (diet.some((d) => d === 'Other' || d.endsWith('allergy')) && !String(member.foodAllergyNotes ?? '').trim()) gaps.push('Food details')
-  if (member.photoConsent === null || member.photoConsent === undefined) gaps.push(consentLabel)
+  else if (needsFoodDetails(diet) && !String(member.foodAllergyNotes ?? '').trim()) gaps.push('Food details')
   return gaps
 }
+
+/** "Other" and the allergies need a few words in Food details. */
+export const needsFoodDetails = (diet: string[]) => diet.some((d) => d === 'Other' || d.endsWith('allergy'))
 
 /** The signed guardian consent form for this person, if one was uploaded. */
 export const consentFor = (member: Member, attachments: Attachment[]) => attachments.find((a) => a.kind === 'guardian_consent' && a.memberId === member.id)
@@ -133,10 +124,11 @@ export function personPayload(form: FormData, role: MemberRole, data: Delegation
   for (const def of memberDefs(role, data)) {
     if (def.disabled) continue
     if (def.key === 'diet') { payload.diet = form.getAll(def.label).map(String); continue }
+    // Food details only go with "Other" or an allergy; with neither, anything left there is cleared.
+    if (def.key === 'foodAllergyNotes' && !needsFoodDetails(form.getAll('Food').map(String))) { payload.foodAllergyNotes = null; continue }
     const raw = String(form.get(def.label) ?? '').trim()
     if (def.key === 'role') { if (raw) payload.role = labelToRole[raw] ?? role; continue }
     if (def.key === 'teamId') { payload.teamId = data.teams.find((t) => t.name === raw)?.id ?? null; continue }
-    if (def.key === 'photoConsent') { payload.photoConsent = raw ? raw === def.options![0] : null; continue }
     payload[def.key] = raw || null
   }
   return payload
@@ -240,18 +232,6 @@ export function tripPayload(form: FormData, direction: 'arrival' | 'departure', 
   }
 }
 
-/** The welfare summary is built from people's records; nobody retypes it. */
-function guardianConsentFact(members: Member[], policy: GuardianConsentPolicy, attachments: Attachment[]) {
-  if (!policy.required) return { label: 'Guardian consent', value: 'Not required at the moment', help: 'The organisers will tell you if this changes.' }
-  const minors = members.filter((m) => m.needsGuardianConsent)
-  const done = minors.filter((m) => consentFor(m, attachments)).length
-  return {
-    label: 'Guardian consent',
-    value: minors.length ? `${done} of ${minors.length} forms uploaded` : 'Nobody needs one',
-    help: `Required for contestants under ${policy.ageThreshold} on ${new Date(`${policy.referenceDate}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}. Upload each form on the person’s record.`,
-  }
-}
-
 /** "Name: diet (details)" for everyone with a diet worth knowing, so the representative can check whose it is. */
 const dietsOf = (members: Member[]) => members
   .filter((m) => (m.diet ?? []).some((d) => d !== 'No special diet'))
@@ -260,7 +240,29 @@ const medicalOf = (members: Member[]) => members
   .filter((m) => m.medicalAccessibilityNotes && !/^(none|no|n\/a|-|no restrictions|no special requirements)\.?$/i.test(m.medicalAccessibilityNotes.trim()))
   .map((m) => `${m.badgeName || m.displayName}: ${m.medicalAccessibilityNotes!.trim()}`)
 
-export function welfareFacts({ members, guardianConsent, attachments, feeRules, event, delegation }: DelegationData) {
+/** One line of the review: a value, or a list when there are several (one diet per person, one trip per line). */
+export type ReviewFact = { label: string; value: string | string[]; help?: string }
+
+/** "21 July, 09:30 · TG 661 · Suvarnabhumi (BKK) · 5 people", or the people who make their own way. */
+function tripLines(data: DelegationData, direction: 'arrival' | 'departure') {
+  const nameOf = (id: string) => { const m = data.members.find((x) => x.id === id); return m ? m.badgeName || m.displayName : '' }
+  return data.travelRecords
+    .filter((t) => t.direction === direction)
+    .sort((a, b) => `${a.localDate ?? '9999'}${a.localTime ?? ''}`.localeCompare(`${b.localDate ?? '9999'}${b.localTime ?? ''}`))
+    .map((t) => {
+      const when = t.localDate ? `${new Date(`${t.localDate}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}${t.localTime ? `, ${t.localTime.slice(0, 5)}` : ''}` : 'Date to come'
+      const how = t.transport === 'own' ? 'own way' : t.travelPoint ?? 'airport to come'
+      const who = t.memberIds.map(nameOf).filter(Boolean)
+      return `${when} · ${[t.flightServiceNumber, how].filter(Boolean).join(' · ')} · ${who.length ? who.join(', ') : 'nobody ticked yet'}`
+    })
+}
+
+/**
+ * Review and requests (meeting of 24 Nov 2026): everything the organisers will work from, built from People and
+ * Travel so nobody retypes it, in groups: rooms, food and health, travel, and who sees it.
+ */
+export function reviewGroups(data: DelegationData): { id: string; title: string; facts: ReviewFact[] }[] {
+  const { members, feeRules, event, delegation } = data
   const contestants = members.filter((m) => m.role === 'contestant')
   const male = contestants.filter((m) => m.genderForRoomAllocation === 'Male').length
   const female = contestants.filter((m) => m.genderForRoomAllocation === 'Female').length
@@ -270,17 +272,29 @@ export function welfareFacts({ members, guardianConsent, attachments, feeRules, 
   const medical = medicalOf(members)
   const country = (delegation.kind ?? 'country') === 'country'
   const noRoom = delegation.needsAccommodation === false
-  const consentNo = members.filter((m) => m.photoConsent === false).map((m) => m.badgeName || m.displayName)
+  const arrivals = tripLines(data, 'arrival')
+  const departures = tripLines(data, 'departure')
+  const onTrip = (direction: 'arrival' | 'departure') => new Set(data.travelRecords.filter((t) => t.direction === direction).flatMap((t) => t.memberIds))
+  const missingTrip = members.filter((m) => !onTrip('arrival').has(m.id) || !onTrip('departure').has(m.id)).map((m) => m.badgeName || m.displayName)
   return [
-    { label: 'Hotel nights', value: noRoom ? 'No hotel room needed' : `${longDate(event.hotelFirstNight)} to the night of ${longDate(event.hotelLastNight)}`,
-      help: noRoom ? 'You said you do not need a room. Change it in About you.' : 'Provided by the organisers. Other nights are yours to book and pay for.' },
-    ...(country ? [{ label: 'Contestants’ rooms', value: `${male} male, ${female} female${others ? `, ${others} other or not given` : ''}`, help: 'Contestants share twin rooms with someone of the same gender, from their own country where possible.' }] : []),
-    { label: 'Single rooms', value: singles.join(', ') || 'None', help: `USD ${feeRules.singleRoomFee.toLocaleString('en-US')} each. Chosen in ${country ? 'Team and observers' : 'About you'}.` },
-    { label: 'Food', value: diets.length ? diets.join(' · ') : 'Nothing reported', help: 'From each person’s food options in People.' },
-    { label: 'Medical and accessibility', value: medical.length ? medical.join(' · ') : 'Nothing reported', help: 'From each person’s medical or accessibility notes.' },
-    { label: 'Photos and videos', value: consentNo.length ? `Not to appear: ${consentNo.join(', ')}` : 'Everyone answered agrees, or not answered yet', help: 'From each person’s answer in People.' },
-    ...(country ? [guardianConsentFact(members, guardianConsent, attachments)] : []),
-    { label: 'Who can see this', value: 'The organising team only', help: 'Handled under Thailand’s Personal Data Protection Act (PDPA); every download is logged.' },
-    { label: 'How long it is kept', value: 'Deleted after the event', help: 'The exact date will be announced.' },
+    { id: 'review-rooms', title: 'Rooms', facts: [
+      { label: 'Hotel nights', value: noRoom ? 'No hotel room needed' : `${longDate(event.hotelFirstNight)} to the night of ${longDate(event.hotelLastNight)}`,
+        help: noRoom ? 'You said you do not need a room. Change it in About you.' : 'Provided by the organisers. Other nights are yours to book and pay for.' },
+      ...(country ? [{ label: 'Contestants’ rooms', value: `${male} male, ${female} female${others ? `, ${others} other or not given` : ''}`, help: 'Contestants share twin rooms with someone of the same gender, from their own country where possible.' }] : []),
+      { label: 'Single rooms', value: singles.length ? singles : 'None', help: `USD ${feeRules.singleRoomFee.toLocaleString('en-US')} each. Chosen in ${country ? 'Team and observers' : 'About you'}.` },
+    ] },
+    { id: 'review-health', title: 'Food and health', facts: [
+      { label: 'Food', value: diets.length ? diets : 'Nothing reported', help: `From each person’s food options in ${country ? 'People' : 'Your details'}.` },
+      { label: 'Medical and accessibility', value: medical.length ? medical : 'Nothing reported', help: 'From each person’s medical or accessibility notes.' },
+    ] },
+    { id: 'review-travel', title: 'Travel', facts: [
+      { label: 'Arrivals', value: arrivals.length ? arrivals : 'None added yet' },
+      { label: 'Departures', value: departures.length ? departures : 'None added yet' },
+      ...(missingTrip.length ? [{ label: 'Not on an arrival and a departure yet', value: missingTrip, help: 'Everyone needs both, those who make their own way too. Add them in Travel.' }] : []),
+    ] },
+    { id: 'review-privacy', title: 'Who sees this', facts: [
+      { label: 'Who can see it', value: 'The organising team only', help: 'Handled under Thailand’s Personal Data Protection Act (PDPA) and the GDPR; every download is logged.' },
+      { label: 'How long it is kept', value: '5 years after IOL 2027, then securely deleted', help: 'As set out on the consent forms.' },
+    ] },
   ]
 }

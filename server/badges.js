@@ -77,6 +77,33 @@ export function badgeContent(row) {
   return { content, fingerprint }
 }
 
+/**
+ * Each person's airport transfers, for their badge email (meeting of 24 Nov 2026): the bus, where to meet and when, as
+ * the transport team set them, or that they make their own way. Keyed by member id.
+ */
+export async function transfersByMember(db, delegationId) {
+  const rows = (await db.query(
+    `SELECT tp.member_id, tr.direction, tr.local_date, tr.local_time, tr.flight_service_number, tr.travel_point, tr.transport,
+            tr.loc_pickup_time, tr.loc_transport_group, tr.loc_meeting_point_note
+     FROM travel_record_people tp JOIN travel_records tr ON tr.id = tp.travel_record_id
+     WHERE tr.delegation_id = $1 ORDER BY tr.direction, tr.local_date, tr.local_time`,
+    [delegationId],
+  )).rows
+  const day = (value) => (value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'Asia/Bangkok' }) : 'date to come')
+  const byMember = new Map()
+  for (const r of rows) {
+    const arrival = r.direction === 'arrival'
+    const what = `${arrival ? 'Arrival' : 'Departure'} ${day(r.local_date)}${r.flight_service_number ? `, ${r.flight_service_number}` : ''}`
+    const how = r.transport === 'own'
+      ? `makes their own way ${arrival ? 'to the hotel' : 'to the airport'}`
+      : r.loc_pickup_time
+        ? `${arrival ? 'pickup' : 'bus leaves the hotel'} at ${String(r.loc_pickup_time).slice(0, 5)}${r.loc_transport_group ? `, bus ${r.loc_transport_group}` : ''}${r.loc_meeting_point_note ? `, ${r.loc_meeting_point_note}` : ''}`
+        : `${arrival ? 'airport pickup' : 'drop-off at the airport'}, time and bus to follow`
+    byMember.set(r.member_id, [...(byMember.get(r.member_id) ?? []), `${what}: ${how}`])
+  }
+  return byMember
+}
+
 /** Issues (or reissues) a credential for a delegation member ({ memberId }) or an event staff member ({ staffId }). */
 export async function issueBadge(db, { memberId = null, staffId = null }) {
   const publicId = crypto.randomUUID()
@@ -218,6 +245,8 @@ export async function sendBadgesIfSettled(delegationId, { update = false } = {})
     if (!marked.length || (mailed && !removed.length && !marked.some((b) => b.change))) return null
 
     const files = pdfNames(marked)
+    const transfers = await transfersByMember(client, delegationId)
+    const memberOf = new Map((await memberBadges(client, delegationId)).rows.map((row) => [row.id, row.member_id]))
     const attachments = []
     for (const [i, b] of marked.entries()) {
       const content = await badgesPdf([{ ...b.content, payload: b.payload }], { layout: 'preview', title: `IOL 2027 badge, ${b.name}` })
@@ -225,7 +254,7 @@ export async function sendBadgesIfSettled(delegationId, { update = false } = {})
     }
     const { subject, html } = buildBadgesEmail({
       countryTerritory: d.country_territory, fullName: d.national_representative_name, update: Boolean(mailed), removed,
-      people: marked.map((b) => ({ ...b.content, change: mailed ? b.change : null, skippedName: b.skippedName })),
+      people: marked.map((b) => ({ ...b.content, change: mailed ? b.change : null, skippedName: b.skippedName, transfers: transfers.get(memberOf.get(b.id)) ?? [] })),
       printCutoff, cutoffPassed: bangkokDate() > printCutoff, portalUrl,
     })
     await client.query(

@@ -125,6 +125,11 @@ try {
   }
   // Works every time on a test server: each use replaces the account made with it before (server/index.js).
   await db.query(`INSERT INTO invite_codes (code, country_territory, accredited_organisation, status, reusable) VALUES ('IOL2027-TST-LOOP', 'Loopland (TEST)', 'Test organisation', 'active', true)`)
+  // One reusable code for each of the IOL's reviewers (meeting of 24 Nov 2026), so they can each go through the whole
+  // registration, from the code to submitting, side by side without replacing each other's account.
+  for (let i = 1; i <= 8; i++) {
+    await db.query(`INSERT INTO invite_codes (code, country_territory, accredited_organisation, status, reusable) VALUES ($1, $2, 'Test organisation', 'active', true)`, [`IOL2027-REV-0${i}`, `Reviewland ${i} (TEST)`])
+  }
   // The jury's and the volunteers' shared codes, as the organisers will hand them out (IOL Board, 16 Nov 2026): each
   // use creates another account.
   await db.query(`INSERT INTO invite_codes (code, country_territory, status, kind, shared, max_teams) VALUES ('IOL2027-JUR-TEST', 'IOL 2027 jury (TEST)', 'active', 'jury', true, 1), ('IOL2027-VOL-TEST', 'IOL 2027 volunteers (TEST)', 'active', 'volunteer', true, 1)`)
@@ -148,7 +153,7 @@ try {
   await db.query(`INSERT INTO teams (delegation_id, name, code, status) VALUES ($1, 'Demoland A', 'DEM-A', 'draft')`, [demoDelegation.id])
   await db.query('COMMIT')
   const count = (await db.query(`SELECT count(*)::int AS n FROM accounts WHERE email LIKE '%@iol2027.test'`)).rows[0].n
-  console.log(`test data ready: ${count} @iol2027.test accounts, 3 delegations (demo leader ${demo.email}), 2 unused invite codes, the reusable IOL2027-TST-LOOP and the shared IOL2027-JUR-TEST and IOL2027-VOL-TEST`)
+  console.log(`test data ready: ${count} @iol2027.test accounts, 3 delegations (demo leader ${demo.email}), 2 unused invite codes, the reusable IOL2027-TST-LOOP and IOL2027-REV-01 to -08, and the shared IOL2027-JUR-TEST and IOL2027-VOL-TEST`)
 } catch (error) {
   await db.query('ROLLBACK')
   throw error

@@ -289,6 +289,7 @@ export function buildBadgesEmail({ countryTerritory, fullName, people, removed =
       ${person.fullName ? `<p style="margin:2px 0 0;font-size:14px;line-height:1.45;color:${C.text}">${esc(person.fullName)}</p>` : ''}
       <p style="margin:2px 0 0;font-size:14px;line-height:1.45;color:${C.muted}">${esc(person.role)}${person.detail ? ` · ${esc(person.detail)}` : ''}</p>
       ${person.skippedName ? `<p style="margin:6px 0 0;font-size:13px;line-height:1.45;color:${C.muted}">“${esc(person.skippedName)}” has characters the badge fonts cannot print, so the name above is printed instead.</p>` : ''}
+      ${(person.transfers ?? []).map((line) => `<p style="margin:6px 0 0;font-size:14px;line-height:1.45;color:${C.text}">${esc(line)}</p>`).join('')}
     </td></tr>`
   }).join('')
   const cutoff = cutoffPassed
@@ -305,7 +306,7 @@ export function buildBadgesEmail({ countryTerritory, fullName, people, removed =
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border:1px solid ${C.line};border-radius:8px;border-collapse:separate;margin:24px 0">
       <tbody>${rows}</tbody>
     </table>
-    ${notice('Each badge has a personal QR code. Staff scan it at the arrival desk and at event checkpoints. Forward each person their own PDF: the code scans from a phone screen as well as from the printed badge you collect in Bangkok.')}
+    ${notice('Each badge has a personal QR code. Staff scan it at the arrival desk and at event checkpoints. Forward each person their own PDF, with their transfers listed above: the code scans from a phone screen as well as from the printed badge you collect in Bangkok.')}
     ${p(`To correct a name, change it in the People step of the <a href="${portalUrl}/?step=people" style="color:${C.ink}">registration system</a>, or reply to this email. Changes reach you the next morning, with every badge attached again.`, SMALL)}
   `
   return { subject, html: layout(preview, body) }
@@ -392,6 +393,27 @@ export function buildReminderEmail({ fullName, countryTerritory, title, lead, de
     ${items.length ? `${p('Still to do for ' + esc(countryTerritory) + ':')}<ul style="margin:0 0 16px;padding-left:20px;font-size:15px;line-height:1.6;color:${C.ink}">${items.slice(0, 15).map((item) => `<li>${esc(item)}</li>`).join('')}${items.length > 15 ? `<li>and ${items.length - 15} more</li>` : ''}</ul>` : ''}
     ${button(buttonLabel, url)}
     ${p('If you have already done this, thank you: there is nothing more to do. Questions? Reply to this email.', SMALL)}
+  `
+  return { subject, html: layout(preview, body) }
+}
+
+/**
+ * The consent forms (meeting of 24 Nov 2026), one PDF for each person, attached: Form A for anyone 18 or over on 21 July
+ * 2027, Form B, signed by a parent or guardian, for anyone younger. Sent once People is complete, and again on request.
+ */
+export function buildConsentFormsEmail({ fullName, countryTerritory, people, url, again = false }) {
+  const subject = `Consent forms to sign — IOL 2027`
+  const preview = `${people.length} consent ${people.length === 1 ? 'form' : 'forms'} for ${countryTerritory}, attached.`
+  const rows = people.map((person) => `<li>${esc(person.name)}: ${person.form === 'under18' ? 'Form B, signed by a parent or guardian' : 'Form A, signed by themselves'}</li>`).join('')
+  const body = `
+    ${h1('Consent forms to sign')}
+    ${p(`Hi ${esc(fullName || 'there')},`)}
+    ${p(`${again ? 'Here again are' : 'Here are'} the consent forms for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong>, one for each person, with their name and country already filled in. They cover the photos, videos and personal data of IOL 2027.`)}
+    <ul style="margin:0 0 16px;padding-left:20px;font-size:15px;line-height:1.6;color:${C.ink}">${rows}</ul>
+    ${p('Please pass each form on to be signed. Anyone under 18 on 21 July 2027 needs a parent or guardian to sign. The forms can be filled in on a computer or tablet, or printed, signed by hand and photographed.')}
+    ${p('Then upload the signed forms in the portal, as one file or several, and tick for each person whether they consent.')}
+    ${button('Go to Consent forms', url)}
+    ${p('Questions? Reply to this email.', SMALL)}
   `
   return { subject, html: layout(preview, body) }
 }

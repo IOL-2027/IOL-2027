@@ -1,0 +1,101 @@
+{
+  "adult": {
+    "lines": [
+      {
+        "label": "Full name of the attendee",
+        "x": 54.6,
+        "y": 237.42,
+        "w": 295.34,
+        "h": 16.43
+      },
+      {
+        "label": "Representing country",
+        "x": 366.95,
+        "y": 237.42,
+        "w": 173.73,
+        "h": 16.43
+      },
+      {
+        "label": "Full name of the attendee",
+        "x": 54.6,
+        "y": 81.35,
+        "w": 295.34,
+        "h": 16.7
+      },
+      {
+        "label": "Date of signing",
+        "x": 366.95,
+        "y": 81.35,
+        "w": 173.73,
+        "h": 16.7
+      }
+    ],
+    "boxes": [
+      {
+        "x": 63.67,
+        "y": 198.3,
+        "w": 10.2,
+        "h": 10.2
+      },
+      {
+        "x": 63.67,
+        "y": 171.91,
+        "w": 10.2,
+        "h": 10.2
+      }
+    ]
+  },
+  "under18": {
+    "lines": [
+      {
+        "label": "Full name of parent/guardian (legal representative)",
+        "x": 54.6,
+        "y": 211.93,
+        "w": 193.01,
+        "h": 16.43
+      },
+      {
+        "label": "Full name of the participant (child)",
+        "x": 264.62,
+        "y": 211.93,
+        "w": 154.03,
+        "h": 16.43
+      },
+      {
+        "label": "Representing country",
+        "x": 435.66,
+        "y": 211.93,
+        "w": 105.03,
+        "h": 16.43
+      },
+      {
+        "label": "Full name of parent/guardian",
+        "x": 54.6,
+        "y": 55.86,
+        "w": 295.34,
+        "h": 16.7
+      },
+      {
+        "label": "Date of signing",
+        "x": 366.95,
+        "y": 55.86,
+        "w": 173.73,
+        "h": 16.7
+      }
+    ],
+    "boxes": [
+      {
+        "x": 63.67,
+        "y": 172.82,
+        "w": 10.2,
+        "h": 10.2
+      },
+      {
+        "x": 63.67,
+        "y": 146.42,
+        "w": 10.2,
+        "h": 10.2
+      }
+    ]
+  }
+}

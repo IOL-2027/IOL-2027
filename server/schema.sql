@@ -237,7 +237,7 @@ CREATE TABLE IF NOT EXISTS attachments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   delegation_id uuid NOT NULL REFERENCES delegations(id) ON DELETE CASCADE,
   member_id uuid REFERENCES members(id) ON DELETE SET NULL,
-  kind text NOT NULL CHECK (kind IN ('guardian_consent', 'payment_proof', 'passport_copy', 'other', 'photo')),
+  kind text NOT NULL CHECK (kind IN ('guardian_consent', 'payment_proof', 'passport_copy', 'other', 'photo', 'consent_form')),
   original_filename text NOT NULL,
   stored_path text NOT NULL,
   mime_type text NOT NULL,

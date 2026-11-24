@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { ArrowLeft, ArrowRight, Check, CircleAlert, Clock, Copy, Download, FileText, Info, Lock, Plus, Send, Upload, UserPlus } from 'lucide-react'
 import { api, ApiError, type DelegationData, type DelegationKind, type Member, type TravelRecord } from './api'
 import { personFieldGroups, sections, type Field, type PortalRecord, type Section, type SectionId } from './portalData'
-import { consentFor, personFields, personPayload, personRecord, photoFor, teamRecord, transportChoices, transportLabel, tripComplete, tripPayload, tripRecord, welfareFacts } from './live'
+import { ConsentStep, consentDone, consentFiles, consentUnanswered } from './ConsentStep'
+import { consentFor, needsFoodDetails, personFields, personPayload, personRecord, photoFor, teamRecord, transportChoices, transportLabel, tripComplete, tripPayload, tripRecord, reviewGroups } from './live'
 import { FeeTable, InvoiceDetails, SelfSetup, TeamSetup, UnsavedNote, invoiceProblems, readInvoices, usd, type SetupBody } from './SetupForms'
 import { openReceipt } from './invoice'
 import { PhotoField } from './PhotoField'
@@ -215,7 +216,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const { main, numbered, after, required } = flow
   const sectionList = flow.all
   const ev = data.event
-  const isDone = (id: SectionId) => (id === 'payment' ? paymentDone : id === 'submit' ? submitted : steps.has(id))
+  const isDone = (id: SectionId) => (id === 'payment' ? paymentDone : id === 'submit' ? submitted : id === 'consent' ? consentDone(data) : steps.has(id))
   const doneCount = required.filter((s) => isDone(s.id)).length
   const allRequiredDone = doneCount === required.length
 
@@ -246,11 +247,25 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
       ? `Observers: ${d.numberOfObservers} paid for, ${namedObservers} in People. Remove the extra in People, or email the organisers to add one`
       : `Observers: ${d.numberOfObservers} in Team and observers, ${namedObservers} in People`)
   }
+  // Everyone on an arrival and a departure, those who make their own way too (meeting of 24 Nov 2026).
+  if (peopleOpen && data.members.length && data.travelRecords.length) {
+    const on = (dir: 'arrival' | 'departure') => new Set(data.travelRecords.filter((t) => t.direction === dir).flatMap((t) => t.memberIds))
+    for (const m of data.members) {
+      const gaps = [!on('arrival').has(m.id) && 'an arrival', !on('departure').has(m.id) && 'a departure'].filter(Boolean)
+      if (gaps.length) needs('travel', `${m.badgeName || m.displayName}: not on ${gaps.join(' or ')}`)
+    }
+  }
+  // Consent forms: the signed forms uploaded and a tick for each person.
+  if (peopleOpen && data.members.length) {
+    const unanswered = consentUnanswered(data)
+    if (unanswered.length) needs('consent', `Tick the answer of ${unanswered.length === data.members.length ? 'each person' : unanswered.map((m) => m.badgeName || m.displayName).join(', ')}`)
+    if (!consentFiles(data).length) needs('consent', 'Upload the signed forms')
+  }
   const ready = !submitted && allRequiredDone && !Object.values(todo).some((items) => items?.length)
 
   const statusOf = (s: Section): StepStatus => {
-    // People, and Rooms and welfare (built from People), open once the proof of payment is uploaded.
-    if ((s.id === 'people' || s.id === 'welfare') && !peopleOpen) return 'locked'
+    // People, and the steps built from it (Review and requests, Consent forms), open once the proof of payment is uploaded.
+    if ((s.id === 'people' || s.id === 'welfare' || s.id === 'consent') && !peopleOpen) return 'locked'
     if (s.id === 'payment' && payment?.status === 'rejected') return 'attention'
     if (isDone(s.id)) return todo[s.id]?.length ? 'attention' : 'done'
     if (s.id === 'start') return 'info'
@@ -271,12 +286,15 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   const firstOpenStep = ready || submitted ? undefined : main.find(needsWork)
   const stepNumber = (s: Section) => numbered.findIndex((x) => x.id === s.id) + 1
   // The date beside each step that closes (IOL Board, 16 Nov 2026), as a date rather than days left.
-  const deadlineOf = (id: SectionId): string | null => (
+  // The step's own header also gives the last day of the regular rate (meeting of 24 Nov 2026); the system does not close
+  // on that day, but it is the date countries are asked to keep to.
+  const deadlineOf = (id: SectionId, full = false): string | null => (
     // A jury member's or volunteer's observer and single room have no early bird rate: only a date to pay by.
-    id === 'payment' && (!payment || payment.status === 'awaiting_proof') ? (country ? `${data.fees.tier === 'early_bird' ? 'Early bird rate until' : 'Due by'} ${longDate(data.fees.tier === 'early_bird' ? ev.earlyBirdEnds : ev.registrationEnds)}` : `Due by ${longDate(data.fees.dueDate)}`)
+    id === 'payment' && (!payment || payment.status === 'awaiting_proof') ? (!country ? `Due by ${longDate(data.fees.dueDate)}`
+      : data.fees.tier === 'early_bird' ? `Early bird rate until ${longDate(ev.earlyBirdEnds)}${full ? `; regular rate until ${longDate(ev.registrationEnds)}, the last day to transfer` : ''}`
+      : `Last day to transfer: ${longDate(ev.registrationEnds)}`)
     : id === 'teams' ? (ev.languagesLocked ? `Languages closed on ${longDate(ev.languageLock)}` : `Languages can change until ${longDate(ev.languageLock)}`)
     : id === 'people' ? `By ${longDate(ev.peopleDeadline)}`
-    : id === 'welfare' ? `By ${longDate(ev.peopleDeadline)}`
     : id === 'travel' ? (ev.travelLocked ? `Closed on ${longDate(ev.travelDeadline)}` : `Flights until ${longDate(ev.travelDeadline)}`)
     : null)
   const stepsDone = numbered.filter((s) => statusOf(s) === 'done').length
@@ -291,6 +309,11 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     if (target instanceof HTMLInputElement && target.type === 'file') return
     const key = target.closest<HTMLElement>('[data-dirty-key]')?.dataset.dirtyKey
     if (key) markDirty(key)
+    // Ticking "Other" or an allergy opens the food details box; unticking them all greys it out again.
+    if (target instanceof HTMLInputElement && target.name === 'Food' && target.form) {
+      const box = target.form.querySelector<HTMLTextAreaElement>('textarea[name="Food details"]')
+      if (box) box.disabled = !needsFoodDetails([...target.form.querySelectorAll<HTMLInputElement>('input[name="Food"]:checked')].map((i) => i.value))
+    }
   }
   const clean = (...keys: string[]) => setDirty((now) => {
     const next = { ...now }
@@ -485,6 +508,31 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     })
   }
 
+  // Consent forms (meeting of 24 Nov 2026): signed files for the whole registration, and each person's answer.
+  const uploadConsentFiles = (files: File[]) => run(async () => {
+    const form = new FormData()
+    files.forEach((file) => form.append('files', file))
+    await api(`/api/registration/delegations/${d.id}/consent-files`, { method: 'POST', form })
+    await load()
+    setSavedNote(files.length > 1 ? `${files.length} files uploaded.` : 'File uploaded.')
+  })
+  const removeConsentFile = (id: string) => run(async () => {
+    await api(`/api/registration/attachments/${id}/consent`, { method: 'DELETE' })
+    await load()
+    setSavedNote('File removed.')
+  })
+  const emailConsentForms = () => run(async () => {
+    const { sent } = await api<{ sent: number }>(`/api/registration/delegations/${d.id}/consent-forms/email`, { method: 'POST' })
+    await load()
+    setInfoNote({ tone: 'ok', text: `${sent === 1 ? 'The form is' : `${sent} forms are`} on the way to ${d.teamLeaderEmail}.` })
+  })
+  const saveConsents = (answers: { memberId: string; consents: boolean | null }[]) => run(async () => {
+    await api(`/api/registration/delegations/${d.id}/consents`, { method: 'PUT', body: { answers } })
+    await load()
+    clean('consent')
+    go(nextOf('consent'))
+  })
+
   const saveWelfare = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const note = String(new FormData(event.currentTarget).get(welfareNoteLabel) ?? '').trim()
@@ -571,7 +619,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
   }
   const singleRoomsChosen = [...d.singleRooms.teamLeaders, ...d.singleRooms.observers].filter(Boolean).length
   const unsavedNames: Record<string, string> = {
-    setup: country ? 'Team and observers' : 'About you', invoice: 'the invoice details', welfare: 'the note for the welfare team',
+    setup: country ? 'Team and observers' : 'About you', invoice: 'the invoice details', welfare: 'the note for the welfare team', consent: 'the consent answers',
     record: currentRecord?.id === NEW_PERSON ? 'the new person' : currentRecord?.label ?? 'this record',
   }
   const consentMember = activeId === 'people' ? data.members.find((m) => m.id === currentRecord?.id && m.needsGuardianConsent) : undefined
@@ -603,7 +651,8 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
     teams: steps.has('teams') ? data.teams.map((t) => `${t.name}: ${t.contestLanguage ?? 'no language yet'}`).join(' · ') : 'Choose each team’s contest language.',
     people: !peopleOpen ? 'Opens once the proof of payment is uploaded.'
       : `${peopleCount} ${peopleCount === 1 ? 'person' : 'people'} entered${peopleToFinish ? `, ${peopleToFinish} still to finish` : ''}.`,
-    welfare: !peopleOpen ? 'Opens with People, once the proof of payment is uploaded.' : steps.has('welfare') ? 'Summary checked.' : 'Check the summary built from everyone’s details, and add any room requests.',
+    welfare: !peopleOpen ? 'Opens with People, once the proof of payment is uploaded.' : steps.has('welfare') ? 'Summary checked.' : 'Check the summary built from People and Travel, and add any room requests.',
+    consent: !peopleOpen ? 'Opens with People, once the proof of payment is uploaded.' : consentDone(data) ? `Signed forms uploaded, and everyone’s answer ticked.` : 'A signed form for each person, uploaded, and a tick for each person’s answer.',
     travel: flightsIn ? `${flightsIn} ${flightsIn === 1 ? 'trip' : 'trips'} added${flightsMissing ? ', but not everyone is on an arrival and a departure yet' : ''}. Changes until ${longDate(ev.travelDeadline)}.` : `Flights once they are booked, by ${longDate(ev.travelDeadline)}.`,
     submit: '',
     badges: '',
@@ -921,7 +970,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
             <p className="reg-step-kicker">{section.afterSubmission ? 'After you submit' : section.id === 'start' ? 'Start here' : `Step ${stepNumber(section)} of ${numbered.length}`}</p>
             <h2 id="reg-panel-title" ref={titleRef} tabIndex={-1}>{section.title}</h2>
             <p>{section.intro}</p>
-            {deadlineOf(section.id) && <p className="reg-step-deadline"><Clock size={15} aria-hidden="true" />{deadlineOf(section.id)}</p>}
+            {deadlineOf(section.id) && <p className="reg-step-deadline"><Clock size={15} aria-hidden="true" />{deadlineOf(section.id, true)}</p>}
           </header>
 
           {infoNote && (
@@ -932,25 +981,26 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
 
           {locked && (
             <Card id="step-locked" title="Opens after the proof of payment"
-              intro={`${section.id === 'welfare' ? 'Rooms and welfare is built from People, which opens' : 'People opens'} as soon as you upload the bank’s proof of transfer in Payment, so no registration is completed before its fees are settled.`}>
+              intro={`${section.id === 'people' ? 'People opens' : `${section.title} is built from People, which opens`} as soon as you upload the bank’s proof of transfer in Payment, so no registration is completed before its fees are settled.`}>
               <button type="button" className="reg-btn reg-btn-primary" onClick={() => open('payment')}>Go to Payment <ArrowRight size={18} aria-hidden="true" /></button>
             </Card>
           )}
 
           {activeId === 'start' && <>
             {country ? (
-              <Card id="start-steps" title="How registration works" intro="Seven steps, the last of them submitting. Everything you save is kept, so you can stop at any point and come back later, on any device.">
+              <Card id="start-steps" title="How registration works" intro="Eight steps, the last of them submitting. Everything you save is kept, so you can stop at any point and come back later, on any device.">
                 <p className="reg-hint reg-card-lead">As national representative you are the organisers’ one contact for your whole delegation, even with two teams, so please pass on to your teams and observers what you read here.</p>
                 <ol className="reg-journey">
                   <li><strong>Team and observers.</strong> How many teams, each team’s Team Leader, whether each team brings an observer, and who would like a single room. This sets your fees.</li>
-                  <li><strong>Payment.</strong> Your invoice details, the bank transfer, then the bank’s proof of transfer. Early bird rate until {longDate(ev.earlyBirdEnds)}.</li>
+                  <li><strong>Payment.</strong> Your invoice details, the bank transfer, then the bank’s proof of transfer. Early bird rate until {longDate(ev.earlyBirdEnds)}, regular rate until {longDate(ev.registrationEnds)}.</li>
                   <li><strong>Teams.</strong> Each team’s contest language, which can change until {longDate(ev.languageLock)}.</li>
                   <li><strong>People.</strong> Opens after payment. Fill it in stages, by {longDate(ev.peopleDeadline)}.</li>
-                  <li><strong>Rooms and welfare.</strong> Check the summary built from your people, and add any requests.</li>
-                  <li><strong>Travel.</strong> Each person’s flights once they are booked, by {longDate(ev.travelDeadline)}.</li>
-                  <li><strong>Submit.</strong> Shows where every step stands. Once the six above are done, you read the dress code and travel insurance notices and submit here.</li>
+                  <li><strong>Travel.</strong> Each person’s flights once they are booked, by {longDate(ev.travelDeadline)}. Everyone needs an arrival and a departure, those who make their own way too.</li>
+                  <li><strong>Review and requests.</strong> Check the summary built from People and Travel, and add any room requests.</li>
+                  <li><strong>Consent forms.</strong> A form for each person about photos, videos and personal data, which we email you filled in with their name. <strong>Anyone under 18 on 21 July 2027 needs a parent or guardian to sign</strong>, so allow time to collect the signatures. You upload the signed forms and tick each person’s answer.</li>
+                  <li><strong>Submit.</strong> Shows where every step stands. Once the seven above are done, you read the dress code and travel insurance notices and submit here.</li>
                 </ol>
-                <p className="reg-hint reg-card-foot">Do steps 1 to 6 in whatever order suits you, except that People and Rooms and welfare open after payment. You can still update people and travel after you submit, until the dates above.</p>
+                <p className="reg-hint reg-card-foot">Do steps 1 to 7 in whatever order suits you, except that People, and the steps built from it, open after payment. You can still update people and travel after you submit, until the dates above.</p>
               </Card>
             ) : (
               <Card id="start-steps" title="How registration works" intro="A few steps, the last of them submitting. Everything you save is kept, so you can stop at any point and come back later.">
@@ -958,8 +1008,9 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                   <li><strong>About you.</strong> Your name, whether you need a hotel room{kind === 'jury' ? ', and whether you bring an observer' : ''}.</li>
                   {owesFor(data) && <li><strong>Payment.</strong> Only for {kind === 'jury' ? 'an observer or ' : ''}a single room: the invoice, the bank transfer, then the proof.</li>}
                   <li><strong>Your details.</strong> Passport and personal details, and your photo, by {longDate(ev.peopleDeadline)}.</li>
-                  <li><strong>Rooms and welfare.</strong> Check the summary, and add any requests.</li>
                   <li><strong>Travel.</strong> Your flights once they are booked, by {longDate(ev.travelDeadline)}.</li>
+                  <li><strong>Review and requests.</strong> Check the summary, and add any requests.</li>
+                  <li><strong>Consent forms.</strong> Sign the form about photos, videos and personal data{kind === 'jury' ? ' (and have your observer sign theirs)' : ''}, upload it and tick your answer.</li>
                   <li><strong>Submit.</strong> Read the dress code and travel insurance notices, then submit.</li>
                 </ol>
               </Card>
@@ -978,14 +1029,42 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
             ? <TeamSetup key={`${d.numberOfTeams}-${d.numberOfObservers}`} data={data} locked={proofIn} busy={busy} error={sectionError} dirty={Boolean(dirty.setup)} onTouched={() => markDirty('setup')} onSave={saveSetup} onContinue={() => go(nextOf('setup'))} />
             : <SelfSetup key={`${d.numberOfObservers}-${d.needsAccommodation}`} data={data} locked={proofIn} busy={busy} error={sectionError} dirty={Boolean(dirty.setup)} onTouched={() => markDirty('setup')} onSave={saveSetup} onContinue={() => go(nextOf('setup'))} />)}
 
+          {activeId === 'consent' && !locked && (
+            <ConsentStep data={data} busy={busy} country={country} error={sectionError}
+              onUpload={uploadConsentFiles} onRemove={removeConsentFile} onEmail={emailConsentForms} onSave={saveConsents} />
+          )}
+
           {activeId === 'welfare' && !locked && (
             <form onSubmit={saveWelfare} noValidate data-dirty-key="welfare">
               <div className="reg-cards">
-                <Card id="welfare-summary" title="Summary from People" intro="Built from everyone’s records. To change something, edit that person in People.">
-                  <Facts items={welfareFacts(data)} />
-                </Card>
-                <Card id="welfare-requests" title="Requests">
-                  <p className="reg-card-lead">We are committed to ensuring that all participants, including trans and non-binary contestants, feel safe, comfortable, and welcome in their accommodation arrangements. Therefore, if any of the participants has specific justifiable accommodation requests or access requirements, please outline them below. This may include, but is not limited to: requests to share a room with a specific contestant from the same country/territory whom they know well, requests to avoid sharing a room with contestants from another country/territory whom they do not know, preferences regarding sharing a room with contestants of their gender assigned at birth, requests for a single room or any alternative accommodation arrangements that would support their wellbeing.</p>
+                <div className="reg-review">
+                  {reviewGroups(data).map((group) => (
+                    <section key={group.id} id={group.id} className="reg-review-group" aria-labelledby={`${group.id}-title`}>
+                      <h3 id={`${group.id}-title`}>{group.title}</h3>
+                      <dl>
+                        {group.facts.map((f) => (
+                          <div key={f.label}>
+                            <dt>{f.label}</dt>
+                            <dd>{Array.isArray(f.value) ? <ul>{f.value.map((v) => <li key={v}>{v}</li>)}</ul> : f.value}{f.help && <small>{f.help}</small>}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </section>
+                  ))}
+                  <p className="reg-hint reg-review-foot">Built from {country ? 'People' : 'Your details'} and Travel. To change something, change it there.</p>
+                </div>
+                <Card id="welfare-requests" title="Room requests">
+                  {/* The IOL Board's wording, word for word (16 Nov 2026), set out as a list to read more easily (24 Nov 2026). */}
+                  <div className="reg-card-lead reg-requests-text">
+                    <p>We are committed to ensuring that all participants, including trans and non-binary contestants, feel safe, comfortable, and welcome in their accommodation arrangements. Therefore, if any of the participants has specific justifiable accommodation requests or access requirements, please outline them below.</p>
+                    <p>This may include, but is not limited to:</p>
+                    <ul>
+                      <li>requests to share a room with a specific contestant from the same country/territory whom they know well,</li>
+                      <li>requests to avoid sharing a room with contestants from another country/territory whom they do not know,</li>
+                      <li>preferences regarding sharing a room with contestants of their gender assigned at birth,</li>
+                      <li>requests for a single room or any alternative accommodation arrangements that would support their wellbeing.</li>
+                    </ul>
+                  </div>
                   <div className="reg-grid">
                     <FieldControl idPrefix="welfare" field={{ label: welfareNoteLabel, value: d.welfareNote ?? '', kind: 'textarea', optional: true, help: 'Seen only by the organising team, and handled privately.' }} />
                   </div>
@@ -1025,7 +1104,10 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                 <Card id="pay-amount" title="Amount to transfer" status={<Chip tone="later">{data.fees.tierLabel} rate</Chip>}>
                   <FeeTable lines={data.fees.lines} total={data.fees.total} pending={data.fees.observersPending} />
                   <dl className="reg-ref">
-                    <div><dt>Due date</dt><dd>{new Date(`${data.fees.dueDate}T12:00:00+07:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</dd></div>
+                    {country && data.fees.tier === 'early_bird' ? <>
+                      <div><dt>Early bird rate until</dt><dd>{longDate(ev.earlyBirdEnds)}</dd></div>
+                      <div><dt>Regular rate until</dt><dd>{longDate(ev.registrationEnds)}, the last day to transfer</dd></div>
+                    </> : <div><dt>{country ? 'Last day to transfer' : 'Due date'}</dt><dd>{longDate(country ? ev.registrationEnds : data.fees.dueDate)}</dd></div>}
                     {payment?.invoiceNumber && <div><dt>Invoice number</dt><dd>{payment.invoiceNumber}</dd></div>}
                     <div><dt>Payment reference</dt><dd>{payment ? <>
                       <span className="reg-code">{payment.paymentReference}</span>
@@ -1034,7 +1116,7 @@ export default function Workspace({ delegationId, onSessionEnd, staff, session }
                   </dl>
                   <span className="reg-visually-hidden" role="status">{copied ? `${copied} copied` : ''}</span>
                   {(!payment || payment.status === 'awaiting_proof') && data.fees.tier === 'early_bird' && (
-                    <p className="reg-hint reg-card-foot">The fee depends on the day your proof of payment is uploaded: upload it by {new Date(`${data.fees.dueDate}T12:00:00+07:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} to keep the early bird rate. After that, the invoice moves to the regular rate.</p>
+                    <p className="reg-hint reg-card-foot">The fee depends on the day your proof of payment is uploaded: upload it by {new Date(`${data.fees.dueDate}T12:00:00+07:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} to keep the early bird rate. After that, the invoice moves to the regular rate, until {longDate(ev.registrationEnds)}.</p>
                   )}
                 </Card>
 

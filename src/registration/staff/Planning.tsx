@@ -85,6 +85,9 @@ export function TransportPanel({ canEdit }: { canEdit: boolean }) {
     } catch (e) { setActionError(errorText(e)) } finally { setBusy(false) }
   }
   const people = trips.reduce((n, t) => n + t.people.length, 0)
+  // Everyone making their own way, listed apart so the transport team knows who is not on a bus (meeting of 24 Nov 2026).
+  const ownWay = own ? [] : (data?.trips ?? []).filter((t) => t.transport === 'own')
+  const ownPeople = ownWay.reduce((n, t) => n + t.people.length, 0)
   return (
     <Panel id="transport" title="Transport" intro="Everyone’s flights, by day and time, for planning airport pickups and drop-offs (Suvarnabhumi and Don Mueang only). Set each trip’s pickup time and bus, then email everyone their pickup details."
       actions={canEdit ? <button type="button" className="reg-btn reg-btn-primary" disabled={busy} onClick={sendAll}><Send size={16} aria-hidden="true" />{busy ? 'Sending…' : 'Email pickup details'}</button> : undefined}>
@@ -130,6 +133,18 @@ export function TransportPanel({ canEdit }: { canEdit: boolean }) {
           </div>
         ))}
       </>)}
+      {data && ownWay.length > 0 && (
+        <div>
+          <h3 className="reg-staff-subhead">Making their own way ({ownPeople} {ownPeople === 1 ? 'person' : 'people'})</h3>
+          <p className="reg-hint">Not on any bus. They are told in their badge email that they make their own way {direction === 'arrival' ? 'to the hotel' : 'to the airport'}.</p>
+          <TableWrap label={`People making their own way, ${direction === 'arrival' ? 'arriving' : 'leaving'}`}>
+            <thead><tr><th scope="col">Date</th><th scope="col">Registration</th><th scope="col">People</th></tr></thead>
+            <tbody>{ownWay.map((t) => (
+              <tr key={t.id}><td>{t.localDate ? day(t.localDate) : '—'}{t.localTime && <small>{t.localTime.slice(0, 5)}</small>}</td><th scope="row">{t.countryTerritory}</th><td>{t.people.length}<small>{t.people.join(', ')}</small></td></tr>
+            ))}</tbody>
+          </TableWrap>
+        </div>
+      )}
     </Panel>
   )
 }
@@ -168,7 +183,7 @@ export function EventSettingsPanel({ canEdit }: { canEdit: boolean }) {
         <form onSubmit={save} noValidate key={JSON.stringify(ev)}>
           <div className="reg-grid">
             {dateField('languageLock', 'Contest languages lock after', 'Team and individual contest languages can change until the end of this day.')}
-            {dateField('peopleDeadline', 'People details due', 'Shown beside People and Rooms and welfare; a reminder goes a week before.')}
+            {dateField('peopleDeadline', 'People details due', 'Shown beside People; a reminder goes a week before.')}
             {dateField('travelDeadline', 'Flights can change until', 'After this day only the organisers can change a flight.')}
             {dateField('hotelFirstNight', 'First hotel night provided', 'The organisers provide rooms from this night…')}
             {dateField('hotelLastNight', 'Last hotel night provided', '…to this night. Other nights are the participants’ own.')}
