@@ -67,7 +67,10 @@ export async function consentPdf(member, country) {
   const filled = kind === 'adult' ? { 0: consentName(member), 1: country } : { 1: consentName(member), 2: country }
   lines.forEach((box, i) => {
     if (filled[i] !== undefined) { writeIn(page, font, box, filled[i]); return }
-    const field = form.createTextField(`field-${i + 1}`)
+    // Named after the line it fills, which PDF viewers show as the field's tooltip (review of 27 Nov 2026).
+    const base = String(box.label ?? `Field ${i + 1}`).replace(/\./g, '')
+    const name = form.getFields().some((f) => f.getName() === base) ? `${base} (${i + 1})` : base
+    const field = form.createTextField(name)
     field.addToPage(page, { x: box.x, y: box.y + 1.5, width: box.w, height: box.h - 1.5, font, borderWidth: 0, borderColor: undefined, backgroundColor: undefined, textColor: rgb(0.1, 0.1, 0.1) })
     field.setFontSize(10)
   })

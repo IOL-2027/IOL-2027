@@ -37,7 +37,9 @@ async function setState(key, value) {
   )
 }
 
-const settled = `registration_status NOT IN ('draft', 'cancelled') AND payment_status = 'approved'`
+// Paid, or nothing to pay: a jury member or volunteer with no observer and no single room has no payment at all (submitting
+// asks for one whenever something is owed), and their badge must not wait for one (review of 27 Nov 2026).
+const settled = `registration_status NOT IN ('draft', 'cancelled') AND (payment_status = 'approved' OR (kind <> 'country' AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.delegation_id = delegations.id)))`
 
 /** Registrations that look settled but whose Team Leader never got the badges. Their travel is checked on the way. */
 async function missedBadges() {
@@ -125,7 +127,7 @@ async function reminders(now) {
       if (!Array.isArray(items) || !items.length) continue
       const { subject, html } = buildReminderEmail({
         fullName: d.national_representative_name, countryTerritory: d.country_territory, title: rule.title, lead: rule.lead, deadline: longDate(rule.deadline),
-        items, buttonLabel: 'Continue your registration', url: `${portalUrl}/?step=${rule.step}`,
+        items, buttonLabel: 'Continue your registration', url: `${portalUrl}/?step=${rule.step}`, kind: d.kind,
       })
       await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: rule.key, delegationId: d.id, retry: true }).catch(logged(rule.key))
       sent++

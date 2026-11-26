@@ -800,7 +800,7 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-step h3, .reg-step h4 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.01em; }
 .reg-step-note { margin: 0 0 16px; }
 .reg-cards { display: grid; gap: 16px; }
-.reg-step > .reg-card + .reg-card, .reg-step > .reg-card + .reg-cards, .reg-step > .reg-cards + .reg-card { margin-top: 16px; }
+.reg-step > .reg-card + .reg-card, .reg-step > .reg-card + .reg-cards, .reg-step > .reg-cards + .reg-card, .reg-step > .reg-fold + .reg-card, .reg-step > .reg-fold + .reg-cards { margin-top: 16px; }
 .reg-card { min-width: 0; margin: 0; padding: clamp(20px, 2.6vw, 32px); border: 1px solid var(--reg-border); border-radius: var(--reg-radius-lg); background: var(--reg-surface); }
 .reg-card-head { display: flex; align-items: flex-start; gap: 14px 16px; margin-bottom: 22px; }
 .reg-card-head:last-child { margin-bottom: 0; }
@@ -1074,3 +1074,20 @@ textarea.reg-control { min-height: 96px; resize: vertical; }
 .reg-chip.is-unsaved { background: var(--reg-tint-strong); color: var(--ink); }
 .reg-unsaved-note { font-size: 14px; color: var(--reg-muted); }
 .reg-record-editor .reg-editor-actions { position: sticky; bottom: 0; z-index: 2; margin-top: 24px; padding: 14px 0; border-top: 1px solid var(--reg-border); background: var(--reg-surface); }
+
+/* Review of 27 Nov 2026 ---------------------------------------------------------------------------------------- */
+/* The back office's slim header on every section but Home. */
+.reg-head-compact { padding: 16px 0 20px; }
+.reg-head-compact .reg-head-main { margin-top: 6px; }
+.reg-head-compact h1 { font-size: 24px; }
+/* Parts of a step folded away once done with (Payment's parts 1 to 3 after the proof; Travel's information once a trip is in). */
+.reg-fold { border: 1px solid var(--reg-border); border-radius: var(--reg-radius-lg); background: var(--reg-surface); }
+.reg-fold > summary { cursor: pointer; padding: 16px 20px; font-weight: 700; color: var(--ink); list-style: none; display: flex; align-items: center; gap: 10px; }
+.reg-fold > summary::-webkit-details-marker { display: none; }
+.reg-fold > summary::before { content: "+"; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--reg-border); font-weight: 700; line-height: 1; }
+.reg-fold[open] > summary::before { content: "−"; }
+.reg-fold > summary:focus-visible { outline: 3px solid var(--reg-focus); outline-offset: 2px; border-radius: var(--reg-radius-lg); }
+.reg-fold > .reg-cards { padding: 0 12px 12px; }
+/* Ticking people on a trip in one go. */
+.reg-tick-tools { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 4px 0 14px; }
+.reg-tick-tools .reg-btn-link { display: inline-flex; align-items: center; gap: 6px; }

@@ -6,7 +6,7 @@ import { Done, FilterField, Note, Panel, Problem, day, errorText, human, useLoad
 
 type PaymentRow = {
   id: string; delegationId: string; countryTerritory: string; nationalRepresentativeName: string; teamLeaderEmail: string
-  numberOfTeams: number; numberOfObservers: number; paymentReference: string; amountDue: string; currency: string; feeTier: string
+  kind?: 'country' | 'jury' | 'volunteer'; numberOfTeams: number; numberOfObservers: number; paymentReference: string; amountDue: string; currency: string; feeTier: string
   status: string; invoiceRecipientName: string | null; invoiceRecipientAddress: string | null; invoiceCount: number; invoiceSplitNote: string | null
   invoiceSplits: { recipientName: string; amount: number }[] | null; feeCategory: string; singleRooms: { teamLeaders: boolean[]; observers: boolean[] } | null
   invoiceNumber: string | null; invoiceRecipientTin: string | null
@@ -71,7 +71,7 @@ export default function Payments({ canReview }: { canReview: boolean }) {
   const rows = (data?.payments ?? []).filter((p) => !term || [p.countryTerritory, p.paymentReference, p.invoiceNumber ?? '', p.invoiceRecipientName ?? '', p.receiptNumber ?? ''].some((v) => v.toLowerCase().includes(term)))
 
   return (
-    <Panel id="payments" title="Payments" intro={canReview ? 'Check each proof against the สอวน bank statement, then approve it or return it with a reason. Approving issues a numbered e-receipt.' : 'Read-only. Approving payments is a Finance task.'}>
+    <Panel id="payments" title="Payments" intro={canReview ? 'Check each proof against the POSN bank statement, then approve it or return it with a reason. Approving issues a numbered e-receipt.' : 'Read-only. Approving payments is a Finance task.'}>
       <div className="reg-filter-bar">
         <div className="reg-filter" role="group" aria-label="Show payments">
           {filters.map(([value, label]) => (
@@ -88,8 +88,8 @@ export default function Payments({ canReview }: { canReview: boolean }) {
         <ul className="reg-pay-list">{rows.map((p) => (
           <li key={p.id}>
             <div className="reg-pay-main">
-              <strong>{p.countryTerritory}</strong>
-              <span className="reg-pay-amount">{p.currency} {Number(p.amountDue).toLocaleString('en-US')} · {p.feeTier === 'early_bird' ? 'Early bird' : 'Regular'} · {feeCategoryLabel[p.feeCategory as FeeCategory] ?? p.feeCategory}</span>
+              <strong>{p.kind && p.kind !== 'country' ? `${p.kind === 'jury' ? 'Jury' : 'Volunteer'} · ${p.nationalRepresentativeName || p.teamLeaderEmail}` : p.countryTerritory}</strong>
+              <span className="reg-pay-amount">{p.currency} {Number(p.amountDue).toLocaleString('en-US')} · {p.kind && p.kind !== 'country' ? (p.kind === 'jury' ? 'Jury member' : 'Volunteer') : <>{p.feeTier === 'early_bird' ? 'Early bird' : 'Regular'} · {feeCategoryLabel[p.feeCategory as FeeCategory] ?? p.feeCategory}</>}</span>
               <span>Reference <span className="reg-code">{p.paymentReference}</span>{p.receiptNumber && <> · Receipt {p.receiptNumber}</>}</span>
               <span>{human(p.status)}{p.reviewedByName ? ` by ${p.reviewedByName}` : ''} · {when(p.reviewedAt ?? p.updatedAt)}</span>
             </div>
@@ -99,7 +99,7 @@ export default function Payments({ canReview }: { canReview: boolean }) {
               <div><dt>Invoices</dt><dd>{p.invoiceCount}{p.invoiceSplits
                 ? p.invoiceSplits.map((s, i) => <small key={i}>{p.invoiceNumber}-{i + 1}: {s.recipientName}, {p.currency} {Number(s.amount).toLocaleString('en-US')}</small>)
                 : p.invoiceSplitNote && <small>{p.invoiceSplitNote}</small>}</dd></div>
-              <div><dt>Declared</dt><dd>{p.numberOfTeams} {p.numberOfTeams === 1 ? 'team' : 'teams'}, {p.numberOfObservers} {p.numberOfObservers === 1 ? 'observer' : 'observers'}{(() => {
+              <div><dt>Declared</dt><dd>{p.kind && p.kind !== 'country' ? (p.numberOfObservers ? 'An observer' : 'No observer') : <>{p.numberOfTeams} {p.numberOfTeams === 1 ? 'team' : 'teams'}, {p.numberOfObservers} {p.numberOfObservers === 1 ? 'observer' : 'observers'}</>}{(() => {
                 const singles = [...(p.singleRooms?.teamLeaders ?? []), ...(p.singleRooms?.observers ?? [])].filter(Boolean).length
                 return singles ? `, ${singles} single ${singles === 1 ? 'room' : 'rooms'}` : ''
               })()}</dd></div>

@@ -155,6 +155,10 @@ export async function missingTravel(delegationId) {
     [delegationId],
   )
   if (!people.rowCount) return ['Add the people in the delegation']
+  // A volunteer adds flights only if they fly in (review of 27 Nov 2026): one living in or near Bangkok adds none.
+  const volunteerOnFoot = (await query(
+    `SELECT d.kind = 'volunteer' AND NOT EXISTS (SELECT 1 FROM travel_records tr WHERE tr.delegation_id = d.id) AS skip FROM delegations d WHERE d.id = $1`, [delegationId])).rows[0]?.skip
+  if (volunteerOnFoot) return []
   return people.rows
     .map((person) => ({ name: person.display_name, gaps: [!person.has_arrival && 'arrival', !person.has_departure && 'departure'].filter(Boolean) }))
     .filter((person) => person.gaps.length)
@@ -163,11 +167,12 @@ export async function missingTravel(delegationId) {
 
 /** What still stands between this registration and its QR badges. Empty when it is settled. */
 export async function badgeBlockers(delegationId) {
-  const d = (await query('SELECT registration_status, payment_status FROM delegations WHERE id = $1', [delegationId])).rows[0]
+  const d = (await query(`SELECT registration_status, payment_status, kind <> 'country' AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.delegation_id = d.id) AS nothing_to_pay
+     FROM delegations d WHERE id = $1`, [delegationId])).rows[0]
   if (!d) return ['Registration not found']
   const blockers = []
   if (d.registration_status === 'draft' || d.registration_status === 'cancelled') blockers.push('Submit the registration')
-  if (d.payment_status !== 'approved') blockers.push('Payment confirmed by Finance')
+  if (d.payment_status !== 'approved' && !d.nothing_to_pay) blockers.push('Payment confirmed by Finance')
   return [...blockers, ...(await missingTravel(delegationId))]
 }
 
@@ -219,7 +224,7 @@ export async function sendBadgesIfSettled(delegationId, { update = false } = {})
   const delivery = await withTransaction(async (client) => {
     // One delegation at a time, so two triggers at once cannot both issue the same badges or both send the email.
     const d = (await client.query(
-      'SELECT id, country_territory, national_representative_name, team_leader_email, badges_mailed FROM delegations WHERE id = $1 FOR UPDATE',
+      'SELECT id, kind, country_territory, national_representative_name, team_leader_email, badges_mailed FROM delegations WHERE id = $1 FOR UPDATE',
       [delegationId],
     )).rows[0]
     const missing = (await client.query(
@@ -255,7 +260,7 @@ export async function sendBadgesIfSettled(delegationId, { update = false } = {})
     const { subject, html } = buildBadgesEmail({
       countryTerritory: d.country_territory, fullName: d.national_representative_name, update: Boolean(mailed), removed,
       people: marked.map((b) => ({ ...b.content, change: mailed ? b.change : null, skippedName: b.skippedName, transfers: transfers.get(memberOf.get(b.id)) ?? [] })),
-      printCutoff, cutoffPassed: bangkokDate() > printCutoff, portalUrl,
+      printCutoff, cutoffPassed: bangkokDate() > printCutoff, portalUrl, kind: d.kind,
     })
     await client.query(
       'UPDATE delegations SET badges_mailed = $2, badges_mailed_at = now() WHERE id = $1',

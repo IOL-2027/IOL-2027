@@ -32,6 +32,10 @@ const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&
 // Why the reader got the email, in the footer.
 const TEAM_LEADER_REASON = 'This message was sent to you because you are registering your country or territory for IOL 2027 as its national representative.'
 const ORGANISER_REASON = 'This message was sent to you because you are an IOL 2027 organiser with access to the registration back office.'
+const ACCOUNT_REASON = 'This message was sent to you because someone asked for a code for your IOL 2027 account.'
+// Jury members and volunteers register only themselves (review of 27 Nov 2026: they were told they register a country).
+const reasonFor = (kind = 'country') => (kind === 'jury' ? 'This message was sent to you because you are registering for IOL 2027 as a member of the jury.'
+  : kind === 'volunteer' ? 'This message was sent to you because you are registering for IOL 2027 as a volunteer.' : TEAM_LEADER_REASON)
 
 function layout(previewText, bodyHtml, reason = TEAM_LEADER_REASON) {
   return `<!DOCTYPE html>
@@ -55,7 +59,7 @@ function layout(previewText, bodyHtml, reason = TEAM_LEADER_REASON) {
       <!-- header -->
       <tr><td style="padding:0 0 16px;border-bottom:3px solid ${C.orange}">
         <p style="margin:0;font-size:20px;font-weight:700;line-height:1.2;color:${C.ink}">IOL 2027</p>
-        <p style="margin:4px 0 0;font-size:14px;line-height:1.4;color:${C.muted}">International Olympiad in Linguistics · Bangkok, Thailand</p>
+        <p style="margin:4px 0 0;font-size:14px;line-height:1.4;color:${C.muted}">International Linguistics Olympiad · Bangkok, Thailand</p>
       </td></tr>
 
       <!-- body -->
@@ -131,23 +135,25 @@ function notice(text, color = C.jade) {
 
 // ── email builders ────────────────────────────────────────────────────────────
 
-export function buildVerificationEmail({ countryTerritory, fullName, code }) {
+export function buildVerificationEmail({ countryTerritory, fullName, code, kind = 'country' }) {
   const subject = 'Your IOL 2027 verification code'
   const preview = `Your verification code is ${code} — expires in 30 minutes.`
   const body = `
     ${h1('Verify your email')}
     ${p(`Hi ${esc(fullName || 'there')},`)}
-    ${p(`You're creating the registration account for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> at IOL 2027.
-         Enter the code below to verify your email address and continue.`)}
+    ${p(kind === 'country'
+      ? `You're creating the registration account for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> at IOL 2027. Enter the code below to verify your email address and continue.`
+      : `You're creating your IOL 2027 ${kind === 'jury' ? 'jury' : 'volunteer'} registration account. Enter the code below to verify your email address and continue.`)}
     ${codeBlock(code)}
     ${p(`If you did not request this code, please ignore this email.`, SMALL)}
   `
-  return { subject, html: layout(preview, body) }
+  return { subject, html: layout(preview, body, reasonFor(kind)) }
 }
 
-export function buildProofReceivedEmail({ countryTerritory, fullName, paymentReference, amountDue, currency, invoiceCount, peopleUrl }) {
+export function buildProofReceivedEmail({ countryTerritory, fullName, paymentReference, amountDue, currency, invoiceCount, peopleUrl, kind = 'country' }) {
+  const country = kind === 'country'
   const subject = 'Payment proof received — IOL 2027'
-  const preview = `We received your payment proof for ${countryTerritory}. People is open now, so you can carry on with your registration.`
+  const preview = country ? `We received your payment proof for ${countryTerritory}. People is open now, so you can carry on with your registration.` : 'We received your payment proof. You can carry on with your registration.'
   const body = `
     ${h1('Payment proof received')}
     ${p(`Hi ${esc(fullName || 'there')},`)}
@@ -160,15 +166,15 @@ export function buildProofReceivedEmail({ countryTerritory, fullName, paymentRef
       ['Invoices requested', String(invoiceCount || 1)],
       ['Review status', 'Awaiting Finance review'],
     ])}
-    ${notice('<strong>You do not need to wait.</strong> People is open now, so you can add everyone’s details while Finance checks the payment.')}
+    ${notice(country ? '<strong>You do not need to wait.</strong> People is open now, so you can add everyone’s details while Finance checks the payment.' : '<strong>You do not need to wait.</strong> Carry on with the other steps while Finance checks the payment.')}
     ${peopleUrl ? button('Continue your registration', peopleUrl) : ''}
-    ${p('Team and observers and the invoice details are now locked, because they set the amount you paid. To change them, reply to this email.', SMALL)}
+    ${p(`${country ? 'Team and observers' : 'About you'} and the invoice details are now locked, because they set the amount you paid. To change them, reply to this email.`, SMALL)}
     ${p(`If you have questions about your payment, reply to this email with your payment reference.`, SMALL)}
   `
-  return { subject, html: layout(preview, body) }
+  return { subject, html: layout(preview, body, reasonFor(kind)) }
 }
 
-export function buildProofReturnedEmail({ countryTerritory, fullName, paymentReference, note, paymentUrl }) {
+export function buildProofReturnedEmail({ countryTerritory, fullName, paymentReference, note, paymentUrl, kind = 'country' }) {
   const subject = 'Please upload a new proof of payment — IOL 2027'
   const preview = `Finance could not match the proof of payment for ${countryTerritory}. Please upload a new one.`
   const body = `
@@ -184,7 +190,7 @@ export function buildProofReturnedEmail({ countryTerritory, fullName, paymentRef
     ${button('Upload a new proof', paymentUrl)}
     ${p(`If you have questions about your payment, reply to this email with your payment reference.`, SMALL)}
   `
-  return { subject, html: layout(preview, body) }
+  return { subject, html: layout(preview, body, reasonFor(kind)) }
 }
 
 export function buildFinanceAlertEmail({ countryTerritory, paymentReference, amountDue, currency, proofFilename, delegationId }) {
@@ -205,7 +211,7 @@ export function buildFinanceAlertEmail({ countryTerritory, paymentReference, amo
   return { subject, html: layout(preview, body, ORGANISER_REASON) }
 }
 
-export function buildPaymentConfirmedEmail({ countryTerritory, fullName, paymentReference, amountPaid, currency, receiptNumber, travelUrl, paymentUrl }) {
+export function buildPaymentConfirmedEmail({ countryTerritory, fullName, paymentReference, amountPaid, currency, receiptNumber, travelUrl, paymentUrl, kind = 'country' }) {
   const subject = 'Payment confirmed — IOL 2027 registration'
   const preview = `Your payment for ${countryTerritory} is confirmed. Next, add everyone's flights.`
   const body = `
@@ -218,40 +224,45 @@ export function buildPaymentConfirmedEmail({ countryTerritory, fullName, payment
       ['Amount confirmed', amountPaid ? `${Number(amountPaid).toLocaleString()} ${currency || 'USD'}` : '—'],
       ...(receiptNumber ? [['Receipt number', receiptNumber]] : []),
     ])}
-    ${notice('<strong>Next: add your flights.</strong> Enter each person’s arrival and departure, with flight number, date and time, in the Travel step. Once your registration is submitted and everyone’s travel is in, we will email you everyone’s badges.')}
+    ${notice(kind === 'country' ? '<strong>Next: add your flights.</strong> Enter each person’s arrival and departure, with flight number, date and time, in the Travel step. Once your registration is submitted and everyone’s travel is in, we will email you everyone’s badges.' : '<strong>Next: add your flights.</strong> Enter your arrival and departure in the Travel step. Once your registration is submitted and your travel is in, we will email you your badge.')}
     ${button('Add flight details', travelUrl)}
     ${p(`Your e-receipt is in the Payment step of the registration system: <a href="${paymentUrl}" style="color:${C.ink}">download the receipt</a>.`, SMALL)}
   `
-  return { subject, html: layout(preview, body) }
+  return { subject, html: layout(preview, body, reasonFor(kind)) }
 }
 
-export function buildRegistrationSubmittedEmail({ countryTerritory, fullName, numberOfTeams, numberOfObservers, paymentConfirmed, travelComplete, travelUrl }) {
+export function buildRegistrationSubmittedEmail({ countryTerritory, fullName, numberOfTeams, numberOfObservers, paymentConfirmed, travelComplete, travelUrl, kind = 'country', owes = true, peopleDeadline, travelDeadline }) {
+  const country = kind === 'country'
   const subject = 'Registration submitted — IOL 2027'
-  const preview = `The registration for ${countryTerritory} is submitted. Your invoice is attached.`
-  const settled = paymentConfirmed && travelComplete
+  const preview = country ? `The registration for ${countryTerritory} is submitted. Your invoice is attached.` : `Your IOL 2027 registration is submitted.${owes ? ' Your invoice is attached.' : ''}`
+  const paid = paymentConfirmed || !owes
+  const settled = paid && travelComplete
   const next = [
-    !paymentConfirmed && 'Finance is checking your transfer. We will email you when the payment is confirmed.',
-    !travelComplete && 'Add each person’s arrival and departure in the Travel step.',
+    !paid && 'Finance is checking your transfer. We will email you when the payment is confirmed.',
+    !travelComplete && (country ? 'Add each person’s arrival and departure in the Travel step.' : 'Add your arrival and departure in the Travel step.'),
     settled
-      ? 'Everything is in. Everyone’s badges follow in a separate email.'
-      : 'Once the payment is confirmed and everyone’s travel is in, we will email you everyone’s badges.',
+      ? (country ? 'Everything is in. Everyone’s badges follow in a separate email.' : 'Everything is in. Your badge follows in a separate email.')
+      : (country ? 'Once the payment is confirmed and everyone’s travel is in, we will email you everyone’s badges.' : `Once ${owes ? 'the payment is confirmed and ' : ''}your travel is in, we will email you your badge.`),
   ].filter(Boolean)
   const body = `
     ${h1('Registration submitted')}
     ${p(`Hi ${esc(fullName || 'there')},`)}
-    ${p(`The registration for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> at IOL 2027 has been submitted. Your invoice is attached to this email as a PDF.`)}
+    ${p(country
+      ? `The registration for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> at IOL 2027 has been submitted. Your invoice is attached to this email as a PDF.`
+      : `Your registration for IOL 2027 has been submitted.${owes ? ' Your invoice is attached to this email as a PDF.' : ''}`)}
     ${infoTable([
-      ['Delegation', countryTerritory],
-      ['Teams', String(numberOfTeams || 1)],
-      ['Observers', String(numberOfObservers || 0)],
+      ...(country ? [['Delegation', countryTerritory], ['Teams', String(numberOfTeams || 1)]] : [['Registering as', kind === 'jury' ? 'Jury member' : 'Volunteer']]),
+      ...(country || numberOfObservers ? [['Observers', String(numberOfObservers || 0)]] : []),
       ['Registration', 'Submitted'],
-      ['Payment', paymentConfirmed ? 'Confirmed' : 'Being checked by Finance'],
+      ...(owes ? [['Payment', paymentConfirmed ? 'Confirmed' : 'Being checked by Finance']] : []),
     ])}
     ${notice(`<strong>What happens next</strong><ul style="margin:8px 0 0;padding-left:20px">${next.map((item) => `<li style="margin:4px 0">${item}</li>`).join('')}</ul>`, settled ? C.jade : C.orange)}
     ${travelComplete ? '' : button('Add flight details', travelUrl)}
-    ${p('You can still update people and travel in the registration system until the change deadline.', SMALL)}
+    ${p(peopleDeadline && travelDeadline
+      ? `You can still change ${country ? 'people’s details' : 'your details'} in the registration system until ${longDate(peopleDeadline)}, and flights until ${longDate(travelDeadline)}.`
+      : 'You can still update people and travel in the registration system.', SMALL)}
   `
-  return { subject, html: layout(preview, body) }
+  return { subject, html: layout(preview, body, reasonFor(kind)) }
 }
 
 /** "1 July 2027" from "2027-07-01". */
@@ -273,8 +284,10 @@ const changeText = {
  * detail, change, skippedName }). An `update` follows a change since the last email: `change` marks each badge that
  * is new or different, and `removed` names the people no longer in the delegation.
  */
-export function buildBadgesEmail({ countryTerritory, fullName, people, removed = [], update = false, printCutoff, cutoffPassed, portalUrl }) {
-  const subject = update ? `Badge update for ${countryTerritory} — IOL 2027` : `Badges for ${countryTerritory}: please check the names — IOL 2027`
+export function buildBadgesEmail({ countryTerritory, fullName, people, removed = [], update = false, printCutoff, cutoffPassed, portalUrl, kind = 'country' }) {
+  const country = kind === 'country'
+  const subject = !country ? (update ? 'Your badge has changed — IOL 2027' : 'Your IOL 2027 badge: please check the name')
+    : update ? `Badge update for ${countryTerritory} — IOL 2027` : `Badges for ${countryTerritory}: please check the names — IOL 2027`
   const preview = update
     ? `The badges for ${countryTerritory} have changed. Every badge is attached again.`
     : `${people.length} badges for ${countryTerritory}, attached as PDFs. Please check the names${cutoffPassed ? '' : ` by ${longDate(printCutoff)}`}.`
@@ -300,16 +313,18 @@ export function buildBadgesEmail({ countryTerritory, fullName, people, removed =
     ${p(`Hi ${esc(fullName || 'there')},`)}
     ${update
       ? p(`The badges for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> have changed since our last email. Every badge is attached again, so this email replaces the earlier one.`)
-      : p(`Everything for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> is in: the registration is submitted, the payment is confirmed and everyone’s travel is added. Each person’s badge is attached as a PDF, exactly as it will be printed.`)}
+      : country ? p(`Everything for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong> is in: the registration is submitted, the payment is confirmed and everyone’s travel is added. Each person’s badge is attached as a PDF, exactly as it will be printed.`)
+      : p(`Everything is in for your IOL 2027 registration. ${people.length === 1 ? 'Your badge is' : 'Each badge is'} attached as a PDF, exactly as it will be printed.`)}
     ${changes.length ? notice(`<strong>What changed</strong><ul style="margin:8px 0 0;padding-left:20px">${changes.map((line) => `<li style="margin:4px 0">${line}</li>`).join('')}</ul>`) : ''}
     ${notice(cutoff, C.orange)}
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border:1px solid ${C.line};border-radius:8px;border-collapse:separate;margin:24px 0">
       <tbody>${rows}</tbody>
     </table>
     ${notice('Each badge has a personal QR code. Staff scan it at the arrival desk and at event checkpoints. Forward each person their own PDF, with their transfers listed above: the code scans from a phone screen as well as from the printed badge you collect in Bangkok.')}
+    ${people.some((person) => (person.transfers ?? []).some((line) => /to follow/i.test(line))) ? p('Pickup times still to follow are emailed separately, as soon as the transport team plans the buses.', SMALL) : ''}
     ${p(`To correct a name, change it in the People step of the <a href="${portalUrl}/?step=people" style="color:${C.ink}">registration system</a>, or reply to this email. Changes reach you the next morning, with every badge attached again.`, SMALL)}
   `
-  return { subject, html: layout(preview, body) }
+  return { subject, html: layout(preview, body, reasonFor(kind)) }
 }
 
 /**
@@ -347,7 +362,7 @@ export function buildSummaryEmail({ fullName, toPrint, staffToPrint, reprint, ne
   return { subject, html: layout(headline, body, ORGANISER_REASON) }
 }
 
-export function buildPasswordCodeEmail({ fullName, code, setup, portalUrl }) {
+export function buildPasswordCodeEmail({ fullName, code, setup, portalUrl, email }) {
   const subject = setup ? 'Set up your IOL 2027 staff account' : 'Reset your IOL 2027 password'
   const expiry = setup ? 'Expires in 7 days' : 'Expires in 30 minutes'
   const preview = `Your code is ${code}. ${expiry}.`
@@ -355,13 +370,13 @@ export function buildPasswordCodeEmail({ fullName, code, setup, portalUrl }) {
     ${h1(setup ? 'Set your password' : 'Reset your password')}
     ${p(`Hi ${esc(fullName || 'there')},`)}
     ${p(setup
-      ? 'An IOL 2027 organiser created a staff account for you. Open the organiser sign-in, choose “Forgot your password?”, and enter this code with your email address to set a password.'
+      ? 'An IOL 2027 organiser created a staff account for you. Use the button below: it opens the page to set your password, with your email address filled in. Enter this code there.'
       : 'Someone asked to reset the password for your IOL 2027 account. Enter this code on the sign-in page to choose a new password.')}
     ${codeBlock(code, expiry)}
-    ${setup && portalUrl ? button('Open the organiser sign-in', `${portalUrl}/staff`) : ''}
+    ${setup && portalUrl ? button('Set your password', `${portalUrl}/staff?reset=${encodeURIComponent(email ?? '')}`) : ''}
     ${p('If you did not ask for this, you can ignore this email. Your password stays the same.', SMALL)}
   `
-  return { subject, html: layout(preview, body) }
+  return { subject, html: layout(preview, body, setup ? ORGANISER_REASON : ACCOUNT_REASON) }
 }
 
 export function buildInviteEmail({ countryTerritory, organisation, code, portalUrl }) {
@@ -373,7 +388,7 @@ export function buildInviteEmail({ countryTerritory, organisation, code, portalU
     ${p('Use this code once to create your country’s registration account. It links the account to your country and its team allowance.')}
     ${infoTable([['Country or territory', countryTerritory], ['Invitation code', code]])}
     ${button('Create the account', `${portalUrl}/?invite=${encodeURIComponent(code)}`)}
-    ${notice('Registration happens in stages: team numbers and payment first, then people, then travel once flights are booked.')}
+    ${notice('Registration happens in stages: team numbers and payment first, then people, travel once flights are booked, the signed consent forms, and finally submitting. Everything saved is kept, so it can be done over several sittings.')}
     ${p('Please do not forward this code outside your national organisation. If you are not the right contact, reply to this email.', SMALL)}
   `
   return { subject, html: layout(preview, body) }
@@ -383,7 +398,7 @@ export function buildInviteEmail({ countryTerritory, organisation, code, portalU
  * A reminder before something closes (IOL Board, 16 Nov 2026): the early bird rate, the last day of registration,
  * People, travel or the contest languages. `items` lists what is still missing, in plain words.
  */
-export function buildReminderEmail({ fullName, countryTerritory, title, lead, deadline, items = [], buttonLabel, url }) {
+export function buildReminderEmail({ fullName, countryTerritory, title, lead, deadline, items = [], buttonLabel, url, kind = 'country' }) {
   const subject = `${title} — IOL 2027`
   const preview = `${lead} ${deadline}.`
   const body = `
@@ -394,14 +409,14 @@ export function buildReminderEmail({ fullName, countryTerritory, title, lead, de
     ${button(buttonLabel, url)}
     ${p('If you have already done this, thank you: there is nothing more to do. Questions? Reply to this email.', SMALL)}
   `
-  return { subject, html: layout(preview, body) }
+  return { subject, html: layout(preview, body, reasonFor(kind)) }
 }
 
 /**
  * The consent forms (meeting of 24 Nov 2026), one PDF for each person, attached: Form A for anyone 18 or over on 21 July
  * 2027, Form B, signed by a parent or guardian, for anyone younger. Sent once People is complete, and again on request.
  */
-export function buildConsentFormsEmail({ fullName, countryTerritory, people, url, again = false }) {
+export function buildConsentFormsEmail({ fullName, countryTerritory, people, url, again = false, kind = 'country' }) {
   const subject = `Consent forms to sign — IOL 2027`
   const preview = `${people.length} consent ${people.length === 1 ? 'form' : 'forms'} for ${countryTerritory}, attached.`
   const rows = people.map((person) => `<li>${esc(person.name)}: ${person.form === 'under18' ? 'Form B, signed by a parent or guardian' : 'Form A, signed by themselves'}</li>`).join('')
@@ -411,15 +426,15 @@ export function buildConsentFormsEmail({ fullName, countryTerritory, people, url
     ${p(`${again ? 'Here again are' : 'Here are'} the consent forms for <strong style="color:${C.ink}">${esc(countryTerritory)}</strong>, one for each person, with their name and country already filled in. They cover the photos, videos and personal data of IOL 2027.`)}
     <ul style="margin:0 0 16px;padding-left:20px;font-size:15px;line-height:1.6;color:${C.ink}">${rows}</ul>
     ${p('Please pass each form on to be signed. Anyone under 18 on 21 July 2027 needs a parent or guardian to sign. The forms can be filled in on a computer or tablet, or printed, signed by hand and photographed.')}
-    ${p('Then upload the signed forms in the portal, as one file or several, and tick for each person whether they consent.')}
+    ${p('Then upload the signed forms in the portal, as one file or several, and tick for each person whether they consent. The registration can be submitted once they are in.')}
     ${button('Go to Consent forms', url)}
     ${p('Questions? Reply to this email.', SMALL)}
   `
-  return { subject, html: layout(preview, body) }
+  return { subject, html: layout(preview, body, reasonFor(kind)) }
 }
 
 /** Each arrival and departure with its pickup time, bus group and meeting point, from the transport team. */
-export function buildPickupEmail({ fullName, countryTerritory, trips, url }) {
+export function buildPickupEmail({ fullName, countryTerritory, trips, url, kind = 'country' }) {
   const subject = `Your airport pickup and drop-off — IOL 2027`
   const preview = `Pickup and drop-off times for ${countryTerritory}.`
   const rows = trips.map((t) => `
@@ -436,7 +451,7 @@ export function buildPickupEmail({ fullName, countryTerritory, trips, url }) {
     ${notice('If a flight changes, update it in the portal before the travel deadline, or reply to this email.')}
     ${button('See your travel', url)}
   `
-  return { subject, html: layout(preview, body) }
+  return { subject, html: layout(preview, body, reasonFor(kind)) }
 }
 
 // ── delivery ──────────────────────────────────────────────────────────────────
@@ -463,12 +478,30 @@ function gmail() {
   return gmailTransport
 }
 
+/** The plain-text part of an email, from its HTML: spam filters and text-only readers expect one (review of 27 Nov 2026). */
+export function htmlToText(html) {
+  return html
+    .replace(/<head[\s\S]*?<\/head>/i, '')
+    .replace(/<span style="display:none[^>]*>[\s\S]*?<\/span>/i, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<a [^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href, label) => `${label.replace(/<[^>]+>/g, '').trim()} (${href})`)
+    .replace(/<li[^>]*>/gi, '\n- ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|h1|h2|h3|tr|ul|ol|table|div)>/gi, '\n\n')
+    .replace(/<\/td>/gi, '  ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .split('\n').map((line) => line.replace(/[ \t]+/g, ' ').trim()).join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 async function sendWithGmail({ to, subject, html, attachments }) {
   const user = process.env.GMAIL_USER
   // Gmail only sends as the signed-in mailbox, so the From address is always that account.
   const from = process.env.EMAIL_FROM?.includes(user) ? process.env.EMAIL_FROM : `IOL 2027 Registration <${user}>`
   const replyTo = process.env.EMAIL_REPLY_TO && process.env.EMAIL_REPLY_TO !== user ? process.env.EMAIL_REPLY_TO : undefined
-  const info = await gmail().sendMail({ from, to, subject, html, replyTo, attachments })
+  const info = await gmail().sendMail({ from, to, subject, html, text: htmlToText(html), replyTo, attachments })
   return info.messageId
 }
 
@@ -478,7 +511,7 @@ async function sendWithResend({ to, subject, html, attachments }) {
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
     // Replies go to the central mailbox (EMAIL_REPLY_TO), not the no-reply sending address.
     body: JSON.stringify({
-      from: process.env.EMAIL_FROM, to: [to], subject, html, ...(process.env.EMAIL_REPLY_TO ? { reply_to: process.env.EMAIL_REPLY_TO } : {}),
+      from: process.env.EMAIL_FROM, to: [to], subject, html, text: htmlToText(html), ...(process.env.EMAIL_REPLY_TO ? { reply_to: process.env.EMAIL_REPLY_TO } : {}),
       ...(attachments.length ? { attachments: attachments.map((file) => ({ filename: file.filename, content: file.content.toString('base64') })) } : {}),
     }),
   })

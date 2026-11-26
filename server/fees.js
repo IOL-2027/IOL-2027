@@ -335,9 +335,8 @@ export function ageOn(dateOfBirth, onDate) {
   return oy - by - (om < bm || (om === bm && od < bd) ? 1 : 0)
 }
 
-/** True when this member needs a guardian consent form under the current policy. */
-export function needsGuardianConsent(member, policy) {
-  if (!policy.required || member.role !== 'contestant') return false
-  const age = ageOn(member.date_of_birth ?? member.dateOfBirth, policy.referenceDate)
-  return age !== null && age < policy.ageThreshold
+// The old guardian consent upload is superseded by the Consent forms step (meeting of 24 Nov 2026), which asks a parent's signature for everyone under 18:
+// the old per-contestant upload is never asked for, whatever the stored policy says (review of 27 Nov 2026).
+export function needsGuardianConsent() {
+  return false
 }

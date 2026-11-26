@@ -127,7 +127,9 @@ function drawInvoice(doc, { part, payment, fees, invoice, issuedOn }) {
     const columnWidth = width / 2 - 30
     let py = write(heading, 'Bold', 10, x, y, { width: columnWidth }) + 14
     py = write(name, 'Regular', 10, x, py, { width: columnWidth })
-    py = write(`Tax Identification Number (TIN):${tin ? ` ${tin}` : ''}`, 'Regular', 10, x, py, { width: columnWidth }) + 14
+    // Left out until there is one, rather than printed empty (review of 27 Nov 2026).
+    if (tin) py = write(`Tax Identification Number (TIN): ${tin}`, 'Regular', 10, x, py, { width: columnWidth })
+    py += 14
     if (address) {
       py = write('Address', 'Regular', 10, x, py, { width: columnWidth }) + 2
       py = write(address, 'Regular', 10, x, py, { width: columnWidth })

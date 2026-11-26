@@ -604,7 +604,8 @@ const registrationReady = [
   'How many teams (up to two for an accredited country, one otherwise) and observers you are bringing',
   'Invoice details: the organisation to invoice, and how many invoices',
   'A bank that can make an international transfer, with its charges paid by the sender',
-  'For each person: official and passport names, passport number and nationality, date of birth, shirt sizes, food and photo consent',
+  'For each person: official and passport names, passport number and nationality, date of birth, shirt sizes and food',
+  'Time to collect signed consent forms: for anyone under 18 on 21 July 2027, a parent or guardian signs',
   'Everyone’s flights, once they are booked.',
 ]
 const registrationJourney: { phase: string; steps: { title: string; detail: string; tag?: string; href?: string }[] }[] = [
@@ -616,11 +617,11 @@ const registrationJourney: { phase: string; steps: { title: string; detail: stri
     { title: 'Team and observers', detail: 'How many teams (up to two for an accredited country or territory, one for any other) and how many observers, which set the fees, and who the national representative and each Team Leader are.', tag: 'Sets the fees' },
     { title: 'Payment', detail: 'Give the invoice details, transfer the full amount, then upload the bank’s proof of transfer. Finance checks it and issues an e-receipt.', tag: 'Bank transfer only' },
     { title: 'Teams', detail: 'Choose each team’s working language for the team contest.' },
-    { title: 'People', detail: 'Each contestant’s and observer’s details: names, passport details, contest language, shirt sizes, food, and any medical or accessibility notes. It can be filled in over several sittings.', tag: 'Opens after proof of payment' },
+    { title: 'People', detail: 'Each Team Leader’s, contestant’s and observer’s details: names, passport details, contest language, shirt sizes, food, and any medical or accessibility notes. It can be filled in over several sittings.', tag: 'Opens after proof of payment' },
     { title: 'Travel', detail: 'Each person’s arrival and departure, once flights are booked, those who make their own way included. The organisers provide the hotel from the night of 21 July to the night of 27 July, and airport pickup at BKK and DMK.', tag: 'Flights can wait' },
     { title: 'Review and requests', detail: 'A summary built from People and Travel, and any room requests, which are handled privately.' },
     { title: 'Consent forms', detail: 'A consent form for each person about photos, videos and personal data, sent filled in with their name. Anyone under 18 on 21 July 2027 needs a parent or guardian to sign. The signed forms are uploaded, with a tick for each person’s answer.', tag: 'Allow time for signatures' },
-    { title: 'Review and submit', detail: 'Read the royal reception’s dress code and the travel insurance notice, tick both, and submit. People and travel can still be updated afterwards, until their deadlines.' },
+    { title: 'Submit', detail: 'Read the royal reception’s dress code and the travel insurance notice, tick both, and submit. People and travel can still be updated afterwards, until their deadlines.' },
   ] },
   { phase: 'Before the Olympiad', steps: [
     { title: 'Invitation letters', detail: 'Once the payment is confirmed, an invitation letter is sent for each person to support their visa application.', href: '/registration/visas' },
@@ -993,6 +994,11 @@ function PeopleSubpage({ kind }: { kind: 'committee' | 'jury' | 'volunteers' }) 
       <p>The IOL 2027 jury is selected from the members of the IOL Problem Committee, listed on ioling.org.</p>
       <p>Each jury member’s photo and role will appear on this page closer to the Olympiad.</p>
       <OutLink href="https://ioling.org/pc/">The IOL Problem Committee</OutLink>
+    </div></section>
+    <section className="two-col wrap"><div><p className="eyebrow">Registering</p><h2>Each jury member registers on their own.</h2></div><div className="prose">
+      <p>Invited jury members receive an invitation code by email from iol2027.th@gmail.com, and use it to register in the IOL 2027 registration portal: their own details and photo, their flights once booked, and a signed consent form about photos, videos and personal data.</p>
+      <p>There is nothing to pay, unless you bring an observer or ask for a single room. The organisers provide the hotel from the night of 21 July to the night of 27 July, and airport pickup at Suvarnabhumi (BKK) and Don Mueang (DMK).</p>
+      <p>Details are due by 31 May 2027, and flights by 30 June 2027. No code yet? Write to <a className="inline-link" href="mailto:iol2027.th@gmail.com">iol2027.th@gmail.com</a>.</p>
     </div></section></>
   return <><PageIntro eyebrow="People / Volunteers" title="Volunteers" body="Volunteers welcome every team, guide them around Bangkok and help the Olympiad run day to day." />
     <section className="two-col wrap"><div><p className="eyebrow">Volunteer with us</p><h2>Interested in volunteering?</h2></div><div className="prose">

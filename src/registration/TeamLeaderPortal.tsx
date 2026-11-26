@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type ComponentType, type ReactNode } 
 import { ArrowRight, ArrowUpRight, CalendarDays, ClipboardList, Clock, LifeBuoy, MailQuestion, QrCode, Route, ShieldCheck } from 'lucide-react'
 import { portalPath } from '../launch'
 import { api, ApiError, type User } from './api'
-import { Entry, VerifyEmail } from './AuthForms'
+import { Entry, VerifyEmail, type InviteKind } from './AuthForms'
 import StaffHome from './StaffHome'
 import Workspace from './Workspace'
 import { Alert, PageHead, SessionBar, messageOf } from './ui'
@@ -26,6 +26,21 @@ const heroCopy: Record<Door, { eyebrow: string; title: ReactNode; lede: string }
     eyebrow: 'Organisers',
     title: <>The back office for the <em>organising team.</em></>,
     lede: 'Invitation codes, payments, people, welfare and check-in for IOL 2027. Each role sees only what it needs.',
+  },
+}
+
+// Once a jury or volunteer code is checked, the page speaks to them rather than to a national representative (review of
+// 27 Nov 2026).
+const personalCopy: Record<'jury' | 'volunteer', { eyebrow: string; title: ReactNode; lede: string }> = {
+  jury: {
+    eyebrow: 'Jury registration',
+    title: <>Register for the <em>IOL&nbsp;2027 jury.</em></>,
+    lede: 'Each invited jury member registers on their own, with the code from their invitation: your details, your travel and a consent form. There is nothing to pay unless you bring an observer or ask for a single room.',
+  },
+  volunteer: {
+    eyebrow: 'Volunteer registration',
+    title: <>Register as an <em>IOL&nbsp;2027 volunteer.</em></>,
+    lede: 'Each selected volunteer registers on their own, with the code from their invitation: your details and a consent form, and your flights only if you fly in. There is nothing to pay.',
   },
 }
 
@@ -60,8 +75,8 @@ const guides: Record<Door, GuideItem[]> = {
   ],
 }
 
-function Hero({ door, session }: { door: Door; session: ReactNode }) {
-  const copy = heroCopy[door]
+function Hero({ door, session, kind = 'country' }: { door: Door; session: ReactNode; kind?: InviteKind }) {
+  const copy = door === 'team' && kind !== 'country' ? personalCopy[kind] : heroCopy[door]
   return (
     <header className="reg-hero">
       <div className="wrap">
@@ -70,10 +85,10 @@ function Hero({ door, session }: { door: Door; session: ReactNode }) {
           <h1>{copy.title}</h1>
           <div className="reg-hero-side">
             <p>{copy.lede}</p>
-            {door === 'team' && (
+            {door === 'team' && kind === 'country' && (
               <ul className="reg-hero-meta">
-                <li><CalendarDays size={16} aria-hidden="true" />Registration 18 January – 30 April 2027</li>
-                <li><Clock size={16} aria-hidden="true" />Early bird fee until 12 March</li>
+                <li><CalendarDays size={16} aria-hidden="true" />Registration opens 18 January 2027</li>
+                <li><Clock size={16} aria-hidden="true" />Early bird rate until 12 March, regular rate until 30 April</li>
               </ul>
             )}
           </div>
@@ -83,12 +98,33 @@ function Hero({ door, session }: { door: Door; session: ReactNode }) {
   )
 }
 
-function Guide({ door }: { door: Door }) {
+function personalGuide(kind: 'jury' | 'volunteer'): GuideItem[] {
+  const jury = kind === 'jury'
+  return [
+    {
+      icon: ClipboardList, title: 'Have these ready',
+      list: ['The invitation code from your email', 'Your own email address', 'Your passport details, and a photo of yourself'],
+      body: jury ? 'Flights can follow once they are booked.' : 'Flights only if you fly in.',
+    },
+    {
+      icon: Route, title: jury ? 'About the jury' : 'About volunteering',
+      body: jury ? 'What the jury does at IOL 2027, and who is on it.' : 'What volunteers do at IOL 2027, and how selection works.',
+      links: [{ href: jury ? '/people/jury' : '/people/volunteers', label: jury ? 'The jury' : 'Volunteers', external: true }],
+    },
+    {
+      icon: MailQuestion, title: 'No code, or a problem?',
+      body: <>Codes go by email from iol2027.th@gmail.com to {jury ? 'invited jury members' : 'selected volunteers'}. Check the spam folder. Still nothing? <a href="mailto:iol2027.th@gmail.com">Write to us</a>.</>,
+    },
+  ]
+}
+
+function Guide({ door, kind = 'country' }: { door: Door; kind?: InviteKind }) {
+  const items = door === 'team' && kind !== 'country' ? personalGuide(kind) : guides[door]
   return (
     <aside className="reg-guide" aria-labelledby="reg-guide-title">
       <h2 id="reg-guide-title">{door === 'staff' ? 'Good to know' : 'Before you start'}</h2>
       <ul>
-        {guides[door].map((item) => {
+        {items.map((item) => {
           const Icon = item.icon
           return (
             <li key={item.title}>
@@ -117,6 +153,7 @@ export default function TeamLeaderPortal({ door = 'team' }: { door?: Door }) {
   const [devCode, setDevCode] = useState<string>()
   const [fromSignup, setFromSignup] = useState(false)
   const [notice, setNotice] = useState<string>()
+  const [kind, setKind] = useState<InviteKind>('country')
 
   const loadMe = useCallback(async () => {
     try {
@@ -131,7 +168,7 @@ export default function TeamLeaderPortal({ door = 'team' }: { door?: Door }) {
 
   const signOut = useCallback(async () => {
     try { await api('/api/auth/logout', { method: 'POST' }) } catch { /* the session is cleared locally either way */ }
-    setDevCode(undefined); setFromSignup(false); setNotice(undefined)
+    setDevCode(undefined); setFromSignup(false); setNotice(undefined); setKind('country')
     setState({ status: 'ready', user: null })
     window.scrollTo({ top: 0 })
   }, [])
@@ -170,7 +207,7 @@ export default function TeamLeaderPortal({ door = 'team' }: { door?: Door }) {
   // Signed out, or partway through creating the account: the welcome band, the card, and a short guide.
   return (
     <div className="reg-page">
-      <Hero door={door} session={session} />
+      <Hero door={door} session={session} kind={kind} />
       <div className="reg-landing wrap">
         <div className="reg-landing-main">
           {state.status === 'unavailable' && (
@@ -182,7 +219,7 @@ export default function TeamLeaderPortal({ door = 'team' }: { door?: Door }) {
             </div></div>
           )}
           {state.status === 'ready' && !user && (
-            <Entry notice={notice} allowSignup={door === 'team'} initialCode={inviteCode} onSignedIn={(u) => { setNotice(undefined); setState({ status: 'ready', user: u }) }}
+            <Entry notice={notice} allowSignup={door === 'team'} initialCode={inviteCode} onKind={setKind} onSignedIn={(u) => { setNotice(undefined); setState({ status: 'ready', user: u }) }}
               onCreated={(u, code) => { setDevCode(code); setFromSignup(true); setState({ status: 'ready', user: u }) }} />
           )}
           {user && !user.emailVerified && (
@@ -192,7 +229,7 @@ export default function TeamLeaderPortal({ door = 'team' }: { door?: Door }) {
             </div>
           )}
         </div>
-        <Guide door={door} />
+        <Guide door={door} kind={kind} />
       </div>
     </div>
   )
