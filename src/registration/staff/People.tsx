@@ -3,7 +3,7 @@ import { ArrowRight, Check, CircleAlert } from 'lucide-react'
 import { FilterField, Note, Panel, Problem, TableWrap, day, human, stageLabel, useLoad } from './common'
 
 type DelegationRow = {
-  id: string; countryTerritory: string; nationalRepresentativeName: string; teamLeaderEmail: string; numberOfTeams: number; numberOfObservers: number
+  id: string; kind?: 'country' | 'jury' | 'volunteer'; countryTerritory: string; nationalRepresentativeName: string; teamLeaderEmail: string; numberOfTeams: number; numberOfObservers: number
   registrationStatus: string; paymentStatus: string; travelStatus: string; submittedAt: string | null; people: number
 }
 type PersonRow = {
@@ -36,9 +36,10 @@ export function Countries({ onOpen }: { onOpen?: (delegationId: string) => void 
           <thead><tr><th scope="col">Country</th><th scope="col">National representative</th><th scope="col">Teams</th><th scope="col">People</th><th scope="col">Registration</th><th scope="col">Payment</th>{onOpen && <th scope="col"><span className="reg-visually-hidden">Actions</span></th>}</tr></thead>
           <tbody>{rows.map((d) => (
             <tr key={d.id}>
-              <th scope="row">{d.countryTerritory}</th>
+              {/* A jury member or volunteer by their own name: they all share their code's label (review of 27 Nov 2026). */}
+              <th scope="row">{d.kind && d.kind !== 'country' ? <>{d.kind === 'jury' ? 'Jury' : 'Volunteer'} · {d.nationalRepresentativeName || d.teamLeaderEmail}</> : d.countryTerritory}</th>
               <td>{d.nationalRepresentativeName}<small>{d.teamLeaderEmail}</small></td>
-              <td>{d.numberOfTeams}<small>{d.numberOfObservers} {d.numberOfObservers === 1 ? 'observer' : 'observers'}</small></td>
+              <td>{d.kind && d.kind !== 'country' ? (d.numberOfObservers ? <small>with an observer</small> : <span className="reg-muted">—</span>) : <>{d.numberOfTeams}<small>{d.numberOfObservers} {d.numberOfObservers === 1 ? 'observer' : 'observers'}</small></>}</td>
               <td>{d.people}</td>
               <td>{human(d.registrationStatus)}{d.submittedAt && <small>{day(d.submittedAt)}</small>}</td>
               <td>{human(d.paymentStatus)}</td>

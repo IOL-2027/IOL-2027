@@ -39,7 +39,6 @@ The source requirements list Guest, Team Leader and Admin, and later Super Admin
 | Exports (CSV): every file, content editor and results staff too | | | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Activity log | | | ✅ | | | | | ✅ |
 | Fees (settings) | | | read | ✅ edit | | | | ✅ |
-| Guardian consent policy | | | ✅ edit | | | | | ✅ |
 | Scan badges at check-in | | | ✅ | | ✅ | | | ✅ |
 | Email delivery log | | | ✅ | | | | | ✅ |
 | Passport numbers | own | own | ✅ | | | | | ✅ |

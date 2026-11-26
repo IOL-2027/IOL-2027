@@ -12,6 +12,7 @@ import {
   sendEmail,
 } from './email.js'
 import { consentFileName, consentFormKind, consentPdf } from './consent-pdf.js'
+import { zipStore } from './zip.js'
 import { readUpload, saveUpload } from './storage.js'
 import { invoicePdf } from './invoice-pdf.js'
 import { badgeQrDataUrl, findBadge, issueBadge, missingTravel, sendBadgesIfSettled } from './badges.js'
@@ -313,7 +314,7 @@ app.post('/api/registration/team-leader-account', asyncHandler(async (req, res) 
   })
 
   await createSession(requireDb(), req, res, created.account.id)
-  const verification = await issueVerificationCode({ id: created.account.id, email, fullName, countryTerritory: created.delegation.country_territory })
+  const verification = await issueVerificationCode({ id: created.account.id, email, fullName, countryTerritory: created.delegation.country_territory, kind: created.delegation.kind })
   res.status(201).json({
     ...(await currentUserPayload({ id: created.account.id, email, fullName, role: 'team_leader', memberId: null, emailVerified: false })),
     ...verification,
@@ -324,8 +325,27 @@ app.post('/api/auth/verify-email/request', requireAuth, asyncHandler(async (req,
   if (req.user.emailVerified) return res.json({ alreadyVerified: true })
   const recent = await query(`SELECT 1 FROM email_verification_tokens WHERE account_id = $1 AND created_at > now() - interval '60 seconds'`, [req.user.id])
   if (recent.rowCount) throw new HttpError(429, 'A code was sent less than a minute ago. Please wait before asking for another.')
-  const d = await query('SELECT country_territory FROM delegations WHERE account_id = $1 LIMIT 1', [req.user.id])
-  res.status(201).json(await issueVerificationCode({ ...req.user, countryTerritory: d.rows[0]?.country_territory }))
+  const d = await query('SELECT country_territory, kind FROM delegations WHERE account_id = $1 LIMIT 1', [req.user.id])
+  res.status(201).json(await issueVerificationCode({ ...req.user, countryTerritory: d.rows[0]?.country_territory, kind: d.rows[0]?.kind }))
+}))
+
+// A mistyped address can be corrected until it is confirmed (review of 27 Nov 2026), then a new code goes to the new one.
+app.post('/api/auth/verify-email/change-address', requireAuth, asyncHandler(async (req, res) => {
+  if (req.user.emailVerified) throw new HttpError(409, 'This address is already confirmed. To change it, contact the organisers.')
+  const email = requiredString(req.body.email, 'Email').toLowerCase()
+  if (!isEmail(email)) throw new HttpError(400, 'Enter an email address like name@example.org.')
+  const country = await withTransaction(async (client) => {
+    const taken = await client.query('SELECT 1 FROM accounts WHERE lower(email) = $1 AND id <> $2', [email, req.user.id])
+    if (taken.rowCount) throw new HttpError(409, 'An account with this email already exists. Sign in with it instead.')
+    await client.query('UPDATE accounts SET email = $1, updated_at = now() WHERE id = $2', [email, req.user.id])
+    await client.query('DELETE FROM email_verification_tokens WHERE account_id = $1 AND used_at IS NULL', [req.user.id])
+    const d = (await client.query(
+      `UPDATE delegations SET team_leader_email = $1, registration_contact_email = CASE WHEN kind = 'country' THEN registration_contact_email ELSE $1 END, updated_at = now()
+       WHERE account_id = $2 RETURNING id, country_territory, kind`, [email, req.user.id])).rows[0]
+    await insertAudit(client, { actorAccountId: req.user.id, delegationId: d?.id ?? null, eventType: 'unverified_email_changed', entityType: 'account', entityId: req.user.id, details: { email } })
+    return d
+  })
+  res.status(201).json({ ...(await issueVerificationCode({ ...req.user, email, countryTerritory: country?.country_territory, kind: country?.kind })), email })
 }))
 
 app.post('/api/auth/verify-email', requireAuth, asyncHandler(async (req, res) => {
@@ -956,6 +976,16 @@ app.get('/api/registration/members/:memberId/consent-form', ...signedIn, childAc
   res.send(pdf)
 }))
 
+// Everyone's forms in one ZIP (review of 27 Nov 2026: eleven separate downloads otherwise).
+app.get('/api/registration/delegations/:delegationId/consent-forms.zip', ...signedIn, delegationAccess('read'), asyncHandler(async (req, res) => {
+  const { d, attachments } = await consentAttachments(req.params.delegationId)
+  if (!attachments.length) throw new HttpError(409, 'No form is ready yet: each person’s date of birth decides which form they sign.')
+  const name = `IOL2027-Consent-forms_${String(consentCountry(d)).normalize('NFKD').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'registration'}.zip`
+  res.set('Content-Type', 'application/zip')
+  res.set('Content-Disposition', `attachment; filename="${name}"`)
+  res.send(zipStore(attachments.map((a) => ({ name: a.filename, content: a.content }))))
+}))
+
 /** Everyone's forms as email attachments; people whose date of birth is not in yet are left out. */
 async function consentAttachments(delegationId) {
   const d = (await query('SELECT * FROM delegations WHERE id = $1', [delegationId])).rows[0]
@@ -977,7 +1007,7 @@ async function emailConsentForms(delegationId, again = false) {
   if (again) await query('UPDATE delegations SET consent_forms_emailed_at = now() WHERE id = $1', [delegationId])
   await sendEmail({
     pool: requireDb(), to: d.team_leader_email, purpose: again ? 'consent_forms_again' : 'consent_forms', delegationId, retry: true, attachments,
-    ...buildConsentFormsEmail({ fullName: d.national_representative_name, countryTerritory: consentCountry(d), people, url: `${portalUrl}/?step=consent`, again }),
+    ...buildConsentFormsEmail({ fullName: d.national_representative_name, countryTerritory: consentCountry(d), people, url: `${portalUrl}/?step=consent`, again, kind: d.kind }),
   })
   return people.length
 }
@@ -1181,8 +1211,9 @@ app.post('/api/registration/delegations/:delegationId/payment-proof', ...signedI
     return { payment: updated, attachments }
   })
 
-  const d = (await query('SELECT country_territory, team_leader_email, national_representative_name FROM delegations WHERE id = $1', [req.params.delegationId])).rows[0]
+  const d = (await query('SELECT country_territory, team_leader_email, national_representative_name, kind FROM delegations WHERE id = $1', [req.params.delegationId])).rows[0]
   const emailCtx = {
+    kind: d.kind,
     countryTerritory: d.country_territory, fullName: d.national_representative_name, paymentReference: response.payment.payment_reference,
     amountDue: response.payment.amount_due, currency: response.payment.currency || 'USD', invoiceCount: response.payment.invoice_count,
     proofFilename: files.map((f) => f.originalname).join(', '), delegationId: req.params.delegationId, peopleUrl: `${portalUrl}/?step=people`,
@@ -1237,9 +1268,9 @@ async function missingForSubmission(delegationId) {
   const country = d.kind === 'country'
   const settings = await loadSettings(requireDb())
   const missing = []
-  const steps = country
-    ? [['setup', 'Team and observers'], ['teams', 'Teams'], ['people', 'People'], ['travel', 'Travel'], ['welfare', 'Review and requests']]
-    : [['setup', 'About you'], ['people', 'Your details'], ['travel', 'Travel'], ['welfare', 'Review and requests']]
+  // Teams, People and Travel count as done once everything in them is filled in, which the checks below look at, so
+  // pressing Continue on them is not needed (review of 27 Nov 2026). The first step and the review are still saved.
+  const steps = country ? [['setup', 'Team and observers'], ['welfare', 'Review and requests']] : [['setup', 'About you'], ['welfare', 'Review and requests']]
   for (const [step, label] of steps) {
     if (!d.completed_steps.includes(step)) missing.push(`Finish “${label}”`)
   }
@@ -1330,12 +1361,16 @@ async function notifySubmitted(d) {
     query('SELECT * FROM payments WHERE delegation_id = $1 ORDER BY created_at DESC LIMIT 1', [d.id]).then((r) => r.rows[0] ?? null),
     missingTravel(d.id),
   ])
-  // A split invoice is attached as one PDF per payer, as each payer pays their own.
-  const parts = payment?.invoice_splits?.length ? payment.invoice_splits.map((_, i) => i + 1) : [null]
+  // A split invoice is attached as one PDF per payer, as each payer pays their own. A jury member or volunteer with
+  // nothing to pay gets no invoice.
+  const settings = await loadSettings(requireDb())
+  const owes = d.kind === 'country' || Boolean(payment) || delegationFees(settings.fees, d).total > 0
+  const parts = !owes ? [] : payment?.invoice_splits?.length ? payment.invoice_splits.map((_, i) => i + 1) : [null]
   const attachments = await Promise.all(parts.map(async (part) => ({ filename: invoiceFilename(d, payment, part), content: await delegationInvoice(d, payment, part), contentType: 'application/pdf' })))
   const { subject, html } = buildRegistrationSubmittedEmail({
     countryTerritory: d.country_territory, fullName: d.national_representative_name, numberOfTeams: d.number_of_teams, numberOfObservers: d.number_of_observers,
     paymentConfirmed: payment?.status === 'approved', travelComplete: !travelGaps.length, travelUrl: `${portalUrl}/?step=travel`,
+    kind: d.kind, owes, peopleDeadline: settings.event.peopleDeadline, travelDeadline: settings.event.travelDeadline,
   })
   // Kept and tried again if sending fails, so the badges below do not wait on it.
   await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, attachments, purpose: 'registration_submitted', delegationId: d.id, retry: true })

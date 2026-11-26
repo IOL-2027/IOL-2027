@@ -109,7 +109,7 @@ export function TeamSetup({ data, locked, busy, error, dirty, onTouched, onSave,
   const maxTeams = oneTeamOnly ? 1 : 2
   const perTeam = rules.maxObserversPerTeam
   const [teams, setTeamCount] = useState(oneTeamOnly ? 1 : d.numberOfTeams)
-  const answer = (yes: boolean | undefined) => (yes === undefined ? '' : yes ? singleAnswers[1] : singleAnswers[0])
+  const answer = (yes: boolean | undefined) => (yes ? singleAnswers[1] : singleAnswers[0])
   const [leaderRooms, setLeaderRooms] = useState(() => range(2).map((i) => answer(d.singleRooms.teamLeaders[i])))
   // Each observer as added, with the team they come with and their room. Those of a team taken away come back with it.
   const [observers, setObservers] = useState<Observer[]>(() => range(d.numberOfObservers).map((i) => ({
@@ -346,7 +346,7 @@ export function SelfSetup({ data, locked, busy, error, dirty, onTouched, onSave,
   const rules = data.feeRules
   const jury = d.kind === 'jury'
   const self = data.members.find((m) => m.role === d.kind)
-  const answer = (yes: boolean | undefined) => (yes === undefined ? '' : yes ? singleAnswers[1] : singleAnswers[0])
+  const answer = (yes: boolean | undefined) => (yes ? singleAnswers[1] : singleAnswers[0])
   const [name, setName] = useState(self?.displayName ?? d.nationalRepresentativeName ?? '')
   const [room, setRoom] = useState(d.needsAccommodation === false ? 'no' : d.needsAccommodation === true ? 'yes' : '')
   const [single, setSingle] = useState(answer(d.singleRooms.teamLeaders[0]))
@@ -470,7 +470,7 @@ export function readInvoices(form: FormData): InvoiceBody {
 
 /** What is wrong with the invoice details before they are sent, keyed like the fields; empty when they can be saved. */
 export function invoiceProblems(body: InvoiceBody, total: number): Record<string, string> {
-  if (!body.invoices) return body.recipientName ? {} : { 'invoice-0-name': 'Enter the organisation named on the invoice.' }
+  if (!body.invoices) return body.recipientName ? {} : { 'invoice-0-name': 'Enter the name to put on the invoice.' }
   const problems: Record<string, string> = {}
   body.invoices.forEach((invoice, i) => {
     if (!invoice.recipientName) problems[`invoice-${i}-name`] = 'Enter who this invoice is for.'
@@ -572,7 +572,7 @@ export function InvoiceDetails({ data, payment, disabled, errors, onTouched }: {
               field(i, inv, 'tin', 'Tax identification number (TIN)', { optional: true }),
               field(i, inv, 'address', 'Invoice recipient address', { optional: true }),
             ] : [
-              field(i, inv, 'name', 'Invoice recipient name', { help: 'The organisation named on the invoice.' }),
+              field(i, inv, 'name', 'Invoice recipient name', { help: (data.delegation.kind ?? 'country') === 'country' ? 'The organisation named on the invoice.' : 'The person or organisation named on the invoice: your own name is fine.' }),
               field(i, inv, 'tin', 'Tax identification number (TIN)', { optional: true, help: 'Only if your institution needs it on the invoice.' }),
               field(i, inv, 'address', 'Invoice recipient address', { optional: true, wide: true, help: 'Only if your institution needs a postal address on the invoice.' }),
             ]}

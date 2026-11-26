@@ -22,7 +22,7 @@ const memberFieldDefs: MemberFieldDef[] = [
   { key: 'passportName', label: 'Passport name', value: '', help: 'Exactly as printed in the passport.' },
   { key: 'passportNumber', label: 'Passport number', value: '' },
   { key: 'passportNationality', label: 'Passport nationality', value: '' },
-  { key: 'dateOfBirth', label: 'Date of birth', value: '', kind: 'date', help: 'Confirms contestant eligibility.' },
+  { key: 'dateOfBirth', label: 'Date of birth', value: '', kind: 'date', help: 'Confirms contestant eligibility, and decides which consent form they need: under 18 on 21 July 2027, a parent or guardian signs.' },
   { key: 'examLanguage', label: 'Individual contest language', value: '', kind: 'select', other: true, roles: ['contestant'] },
   { key: 'genderForRoomAllocation', label: 'Gender for room allocation', value: '', kind: 'select', help: 'Used only for rooming and safeguarding.' },
   { key: 'tshirtSize', label: 'T-shirt size', value: '', kind: 'select', help: shirtHelp },
@@ -189,7 +189,7 @@ export function tripRecord(direction: 'arrival' | 'departure', trip: TravelRecor
   return {
     id: selfId,
     label: `${direction === 'arrival' ? 'Arrival' : 'Departure'}${number ? ` ${number}` : ''}`,
-    meta: complete ? `${trip!.transport === 'own' ? 'Own way' : trip!.flightServiceNumber} · ${trip!.localDate}` : 'Add after booking',
+    meta: complete ? `${trip!.transport === 'own' ? 'Own way' : trip!.flightServiceNumber} · ${new Date(`${trip!.localDate}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}` : 'Add after booking',
     status: complete ? 'complete' : 'later',
     issue: trip && !complete ? 'Incomplete' : undefined,
     facts: own ? [{ label: 'Changes', value: changes }] : direction === 'arrival'

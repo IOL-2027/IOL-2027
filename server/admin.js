@@ -139,7 +139,7 @@ export function registerAdminRoutes(app, { signedIn }) {
 
   app.get('/api/admin/delegations', ...signedIn, requireRole('registration_admin', 'finance_admin', 'welfare_staff'), asyncHandler(async (_req, res) => {
     const result = await query(
-      `SELECT d.id, d.country_territory, d.national_representative_name, d.team_leader_email, d.number_of_teams, d.number_of_observers,
+      `SELECT d.id, d.kind, d.country_territory, d.national_representative_name, d.team_leader_email, d.number_of_teams, d.number_of_observers,
          d.fee_category, d.registration_status, d.payment_status, d.travel_status, d.submitted_at,
          (SELECT count(*)::int FROM members m WHERE m.delegation_id = d.id) AS people
        FROM delegations d ORDER BY d.country_territory`,
@@ -152,7 +152,7 @@ export function registerAdminRoutes(app, { signedIn }) {
   app.get('/api/admin/payments', ...signedIn, requireRole('finance_admin', 'registration_admin'), asyncHandler(async (req, res) => {
     const status = optionalString(req.query.status)
     const result = await query(
-      `SELECT p.*, d.country_territory, d.national_representative_name, d.team_leader_email, d.number_of_teams, d.number_of_observers, d.fee_category, d.single_rooms,
+      `SELECT p.*, d.kind, d.country_territory, d.national_representative_name, d.team_leader_email, d.number_of_teams, d.number_of_observers, d.fee_category, d.single_rooms,
          a.original_filename AS proof_filename, a.mime_type AS proof_mime_type, r.full_name AS reviewed_by_name,
          -- Every file of the proof, oldest first (a proof can be several files).
          COALESCE((SELECT json_agg(json_build_object('id', f.id, 'filename', f.original_filename, 'mimeType', f.mime_type, 'createdAt', f.created_at) ORDER BY f.created_at)
@@ -178,11 +178,11 @@ export function registerAdminRoutes(app, { signedIn }) {
       await insertAudit(client, { actorAccountId: req.user.id, delegationId: payment.delegation_id, eventType: 'payment_approved', entityType: 'payment', entityId: payment.id, details: { receiptNumber: payment.receipt_number } })
       return payment
     })
-    const d = (await query('SELECT country_territory, team_leader_email, national_representative_name FROM delegations WHERE id = $1', [approved.delegation_id])).rows[0]
+    const d = (await query('SELECT country_territory, team_leader_email, national_representative_name, kind FROM delegations WHERE id = $1', [approved.delegation_id])).rows[0]
     const { subject, html } = buildPaymentConfirmedEmail({
       countryTerritory: d.country_territory, fullName: d.national_representative_name, paymentReference: approved.payment_reference,
       amountPaid: approved.amount_due, currency: approved.currency || 'USD', receiptNumber: approved.receipt_number,
-      travelUrl: `${portalUrl}/?step=travel`, paymentUrl: `${portalUrl}/?step=payment`,
+      travelUrl: `${portalUrl}/?step=travel`, paymentUrl: `${portalUrl}/?step=payment`, kind: d.kind,
     })
     // Awaited so Cloud Run does not slow it down after the response. A failed send is kept and tried again later.
     await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_confirmed', delegationId: approved.delegation_id, retry: true })
@@ -205,9 +205,9 @@ export function registerAdminRoutes(app, { signedIn }) {
       return payment
     })
     // The Team Leader hears straight away, with Finance's reason, rather than finding out on their next visit.
-    const d = (await query('SELECT country_territory, team_leader_email, national_representative_name FROM delegations WHERE id = $1', [rejected.delegation_id])).rows[0]
+    const d = (await query('SELECT country_territory, team_leader_email, national_representative_name, kind FROM delegations WHERE id = $1', [rejected.delegation_id])).rows[0]
     const { subject, html } = buildProofReturnedEmail({
-      countryTerritory: d.country_territory, fullName: d.national_representative_name, paymentReference: rejected.payment_reference, note, paymentUrl: `${portalUrl}/?step=payment`,
+      countryTerritory: d.country_territory, fullName: d.national_representative_name, paymentReference: rejected.payment_reference, note, paymentUrl: `${portalUrl}/?step=payment`, kind: d.kind,
     })
     await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'payment_proof_returned', delegationId: rejected.delegation_id, retry: true })
       .catch((e) => console.error(e.message))
@@ -690,7 +690,7 @@ export function registerAdminRoutes(app, { signedIn }) {
         direction: t.direction, date: t.local_date ? new Date(t.local_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' }) : 'Date to follow',
         flight: t.flight_service_number, pickupTime: t.loc_pickup_time?.slice(0, 5), group: t.loc_transport_group, meeting: t.loc_meeting_point_note, people: t.people,
       }))
-      const { subject, html } = buildPickupEmail({ fullName: d.national_representative_name, countryTerritory: d.country_territory, trips, url: `${portalUrl}/?step=travel` })
+      const { subject, html } = buildPickupEmail({ fullName: d.national_representative_name, countryTerritory: d.country_territory, trips, url: `${portalUrl}/?step=travel`, kind: d.kind })
       await sendEmail({ pool: requireDb(), to: d.team_leader_email, subject, html, purpose: 'pickup_schedule', delegationId: d.id, retry: true })
       await query('UPDATE delegations SET pickup_emailed_at = now() WHERE id = $1', [d.id])
       sent++

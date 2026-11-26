@@ -40,7 +40,10 @@ export function ConsentStep({ data, busy, country, error, onUpload, onRemove, on
   const d = data.delegation
   const people = [...data.members].sort((a, b) => memberOrder(a) - memberOrder(b))
   const files = consentFiles(data)
-  const self = !country
+  // Only one person, the one registering: the form and the answer are in the first person.
+  const self = !country && people.length === 1
+  // The national representative's own row, when they are also a Team Leader.
+  const isMe = (m: Member) => m.displayName === d.nationalRepresentativeName && (m.role === 'team_leader' || !country)
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
@@ -78,6 +81,9 @@ export function ConsentStep({ data, busy, country, error, onUpload, onRemove, on
               </li>
             ))}
           </ul>
+          {!self && people.filter((m) => consentForm(m)).length > 1 && (
+            <p className="reg-card-actions"><a className="reg-btn reg-btn-secondary reg-btn-small" href={`/api/registration/delegations/${d.id}/consent-forms.zip`} download><Download size={16} aria-hidden="true" />Download all forms (ZIP)</a></p>
+          )}
         </Card>
 
         <Card id="consent-upload" number={2} done={files.length > 0} title={self ? 'Upload your signed form' : 'Upload the signed forms'}
@@ -125,9 +131,9 @@ export function ConsentStep({ data, busy, country, error, onUpload, onRemove, on
             <tbody>
               {people.map((m) => (
                 <tr key={m.id}>
-                  <th scope="row">{m.displayName}<small>{roleToLabel[m.role]}</small></th>
-                  <td><label className="reg-consent-choice"><input type="radio" name={`consent-${m.id}`} value="yes" defaultChecked={m.photoConsent === true} /><span className="reg-visually-hidden">{m.displayName}: {self ? 'Yes, I agree' : 'Yes, they agree'}</span></label></td>
-                  <td><label className="reg-consent-choice"><input type="radio" name={`consent-${m.id}`} value="no" defaultChecked={m.photoConsent === false} /><span className="reg-visually-hidden">{m.displayName}: {self ? 'No, I do not agree' : 'No, they do not agree'}</span></label></td>
+                  <th scope="row">{m.displayName}{isMe(m) && ' (you)'}<small>{roleToLabel[m.role]}</small></th>
+                  <td><label className="reg-consent-choice"><input type="radio" name={`consent-${m.id}`} value="yes" defaultChecked={m.photoConsent === true} /><span className="reg-visually-hidden">{m.displayName}: {self || isMe(m) ? 'Yes, I agree' : 'Yes, they agree'}</span></label></td>
+                  <td><label className="reg-consent-choice"><input type="radio" name={`consent-${m.id}`} value="no" defaultChecked={m.photoConsent === false} /><span className="reg-visually-hidden">{m.displayName}: {self || isMe(m) ? 'No, I do not agree' : 'No, they do not agree'}</span></label></td>
                 </tr>
               ))}
             </tbody>

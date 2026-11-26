@@ -71,7 +71,7 @@ export const selectOptions: Record<string, string[]> = {
 
 /** People fields are shown in these groups, in this order. Unlisted fields go last. */
 export const personFieldGroups: { legend: string; note?: string; labels: string[] }[] = [
-  { legend: 'Role and names', labels: ['Role', 'Team assignment', 'Display name', 'Badge name', 'Official name', 'Email'] },
+  { legend: 'Role and names', note: 'Most people use the same name in the display, official and passport name fields. The badge name is usually a first name.', labels: ['Role', 'Team assignment', 'Display name', 'Badge name', 'Official name', 'Email'] },
   { legend: 'Passport', note: 'Only used to match travel and hotel records.', labels: ['Passport name', 'Passport number', 'Passport nationality', 'Date of birth'] },
   { legend: 'Contest and stay', labels: ['Individual contest language', 'Gender for room allocation', 'T-shirt size', 'Polo shirt size', 'T-shirt style'] },
   { legend: 'Food', note: 'Seen only by the organising team and the caterers.', labels: ['Food', 'Food details'] },
@@ -83,7 +83,7 @@ export const sections: Section[] = [
   { id: 'setup', title: 'Team and observers', required: true, intro: 'Who registers your country and who leads each team, how many teams are coming, whether each brings an observer, and who would like a single room. This sets your fees; the other names come later, in People.' },
   { id: 'payment', title: 'Payment', required: true, intro: 'Four parts, in this order. Your invoice details are kept once saved, so you can transfer later and come back to upload the proof.' },
   { id: 'teams', title: 'Teams', required: true, intro: 'Each team needs its team contest language. Contestants are put in a team on their own record in People.', records: { noun: 'team', plural: 'teams' } },
-  { id: 'people', title: 'People', required: true, intro: 'Everyone coming with your delegation. Each person is saved on their own, so you can fill this in stages. Opens once the proof of payment is uploaded.', records: { noun: 'person', plural: 'people' } },
+  { id: 'people', title: 'People', required: true, intro: 'Everyone coming with your delegation. Add as many as you like, then Save changes saves them all. You can fill this in over several sittings.', records: { noun: 'person', plural: 'people' } },
   { id: 'travel', title: 'Travel', required: true, intro: 'Each person’s arrival and departure, added once flights are booked. Everyone needs both, those who make their own way too. Once everyone’s are in and the payment is confirmed, we email you everyone’s badges.', records: { noun: 'trip', plural: 'trips' } },
   // Was "Rooms and welfare", before People and Travel were summed up here (meeting of 24 Nov 2026).
   { id: 'welfare', title: 'Review and requests', required: true, intro: 'Check what the organisers will work from, built from People and Travel, and tell the welfare team about any room requests.' },

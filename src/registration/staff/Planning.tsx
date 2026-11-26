@@ -77,6 +77,9 @@ export function TransportPanel({ canEdit }: { canEdit: boolean }) {
     } catch (e) { setActionError(errorText(e)) }
   }
   const sendAll = async () => {
+    // It goes straight to national representatives, so it asks first (review of 27 Nov 2026).
+    const waiting = new Set((data?.trips ?? []).filter((t) => t.transport !== 'own' && (t.locPickupTime || t.locTransportGroup) && !t.pickupEmailedAt).map((t) => t.delegationId)).size
+    if (!window.confirm(`Email pickup details now?${waiting ? ` ${waiting} ${waiting === 1 ? 'registration has' : 'registrations have'} ${direction === 'arrival' ? 'arrival' : 'departure'} pickups not emailed yet.` : ''} Every registration whose pickup plan changed since its last email gets one, straight away.`)) return
     setBusy(true); setActionError(''); setDone('')
     try {
       const result = await api<{ sent: number }>('/api/admin/transport/send', { method: 'POST' })
@@ -85,6 +88,15 @@ export function TransportPanel({ canEdit }: { canEdit: boolean }) {
     } catch (e) { setActionError(errorText(e)) } finally { setBusy(false) }
   }
   const people = trips.reduce((n, t) => n + t.people.length, 0)
+  // Each bus with its headcount, for checking capacity and printing a list per bus (review of 27 Nov 2026).
+  const buses = [...(data?.trips ?? []).filter((t) => t.transport !== 'own' && t.locTransportGroup?.trim()).reduce((map, t) => {
+    const key = `${t.localDate ?? ''}|${t.locTransportGroup!.trim()}`
+    const bus = map.get(key) ?? { date: t.localDate, name: t.locTransportGroup!.trim(), times: new Set<string>(), trips: [] as Trip[] }
+    if (t.locPickupTime) bus.times.add(t.locPickupTime.slice(0, 5))
+    bus.trips.push(t)
+    return map.set(key, bus)
+  }, new Map<string, { date: string | null; name: string; times: Set<string>; trips: Trip[] }>()).values()]
+    .sort((a, b) => `${a.date}${[...a.times].sort()[0] ?? ''}${a.name}`.localeCompare(`${b.date}${[...b.times].sort()[0] ?? ''}${b.name}`))
   // Everyone making their own way, listed apart so the transport team knows who is not on a bus (meeting of 24 Nov 2026).
   const ownWay = own ? [] : (data?.trips ?? []).filter((t) => t.transport === 'own')
   const ownPeople = ownWay.reduce((n, t) => n + t.people.length, 0)
@@ -133,6 +145,26 @@ export function TransportPanel({ canEdit }: { canEdit: boolean }) {
           </div>
         ))}
       </>)}
+      {data && buses.length > 0 && (
+        <div className="reg-bus-list">
+          <h3 className="reg-staff-subhead">By bus ({buses.length} {buses.length === 1 ? 'bus' : 'buses'})</h3>
+          <p className="reg-hint">From the bus names set above. <button type="button" className="reg-inline-btn" onClick={() => window.print()}>Print this page</button> for a list per bus.</p>
+          <TableWrap label={`${direction === 'arrival' ? 'Arrival' : 'Departure'} buses`}>
+            <thead><tr><th scope="col">Bus</th><th scope="col">Day and pickup</th><th scope="col">People</th><th scope="col">Who</th></tr></thead>
+            <tbody>{buses.map((b) => {
+              const count = b.trips.reduce((n, t) => n + t.people.length, 0)
+              return (
+                <tr key={`${b.date}-${b.name}`}>
+                  <th scope="row">Bus {b.name}</th>
+                  <td>{b.date ? day(b.date) : '—'}<small>{b.times.size ? [...b.times].sort().join(', ') : 'No pickup time yet'}</small></td>
+                  <td><strong>{count}</strong></td>
+                  <td>{b.trips.map((t) => <small key={t.id}>{t.countryTerritory}{t.flightServiceNumber ? ` (${t.flightServiceNumber})` : ''}: {t.people.join(', ')}</small>)}</td>
+                </tr>
+              )
+            })}</tbody>
+          </TableWrap>
+        </div>
+      )}
       {data && ownWay.length > 0 && (
         <div>
           <h3 className="reg-staff-subhead">Making their own way ({ownPeople} {ownPeople === 1 ? 'person' : 'people'})</h3>

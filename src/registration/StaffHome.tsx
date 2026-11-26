@@ -14,7 +14,7 @@ import Overview from './staff/Overview'
 import Payments from './staff/Payments'
 import { Countries, People, Welfare } from './staff/People'
 import { Activity, EmailLog, Exports } from './staff/Records'
-import { ConsentSettingsPanel, FeeSettingsPanel, InvoiceSettingsPanel } from './staff/Settings'
+import { FeeSettingsPanel, InvoiceSettingsPanel } from './staff/Settings'
 import { EventSettingsPanel, IncompletePanel, TransportPanel } from './staff/Planning'
 import { Panel, Problem, human, useLoad } from './staff/common'
 
@@ -38,7 +38,7 @@ function ParticipantPanel() {
 function ComingPanel({ role }: { role: Role }) {
   const tools = role === 'content_editor' ? 'News and the gallery' : 'Score entry and results publishing'
   return (
-    <Panel id="coming" title="Your tools are on the way" intro={`${tools} are planned for a later sprint (see the implementation plan). Your account and role already work.`}>
+    <Panel id="coming" title="Your tools are on the way" intro={`${tools} will be added here before the event. Your account and role already work.`}>
       <p className="reg-aside">For security, this role cannot see any participant data.</p>
     </Panel>
   )
@@ -72,7 +72,6 @@ const sectionDefs: SectionDef[] = [
   { id: 'activity', label: 'Activity log', group: 'Records', icon: History, roles: ['registration_admin'] },
   { id: 'email', label: 'Email log', group: 'Records', icon: Inbox, roles: ['registration_admin'] },
   { id: 'event', label: 'Dates and notices', group: 'Settings', icon: CalendarClock, roles: ['registration_admin'] },
-  { id: 'consent', label: 'Guardian consent', group: 'Settings', icon: ShieldCheck, roles: ['registration_admin'] },
   { id: 'accounts', label: 'Accounts', group: 'Settings', icon: UserCog, roles: [] },
 ]
 
@@ -83,7 +82,7 @@ function milestone() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })
   const days = (iso: string) => daysBetween(today, iso)
   if (today < '2027-01-18') return { count: days('2027-01-18'), label: 'until registration opens', date: '18 January 2027' }
-  if (today <= '2027-04-30') return { count: days('2027-04-30'), label: 'left to register', date: 'Registration closes 30 April 2027' }
+  if (today <= '2027-04-30') return { count: days('2027-04-30'), label: 'until the regular rate ends', date: 'Regular rate ends 30 April 2027' }
   if (today < '2027-07-21') return { count: days('2027-07-21'), label: 'until the Olympiad', date: '21–28 July 2027, Bangkok' }
   if (today <= '2027-07-28') return { count: null, label: 'Olympiad week', date: '21–28 July 2027, Bangkok' }
   return { count: null, label: 'IOL 2027 has ended', date: 'Bangkok, 21–28 July 2027' }
@@ -109,9 +108,16 @@ export default function StaffHome({ user, onSessionEnd, session }: { user: User;
   const topRef = useRef<HTMLDivElement>(null)
   const mounted = useRef(false)
 
+  // Each section is a history entry, so the browser's Back button goes to the previous section, and a link to another
+  // section (#badges) in the same tab opens it (review of 27 Nov 2026).
+  useEffect(() => {
+    const follow = () => { const id = readHash(); if (visible.some((s) => s.id === id)) setActive(id) }
+    window.addEventListener('hashchange', follow)
+    return () => window.removeEventListener('hashchange', follow)
+  }, [visible])
   useEffect(() => {
     if (!mounted.current) { mounted.current = true; return }
-    if (active) window.history.replaceState(null, '', `#${active}`)
+    if (active && readHash() !== active) window.history.pushState(null, '', `#${active}`)
     document.getElementById(`${active}-title`)?.focus({ preventScroll: true })
     const top = topRef.current?.getBoundingClientRect().top ?? 0
     if (top < 0) topRef.current?.scrollIntoView({ block: 'start' })
@@ -119,7 +125,10 @@ export default function StaffHome({ user, onSessionEnd, session }: { user: User;
 
   const head = role === 'participant'
     ? <PageHead eyebrow="Participant" title="Your registration" session={session} />
-    : <PageHead eyebrow={`Back office · ${roleLabel[role]}`} title={`Hello, ${user.fullName}.`} intro="You see only the tools and data this role needs." session={session} aside={<Milestone />} />
+    // The greeting and countdown only on Home; elsewhere a slim header, so the work starts near the top (review of 27 Nov 2026).
+    : active === 'home' || !active
+      ? <PageHead eyebrow={`Back office · ${roleLabel[role]}`} title={`Hello, ${user.fullName}.`} intro="You see only the tools and data this role needs." session={session} aside={<Milestone />} />
+      : <PageHead eyebrow={`Back office · ${roleLabel[role]}`} title="IOL 2027 back office" session={session} compact />
   const page = (body: ReactNode) => <>{head}<div className="reg-shell wrap">{body}</div></>
 
   if (role === 'participant') return page(<div className="reg-staff"><ParticipantPanel /></div>)
@@ -149,7 +158,6 @@ export default function StaffHome({ user, onSessionEnd, session }: { user: User;
     exports: () => <Exports />,
     activity: () => <Activity />,
     email: () => <EmailLog />,
-    consent: () => <ConsentSettingsPanel canEdit={role === 'registration_admin' || isSuper} />,
     accounts: () => <Accounts me={user} />,
   }
   const current = visible.find((s) => s.id === active) ?? visible[0]

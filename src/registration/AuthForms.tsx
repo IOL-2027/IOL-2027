@@ -77,8 +77,8 @@ function SignIn({ onSignedIn, onForgot, notice, staff }: { onSignedIn: (user: Us
   )
 }
 
-function ResetPassword({ initialEmail, onDone, onBack }: { initialEmail: string; onDone: (user: User) => void; onBack: () => void }) {
-  const [step, setStep] = useState<'email' | 'code'>('email')
+function ResetPassword({ initialEmail, onDone, onBack, haveCode = false }: { initialEmail: string; onDone: (user: User) => void; onBack: () => void; haveCode?: boolean }) {
+  const [step, setStep] = useState<'email' | 'code'>(haveCode ? 'code' : 'email')
   const [email, setEmail] = useState(initialEmail)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [status, setStatus] = useState('')
@@ -161,12 +161,13 @@ function ResetPassword({ initialEmail, onDone, onBack }: { initialEmail: string;
   )
 }
 
-type Invite = { code: string; countryTerritory: string; accreditedOrganisation: string | null; kind?: 'country' | 'jury' | 'volunteer' }
+export type InviteKind = 'country' | 'jury' | 'volunteer'
+type Invite = { code: string; countryTerritory: string; accreditedOrganisation: string | null; kind?: InviteKind }
 type UsedCode = { country: string; accountHint: string | null }
 const codePattern = /^IOL2027-[A-Z]{3}-[A-Z0-9]{4}$/i
 
-function SignUp({ onCreated, onSignIn, onForgot, initialCode }: {
-  onCreated: (user: User, developmentCode?: string) => void; onSignIn: () => void; onForgot: () => void; initialCode?: string
+function SignUp({ onCreated, onSignIn, onForgot, initialCode, onKind }: {
+  onCreated: (user: User, developmentCode?: string) => void; onSignIn: () => void; onForgot: () => void; initialCode?: string; onKind?: (kind: InviteKind) => void
 }) {
   const [step, setStep] = useState(0)
   const [invite, setInvite] = useState<Invite | null>(null)
@@ -180,7 +181,7 @@ function SignUp({ onCreated, onSignIn, onForgot, initialCode }: {
   const checkCode = async (code: string) => {
     try {
       const result = await api<{ invite: Invite }>('/api/registration/invite/verify', { method: 'POST', body: { code } })
-      setInvite(result.invite); setStep(1)
+      setInvite(result.invite); setStep(1); onKind?.(result.invite.kind ?? 'country')
     } catch (e) {
       if (e instanceof ApiError && e.data?.codeUsed) setUsed({ country: String(e.data.countryTerritory ?? ''), accountHint: (e.data.accountHint as string | null) ?? null })
       else throw e
@@ -247,7 +248,7 @@ function SignUp({ onCreated, onSignIn, onForgot, initialCode }: {
 
   return (
     <div ref={rootRef}>
-      <Stepper step={step} onBack={(index) => { setErrors({}); setStep(index) }} />
+      <Stepper step={step} onBack={(index) => { setErrors({}); setStep(index); if (index === 0) onKind?.('country') }} />
       <form ref={formRef} className="reg-account-card" onSubmit={submit} noValidate key={step}>
         {step === 0 && <>
           <h2 ref={headingRef} tabIndex={-1}>Enter your invitation code</h2>
@@ -277,7 +278,7 @@ function SignUp({ onCreated, onSignIn, onForgot, initialCode }: {
           <TextField name="password2" label="Confirm password" error={errors.password2} type="password" autoComplete="new-password" />
           <div className="reg-account-actions">
             <button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{busy ? 'Creating…' : 'Create account'} <ArrowRight size={18} aria-hidden="true" /></button>
-            <button type="button" className="reg-btn-link" onClick={() => { setErrors({}); setStep(0) }}><ArrowLeft size={16} aria-hidden="true" />Back</button>
+            <button type="button" className="reg-btn-link" onClick={() => { setErrors({}); setStep(0); onKind?.('country') }}><ArrowLeft size={16} aria-hidden="true" />Back</button>
           </div>
         </>}
       </form>
@@ -292,6 +293,8 @@ function SignUp({ onCreated, onSignIn, onForgot, initialCode }: {
 export function VerifyEmail({ user, developmentCode, fresh, onVerified, onSignOut }: {
   user: User; developmentCode?: string; fresh: boolean; onVerified: (user: User) => void; onSignOut: () => void
 }) {
+  const [address, setAddress] = useState(user.email)
+  const [changing, setChanging] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
   const [code, setCode] = useState(developmentCode)
@@ -310,11 +313,24 @@ export function VerifyEmail({ user, developmentCode, fresh, onVerified, onSignOu
     try {
       const result = await api<{ developmentCode?: string }>('/api/auth/verify-email/request', { method: 'POST' })
       if (result.developmentCode) setCode(result.developmentCode)
-      if (!quiet) setStatus(`A new code is on its way to ${user.email}.`)
+      if (!quiet) setStatus(`A new code is on its way to ${address}.`)
     } catch (e) {
       // 429: a code went out less than a minute ago and still works.
       if (!(quiet && e instanceof ApiError && e.status === 429)) setError(messageOf(e))
     }
+  }
+  /** A mistyped address, corrected before it is confirmed; the new code goes to the new address. */
+  const changeAddress = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const email = String(new FormData(event.currentTarget).get('new-email') ?? '').trim()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError('Enter an email address like name@example.org.'); return }
+    setBusy(true); setError(''); setStatus('')
+    try {
+      const result = await api<{ email: string; developmentCode?: string }>('/api/auth/verify-email/change-address', { method: 'POST', body: { email } })
+      setAddress(result.email); setChanging(false)
+      if (result.developmentCode) setCode(result.developmentCode)
+      setStatus(`Changed. A new code is on its way to ${result.email}.`)
+    } catch (e) { setError(messageOf(e)) } finally { setBusy(false) }
   }
   const sentOnOpen = useRef(false)
   useEffect(() => {
@@ -322,14 +338,34 @@ export function VerifyEmail({ user, developmentCode, fresh, onVerified, onSignOu
     sentOnOpen.current = true
     resend(true)
   }, [fresh])
+  if (changing) {
+    return (
+      <div>
+        <Stepper step={2} />
+        <form className="reg-account-card" onSubmit={changeAddress} noValidate>
+          <h2>Change your email address</h2>
+          <p className="reg-lede">Your account and anything you saved stay as they are. We send a new code to the new address.</p>
+          <div className={`reg-field${error ? ' has-error' : ''}`}>
+            <label htmlFor="acc-new-email">New email address</label>
+            {error && <p className="reg-error" id="acc-new-email-error"><CircleAlert size={16} aria-hidden="true" />{error}</p>}
+            <input id="acc-new-email" name="new-email" type="email" autoComplete="email" className="reg-control" defaultValue={address} aria-invalid={error ? true : undefined} aria-describedby={error ? 'acc-new-email-error' : undefined} />
+          </div>
+          <div className="reg-account-actions">
+            <button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{busy ? 'Changing…' : 'Change and send a new code'} <ArrowRight size={18} aria-hidden="true" /></button>
+            <button type="button" className="reg-btn-link" onClick={() => { setError(''); setChanging(false) }}><ArrowLeft size={16} aria-hidden="true" />Back</button>
+          </div>
+        </form>
+      </div>
+    )
+  }
   return (
     <div>
       <Stepper step={2} />
       <form className="reg-account-card" onSubmit={submit} noValidate>
         <h2>{fresh ? 'Check your email' : 'One step left: your email'}</h2>
         <p className="reg-lede">{fresh
-          ? <>We sent a 6-digit code to <strong>{user.email}</strong>. It expires in 30 minutes.</>
-          : <>Your account is set up, but the email address still needs checking. We sent a new 6-digit code to <strong>{user.email}</strong>.</>}</p>
+          ? <>We sent a 6-digit code to <strong>{address}</strong>. It expires in 30 minutes.</>
+          : <>Your account is set up, but the email address still needs checking. We sent a new 6-digit code to <strong>{address}</strong>.</>}</p>
         <DevCode code={code} />
         <div className={`reg-field${error ? ' has-error' : ''}`}>
           <label htmlFor="acc-otp">Code from the email</label>
@@ -337,7 +373,7 @@ export function VerifyEmail({ user, developmentCode, fresh, onVerified, onSignOu
           <input id="acc-otp" name="otp" className="reg-control reg-control-otp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} aria-invalid={error ? true : undefined} aria-describedby={error ? 'acc-otp-error' : undefined} />
         </div>
         <p className="reg-reassure"><MailCheck size={18} aria-hidden="true" />
-          <span>No email? Check spam, or <button type="button" className="reg-inline-btn" onClick={() => resend()}>send a new code</button>. Wrong address? <button type="button" className="reg-inline-btn" onClick={onSignOut}>Sign out</button> and contact the organisers.</span>
+          <span>No email? Check spam, or <button type="button" className="reg-inline-btn" onClick={() => resend()}>send a new code</button>. Wrong address? <button type="button" className="reg-inline-btn" onClick={() => { setError(''); setChanging(true) }}>Change it</button>. Or <button type="button" className="reg-inline-btn" onClick={onSignOut}>sign out</button>.</span>
         </p>
         <p className="reg-status-line" role="status">{status}</p>
         <div className="reg-account-actions"><button type="submit" className="reg-btn reg-btn-primary" disabled={busy}>{busy ? 'Checking…' : 'Verify and continue'} <ArrowRight size={18} aria-hidden="true" /></button></div>
@@ -350,11 +386,13 @@ export function VerifyEmail({ user, developmentCode, fresh, onVerified, onSignOu
  * Sign in, or create a country's account with an invitation code, in one card. The organisers' door (allowSignup false)
  * offers only sign-in and password reset. initialCode (from an invitation email link) opens the sign-up with it filled in.
  */
-export function Entry({ onSignedIn, onCreated, notice, allowSignup = true, initialCode }: {
-  onSignedIn: (user: User) => void; onCreated: (user: User, code?: string) => void; notice?: string; allowSignup?: boolean; initialCode?: string
+export function Entry({ onSignedIn, onCreated, notice, allowSignup = true, initialCode, onKind }: {
+  onSignedIn: (user: User) => void; onCreated: (user: User, code?: string) => void; notice?: string; allowSignup?: boolean; initialCode?: string; onKind?: (kind: InviteKind) => void
 }) {
-  const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>(allowSignup && initialCode ? 'signup' : 'signin')
-  const [resetEmail, setResetEmail] = useState('')
+  // A staff account set-up email links here with ?reset=<their address>: straight to choosing a password, the email filled in.
+  const [linkEmail] = useState(() => new URLSearchParams(window.location.search).get('reset') ?? '')
+  const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>(linkEmail ? 'reset' : allowSignup && initialCode ? 'signup' : 'signin')
+  const [resetEmail, setResetEmail] = useState(linkEmail)
   return (
     <div className="reg-account reg-entry">
       {mode !== 'reset' && allowSignup && (
@@ -364,8 +402,8 @@ export function Entry({ onSignedIn, onCreated, notice, allowSignup = true, initi
         </div>
       )}
       {mode === 'signin' && <SignIn staff={!allowSignup} onSignedIn={onSignedIn} notice={notice} onForgot={(email) => { setResetEmail(email); setMode('reset') }} />}
-      {mode === 'signup' && <SignUp onCreated={onCreated} initialCode={initialCode} onSignIn={() => setMode('signin')} onForgot={() => { setResetEmail(''); setMode('reset') }} />}
-      {mode === 'reset' && <ResetPassword initialEmail={resetEmail} onDone={onSignedIn} onBack={() => setMode('signin')} />}
+      {mode === 'signup' && <SignUp onCreated={onCreated} initialCode={initialCode} onKind={onKind} onSignIn={() => setMode('signin')} onForgot={() => { setResetEmail(''); setMode('reset') }} />}
+      {mode === 'reset' && <ResetPassword initialEmail={resetEmail} haveCode={Boolean(linkEmail) && resetEmail === linkEmail} onDone={onSignedIn} onBack={() => setMode('signin')} />}
     </div>
   )
 }

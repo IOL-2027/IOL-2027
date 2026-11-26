@@ -24,7 +24,7 @@ export async function issueVerificationCode(account) {
     `INSERT INTO email_verification_tokens (account_id, token_hash, expires_at) VALUES ($1, $2, now() + interval '30 minutes')`,
     [account.id, hashToken(code)],
   )
-  const { subject, html } = buildVerificationEmail({ countryTerritory: account.countryTerritory || 'your delegation', fullName: account.fullName, code })
+  const { subject, html } = buildVerificationEmail({ countryTerritory: account.countryTerritory || 'your delegation', fullName: account.fullName, code, kind: account.kind })
   return deliver({ account, subject, html, purpose: 'account_verification', code, failMessage: 'The verification email could not be sent. Please try again.' })
 }
 
@@ -36,6 +36,6 @@ export async function issuePasswordCode(account, { setup = false } = {}) {
     `INSERT INTO password_reset_tokens (account_id, token_hash, expires_at) VALUES ($1, $2, now() + $3::interval)`,
     [account.id, hashToken(code), setup ? '7 days' : '30 minutes'],
   )
-  const { subject, html } = buildPasswordCodeEmail({ fullName: account.fullName, code, setup, portalUrl })
+  const { subject, html } = buildPasswordCodeEmail({ fullName: account.fullName, code, setup, portalUrl, email: account.email })
   return deliver({ account, subject, html, purpose: setup ? 'account_setup' : 'password_reset', code, failMessage: 'The email could not be sent. Please try again.' })
 }

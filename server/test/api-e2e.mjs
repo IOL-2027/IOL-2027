@@ -388,13 +388,11 @@ check('Admin switches guardian consent on', policy.status === 200 && policy.json
 const yui = (await S.admin.get(`/api/registration/delegations/${japanId}`)).json.members.find((m) => m.role === 'contestant')
 await S.admin.patch(`/api/registration/members/${yui.id}`, { dateOfBirth: '2011-05-01' })
 const japanNow = (await S.admin.get(`/api/registration/delegations/${japanId}`)).json
-check('a contestant under 18 is flagged for consent', japanNow.members.find((m) => m.id === yui.id).needsGuardianConsent === true)
+// The old per-contestant guardian upload is superseded by the Consent forms step (review of 27 Nov 2026): even with the
+// stored policy on, nobody is flagged and submitting never asks for it.
+check('the old guardian consent policy flags nobody', japanNow.members.find((m) => m.id === yui.id).needsGuardianConsent === false)
 const consentMissing = await S.admin.post(`/api/registration/delegations/${japanId}/submit`)
-check('submission lists the missing consent form', consentMissing.status === 409 && consentMissing.json.missing.some((m) => m.includes('guardian consent form')), JSON.stringify(consentMissing.json))
-const consentForm = new FormData(); consentForm.append('consent', new Blob(['%PDF-1.4 consent'], { type: 'application/pdf' }), 'consent.pdf')
-check('consent form upload', (await S.admin.post(`/api/registration/members/${yui.id}/guardian-consent`, undefined, { form: consentForm })).status === 201)
-const afterConsent = await S.admin.post(`/api/registration/delegations/${japanId}/submit`)
-check('uploaded consent clears that item', afterConsent.status === 409 && !afterConsent.json.missing.some((m) => m.includes('guardian consent form')))
+check('submission never asks for the old guardian consent form', consentMissing.status === 409 && !consentMissing.json.missing.some((m) => m.includes('guardian consent form')), JSON.stringify(consentMissing.json))
 check('consent policy switched back off', (await S.admin.put('/api/admin/settings/guardian-consent', { required: false, ageThreshold: 18, referenceDate: '2027-07-21' })).json?.guardianConsent?.required === false)
 
 // --- staff accounts
