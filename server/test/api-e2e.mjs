@@ -430,7 +430,29 @@ for (let i = 0; i < 5; i++) await new Client().post('/api/auth/password-reset/co
 check('five wrong guesses retire the code', (await new Client().post('/api/auth/password-reset/confirm', { email: 'results@iol2027.test', code: guessed.json.developmentCode, password: 'guessing-password-123' })).status === 400)
 
 // --- logout, lockout
-check('logout ends the session', (await tl.post('/api/auth/logout')).status === 204 && (await tl.get('/api/auth/me')).json.user === null)
+// --- consent forms as one ZIP, and a mistyped address corrected before it is confirmed (review of 27 Nov 2026)
+const zip = await tl.get(`/api/registration/delegations/${thaiId}/consent-forms.zip`)
+check('consent forms download as one ZIP', zip.status === 200 && /zip/.test(zip.headers.get('content-type') ?? '') && zip.text.startsWith('PK'), `${zip.status} ${zip.headers.get('content-type')}`)
+const otherZip = await resetter.get(`/api/registration/delegations/${thaiId}/consent-forms.zip`) // Japan, signed in again after its reset
+check('another delegation cannot download them (404)', otherZip.status === 404, String(otherZip.status))
+const typo = new Client()
+const typoMade = await typo.post('/api/registration/team-leader-account', { inviteCode: 'IOL2027-TST-LOOP', email: 'typo.leader@iol2027.tset', password: 'a-long-enough-password' })
+check('sign-up with a mistyped address', typoMade.status === 201, JSON.stringify(typoMade.json))
+check('change to an address already in use -> 409', (await typo.post('/api/auth/verify-email/change-address', { email: 'tl.thailand@iol2027.test' })).status === 409)
+const moved = await typo.post('/api/auth/verify-email/change-address', { email: 'typo.leader@iol2027.test' })
+check('the address can be corrected, with a new code', moved.status === 201 && moved.json.email === 'typo.leader@iol2027.test' && /^\d{6}$/.test(moved.json.developmentCode ?? ''), JSON.stringify(moved.json))
+check('the old code no longer works', (await typo.post('/api/auth/verify-email', { code: typoMade.json.developmentCode })).status === 400)
+const typoMe = (await typo.get('/api/auth/me')).json.user
+check('the account uses the new address', typoMe.email === 'typo.leader@iol2027.test', JSON.stringify(typoMe))
+await typo.post('/api/auth/verify-email/change-address', { email: 'typo.leader2@iol2027.test' })
+const third = await typo.post('/api/auth/verify-email/change-address', { email: 'typo.leader3@iol2027.test' })
+check('a fourth change within the hour -> 429', (await typo.post('/api/auth/verify-email/change-address', { email: 'typo.leader4@iol2027.test' })).status === 429)
+check('the latest code confirms it', (await typo.post('/api/auth/verify-email', { code: third.json?.developmentCode })).json?.user?.emailVerified === true)
+const typoNow = (await typo.get(`/api/registration/delegations/${typoMe.delegationId}`)).json
+check('the registration uses the new address too', typoNow?.delegation?.teamLeaderEmail === 'typo.leader3@iol2027.test', JSON.stringify(typoNow?.delegation))
+check('a confirmed address cannot be changed here (409)', (await tl.post('/api/auth/verify-email/change-address', { email: 'other@iol2027.test' })).status === 409)
+
+check('logout ends the session',(await tl.post('/api/auth/logout')).status === 204 && (await tl.get('/api/auth/me')).json.user === null)
 const lock = new Client()
 for (let i = 0; i < 5; i++) await lock.post('/api/auth/login', { email: 'nobody@iol2027.test', password: 'wrong-password-' + i })
 check('6th failed sign-in within 15 minutes -> 429', (await lock.post('/api/auth/login', { email: 'nobody@iol2027.test', password: 'whatever-password' })).status === 429)

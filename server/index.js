@@ -334,6 +334,11 @@ app.post('/api/auth/verify-email/change-address', requireAuth, asyncHandler(asyn
   if (req.user.emailVerified) throw new HttpError(409, 'This address is already confirmed. To change it, contact the organisers.')
   const email = requiredString(req.body.email, 'Email').toLowerCase()
   if (!isEmail(email)) throw new HttpError(400, 'Enter an email address like name@example.org.')
+  // Each change sends a code, so a few an hour (it also skips the one-a-minute wait on resending).
+  const changes = await query(
+    `SELECT count(*)::int AS n FROM audit_events WHERE actor_account_id = $1 AND event_type = 'unverified_email_changed' AND created_at > now() - interval '1 hour'`,
+    [req.user.id])
+  if (changes.rows[0].n >= 3) throw new HttpError(429, 'The address was changed several times in the last hour. Please wait a little, or write to iol2027.th@gmail.com.')
   const country = await withTransaction(async (client) => {
     const taken = await client.query('SELECT 1 FROM accounts WHERE lower(email) = $1 AND id <> $2', [email, req.user.id])
     if (taken.rowCount) throw new HttpError(409, 'An account with this email already exists. Sign in with it instead.')
